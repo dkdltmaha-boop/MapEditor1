@@ -21,6 +21,7 @@ public enum MapEditorToolbarAction
     Save,
     Load,
     ImportPixelChromaMap,
+    OpenTilesetLibrary,
     PngLoad,
     PastePng,
     ExportPng,
@@ -30,6 +31,7 @@ public enum MapEditorToolbarAction
     LoadRecentPng,
     MapPresetSquare,
     ExportCellPixels,
+    WholeTilePaint,
     PngPaletteGridSize,
     SetLayer,
     ToggleLayerVisible,
@@ -133,6 +135,9 @@ public class MapEditorToolbarButton : MonoBehaviour
             case MapEditorToolbarAction.ImportPixelChromaMap:
                 target.ImportPixelChromaMap();
                 break;
+            case MapEditorToolbarAction.OpenTilesetLibrary:
+                target.OpenTilesetLibrary();
+                break;
             case MapEditorToolbarAction.PngLoad:
                 target.LoadPngPalette();
                 break;
@@ -159,6 +164,9 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.ExportCellPixels:
                 target.SetExportCellPixels(intArgument);
+                break;
+            case MapEditorToolbarAction.WholeTilePaint:
+                target.SetWholeTilePaintMode();
                 break;
             case MapEditorToolbarAction.PngPaletteGridSize:
                 target.SetPngPaletteGridSize(intArgument);

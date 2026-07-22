@@ -11,10 +11,16 @@ public class MapEditorMapSaveService
 
     private readonly int maxMapSize;
     private string currentMapFilePath = string.Empty;
+    private MapEditorTilesetDefinition[] importedTilesets = System.Array.Empty<MapEditorTilesetDefinition>();
 
     public MapEditorMapSaveService(int maxMapSize)
     {
         this.maxMapSize = maxMapSize;
+    }
+
+    public void SetImportedTilesets(MapEditorTilesetDefinition[] definitions)
+    {
+        importedTilesets = definitions ?? System.Array.Empty<MapEditorTilesetDefinition>();
     }
 
     public bool Save(MapData mapData, string currentPngPalettePath)
@@ -95,6 +101,7 @@ public class MapEditorMapSaveService
 
         MapSaveData saveData = mapData.ToSaveData();
         saveData.currentPngPalettePath = currentPngPalettePath;
+        saveData.importedTilesets = importedTilesets;
         saveData.spawnX = Mathf.Clamp(spawnX, 0, mapData.width - 1);
         saveData.spawnY = Mathf.Clamp(spawnY, 0, mapData.height - 1);
         saveData.spawnPoints = spawnPoints == null || spawnPoints.Length == 0
@@ -165,6 +172,18 @@ public class MapEditorMapSaveService
         for (int i = 0; i < saveData.imagePaths.Length; i++)
         {
             TryEmbedPngAsset(saveData.imagePaths[i], embeddedAssets);
+        }
+
+        if (saveData.importedTilesets != null)
+        {
+            for (int i = 0; i < saveData.importedTilesets.Length; i++)
+            {
+                MapEditorTilesetDefinition definition = saveData.importedTilesets[i];
+                if (definition != null)
+                {
+                    TryEmbedPngAsset(definition.atlasPath, embeddedAssets);
+                }
+            }
         }
 
         if (saveData.layerTiles != null)
@@ -312,6 +331,20 @@ public class MapEditorMapSaveService
         else if (string.IsNullOrEmpty(saveData.currentPngPalettePath) || !File.Exists(saveData.currentPngPalettePath))
         {
             saveData.currentPngPalettePath = firstRestoredPath;
+        }
+
+        if (saveData.importedTilesets != null)
+        {
+            for (int i = 0; i < saveData.importedTilesets.Length; i++)
+            {
+                MapEditorTilesetDefinition definition = saveData.importedTilesets[i];
+                if (definition != null
+                    && !string.IsNullOrEmpty(definition.atlasPath)
+                    && restoredPaths.TryGetValue(definition.atlasPath, out string restoredTilesetPath))
+                {
+                    definition.atlasPath = restoredTilesetPath;
+                }
+            }
         }
 
         BakeImageTilesIntoPixelData(saveData);

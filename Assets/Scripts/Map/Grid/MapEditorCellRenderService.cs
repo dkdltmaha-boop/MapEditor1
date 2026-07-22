@@ -4,6 +4,15 @@ using UnityEngine;
 
 public sealed class MapEditorCellRenderService
 {
+    private static readonly MapEditorLayerType[] LayerPriority =
+    {
+        MapEditorLayerType.Zone,
+        MapEditorLayerType.WallCollision,
+        MapEditorLayerType.WallVisual,
+        MapEditorLayerType.Object,
+        MapEditorLayerType.Ground
+    };
+
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
     private readonly Func<MapEditorLayerType, bool> isLayerVisible;
 
@@ -31,6 +40,8 @@ public sealed class MapEditorCellRenderService
         Sprite sprite = tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId
             ? getPngTileSprite(imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY)
             : null;
+
+        ApplyUnderlay(cell, mapData, layerType);
 
         if (tileId == MapEditorManager.WallTileId)
         {
@@ -185,18 +196,9 @@ public sealed class MapEditorCellRenderService
 
     private MapEditorLayerType GetTopVisibleLayer(MapData mapData, int x, int y)
     {
-        MapEditorLayerType[] priority =
+        for (int i = 0; i < LayerPriority.Length; i++)
         {
-            MapEditorLayerType.Zone,
-            MapEditorLayerType.WallCollision,
-            MapEditorLayerType.WallVisual,
-            MapEditorLayerType.Object,
-            MapEditorLayerType.Ground
-        };
-
-        for (int i = 0; i < priority.Length; i++)
-        {
-            MapEditorLayerType layerType = priority[i];
+            MapEditorLayerType layerType = LayerPriority[i];
 
             if (isLayerVisible != null && !isLayerVisible(layerType))
             {
@@ -210,5 +212,44 @@ public sealed class MapEditorCellRenderService
         }
 
         return MapEditorLayerType.Ground;
+    }
+
+    private void ApplyUnderlay(GridCell cell, MapData mapData, MapEditorLayerType topLayer)
+    {
+        int topIndex = Array.IndexOf(LayerPriority, topLayer);
+
+        for (int i = topIndex + 1; i < LayerPriority.Length; i++)
+        {
+            MapEditorLayerType layerType = LayerPriority[i];
+            if (isLayerVisible != null && !isLayerVisible(layerType))
+            {
+                continue;
+            }
+
+            int tileId = mapData.GetTile(cell.X, cell.Y, layerType);
+            if (tileId == -1)
+            {
+                continue;
+            }
+
+            string imagePath = mapData.GetImagePath(cell.X, cell.Y, layerType);
+            int imageIndex = mapData.GetImageIndex(cell.X, cell.Y, layerType);
+            Sprite sprite = tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId
+                ? getPngTileSprite(
+                    imagePath,
+                    imageIndex,
+                    mapData.GetImageRotation(cell.X, cell.Y, layerType),
+                    mapData.GetImageFlipX(cell.X, cell.Y, layerType),
+                    mapData.GetImageFlipY(cell.X, cell.Y, layerType))
+                : null;
+
+            cell.SetUnderlay(
+                mapData.GetColor(cell.X, cell.Y, layerType),
+                sprite,
+                mapData.GetPixelData(cell.X, cell.Y, layerType));
+            return;
+        }
+
+        cell.ClearUnderlay();
     }
 }

@@ -25,6 +25,8 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
     private Text spawnMarkerLabel;
     private Texture2D pixelTexture;
     private Sprite pixelSprite;
+    private Texture2D underlayTexture;
+    private Sprite underlaySprite;
 
     private void Awake()
     {
@@ -37,7 +39,64 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
     {
         X = x;
         Y = y;
+        ClearUnderlay();
         Clear();
+    }
+
+    public void SetUnderlay(Color color, Sprite sprite, MapTilePixelData pixelData)
+    {
+        if (raycastImage == null)
+        {
+            raycastImage = GetComponent<Image>();
+        }
+
+        if (raycastImage == null)
+        {
+            return;
+        }
+
+        if (pixelData != null && pixelData.colors != null && pixelData.colors.Length > 0)
+        {
+            int resolution = Mathf.Max(1, pixelData.resolution);
+            EnsureUnderlayTexture(resolution);
+
+            for (int y = 0; y < resolution; y++)
+            {
+                for (int x = 0; x < resolution; x++)
+                {
+                    underlayTexture.SetPixel(x, resolution - 1 - y, pixelData.GetPixel(x, y));
+                }
+            }
+
+            underlayTexture.Apply(false, false);
+            raycastImage.sprite = underlaySprite;
+            raycastImage.color = Color.white;
+        }
+        else
+        {
+            raycastImage.sprite = sprite;
+            raycastImage.color = sprite == null ? color : Color.white;
+        }
+
+        raycastImage.preserveAspect = false;
+        raycastImage.raycastTarget = true;
+    }
+
+    public void ClearUnderlay()
+    {
+        if (raycastImage == null)
+        {
+            raycastImage = GetComponent<Image>();
+        }
+
+        if (raycastImage == null)
+        {
+            return;
+        }
+
+        raycastImage.sprite = null;
+        raycastImage.color = Color.white;
+        raycastImage.raycastTarget = true;
     }
 
     public void SetColor(Color color)
@@ -199,6 +258,32 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         {
             spawnMarkerLabel.gameObject.SetActive(visible);
         }
+    }
+
+    private void EnsureUnderlayTexture(int resolution)
+    {
+        if (underlayTexture != null && underlayTexture.width == resolution && underlayTexture.height == resolution)
+        {
+            return;
+        }
+
+        if (underlaySprite != null)
+        {
+            MapEditorObjectUtility.DestroyObject(underlaySprite);
+            underlaySprite = null;
+        }
+
+        if (underlayTexture != null)
+        {
+            MapEditorObjectUtility.DestroyObject(underlayTexture);
+        }
+
+        underlayTexture = new Texture2D(resolution, resolution, TextureFormat.RGBA32, false)
+        {
+            filterMode = FilterMode.Point,
+            wrapMode = TextureWrapMode.Clamp
+        };
+        underlaySprite = Sprite.Create(underlayTexture, new Rect(0, 0, resolution, resolution), new Vector2(0.5f, 0.5f), resolution);
     }
 
     private void ApplyImageTransform()

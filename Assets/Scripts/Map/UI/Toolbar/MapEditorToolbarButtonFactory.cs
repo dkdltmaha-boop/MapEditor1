@@ -257,6 +257,10 @@ public static class MapEditorToolbarButtonFactory
             case "Import PixelChroma Map":
             case "ImportPixelChromaMap":
                 return MapEditorToolbarAction.ImportPixelChromaMap;
+            case "Tilesets":
+            case "Import Tileset":
+            case "ImportTileset":
+                return MapEditorToolbarAction.OpenTilesetLibrary;
             case "Load PNG":
             case "PNGLoad":
                 return MapEditorToolbarAction.PngLoad;

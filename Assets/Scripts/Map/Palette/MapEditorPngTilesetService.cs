@@ -99,7 +99,9 @@ public class MapEditorPngTilesetService
 
         if (isFlexibleTile)
         {
-            RectInt contentRect = GetCachedContentPixelRect(texture);
+            RectInt contentRect = MapEditorTilesetLibraryService.IsNormalizedAtlasPath(imagePath)
+                ? new RectInt(0, 0, texture.width, texture.height)
+                : GetCachedContentPixelRect(texture);
             float cellWidth = contentRect.width / (float)paletteGridSize;
             float cellHeight = contentRect.height / (float)paletteGridSize;
             pixelX = contentRect.x + Mathf.FloorToInt(x * cellWidth);

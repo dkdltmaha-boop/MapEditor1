@@ -219,6 +219,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, "Save Edit", "Ctrl+S");
         EnsureToolbarActionButton(toolbar, manager, "Load Edit", "Ctrl+L");
         EnsureToolbarActionButton(toolbar, manager, "Import Map", "Click");
+        EnsureToolbarActionButton(toolbar, manager, "Tilesets", "Click");
         EnsureToolbarActionButton(toolbar, manager, "Load PNG", "Click");
         EnsureToolbarActionButton(toolbar, manager, "Paste PNG", "Ctrl+P");
         EnsureToolbarActionButton(toolbar, manager, "PNG Out", "Click");

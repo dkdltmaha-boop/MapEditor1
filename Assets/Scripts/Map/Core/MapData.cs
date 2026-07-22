@@ -1044,6 +1044,7 @@ public class MapSaveData
     public int[] layers;
     public MapLayerTileData[] layerTiles;
     public EmbeddedPngAsset[] embeddedPngAssets;
+    public MapEditorTilesetDefinition[] importedTilesets;
 
     public MapSaveData()
     {
@@ -1066,6 +1067,7 @@ public class MapSaveData
         layerTiles = new MapLayerTileData[0];
         spawnPoints = new MapEditorSpawnPointData[0];
         embeddedPngAssets = new EmbeddedPngAsset[0];
+        importedTilesets = new MapEditorTilesetDefinition[0];
     }
 }
 

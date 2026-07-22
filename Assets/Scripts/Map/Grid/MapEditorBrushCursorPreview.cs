@@ -25,6 +25,9 @@ public class MapEditorBrushCursorPreview
         int selectedImageRotation,
         bool selectedImageFlipX,
         bool selectedImageFlipY,
+        bool paintWholeTile,
+        int tileRegionWidth,
+        int tileRegionHeight,
         int pixelsPerTile,
         int hoveredSubPixelX,
         int hoveredSubPixelY,
@@ -65,7 +68,13 @@ public class MapEditorBrushCursorPreview
             return;
         }
 
-        if (selectedImageBrush != null)
+        if (paintWholeTile && selectedImageBrush != null && (tileRegionWidth > 1 || tileRegionHeight > 1))
+        {
+            UpdateTileRegionPreview(gridGenerator, hoveredCell, selectedImageBrush, tileRegionWidth, tileRegionHeight, alpha);
+            return;
+        }
+
+        if (selectedImageBrush != null && !paintWholeTile)
         {
             UpdateSpriteSubPixelPreview(gridGenerator, mapData, hoveredCell, selectedImageBrush, pixelsPerTile, hoveredSubPixelX, hoveredSubPixelY, alpha);
             return;
@@ -110,6 +119,31 @@ public class MapEditorBrushCursorPreview
                 ConfigureCursorImage(image, gridGenerator.cellSize, mapX, mapY, selectedColor, selectedImageBrush, selectedImageRotation, selectedImageFlipX, selectedImageFlipY, alpha);
             }
         }
+    }
+
+    private void UpdateTileRegionPreview(
+        GridGenerator gridGenerator,
+        GridCell hoveredCell,
+        Sprite sprite,
+        int width,
+        int height,
+        float alpha)
+    {
+        while (images.Count < 1)
+        {
+            images.Add(CreateCursorImage());
+        }
+
+        for (int i = 0; i < images.Count; i++)
+        {
+            images[i].gameObject.SetActive(i == 0);
+        }
+
+        int startX = hoveredCell.X - width / 2;
+        int startY = hoveredCell.Y - height / 2;
+        Image image = images[0];
+        ConfigureCursorImage(image, gridGenerator.cellSize, startX, startY, Color.white, sprite, 0, false, false, alpha);
+        image.rectTransform.sizeDelta = new Vector2(width * gridGenerator.cellSize, height * gridGenerator.cellSize);
     }
 
     public void Hide()

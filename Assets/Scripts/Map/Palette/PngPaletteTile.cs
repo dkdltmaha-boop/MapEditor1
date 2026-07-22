@@ -91,14 +91,17 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
             return;
         }
 
-        Sprite selectedSprite = CreateSubSprite(resolution, subX, subY);
+        bool wholeTile = manager.IsWholeTilePaintMode();
+        Sprite selectedSprite = wholeTile ? Sprite : CreateSubSprite(resolution, subX, subY);
 
         if (selectedSprite == null)
         {
             return;
         }
 
-        int encodedIndex = MapEditorPngTilesetService.EncodeSubTileIndex(ImageIndex, resolution, subX, subY);
+        int encodedIndex = wholeTile
+            ? ImageIndex
+            : MapEditorPngTilesetService.EncodeSubTileIndex(ImageIndex, resolution, subX, subY);
         manager.SelectImageBrush(selectedSprite, ImagePath, encodedIndex);
         eventData.Use();
     }
@@ -147,6 +150,12 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
         if (Sprite == null || eventData == null)
         {
             return false;
+        }
+
+        if (manager != null && manager.IsWholeTilePaintMode())
+        {
+            resolution = LogicalTilePixels;
+            return true;
         }
 
         int pixelsPerTile = Mathf.Clamp(MapEditorManager.NormalizeExportCellPixels(resolution), 1, LogicalTilePixels);

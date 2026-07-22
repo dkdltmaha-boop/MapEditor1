@@ -74,6 +74,7 @@ public class MapEditorManager : MonoBehaviour
 
     [Header("Export")]
     public int exportCellPixels = 1;
+    public bool paintWholeTile;
     public bool exportEmptyCellsTransparent = true;
     public string pixelChromaMapId = "map_01";
     public string workshopTitle = "New PixelChroma Map";
@@ -95,6 +96,7 @@ public class MapEditorManager : MonoBehaviour
 
     private readonly Dictionary<Vector2Int, GridCell> cells = new Dictionary<Vector2Int, GridCell>();
     private readonly MapEditorPngFileService pngFiles = new MapEditorPngFileService();
+    private MapEditorTilesetLibraryService tilesetLibrary;
     private readonly MapEditorBrushCursorPreview brushCursorPreview = new MapEditorBrushCursorPreview();
     private readonly MapEditorMapSaveService mapSaveService = new MapEditorMapSaveService(MaxMapSize);
     private readonly MapEditorPixelChromaImportService pixelChromaImportService = new MapEditorPixelChromaImportService();
@@ -117,6 +119,11 @@ public class MapEditorManager : MonoBehaviour
     private GridCell hoveredCell;
     private int hoveredSubPixelX;
     private int hoveredSubPixelY;
+    private int selectedRegionGridSize;
+    private int selectedRegionStartX;
+    private int selectedRegionStartYFromTop;
+    private int selectedRegionWidth = 1;
+    private int selectedRegionHeight = 1;
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
@@ -134,6 +141,7 @@ public class MapEditorManager : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        EnsureTilesetLibrary();
         gridGenerator = GetComponent<GridGenerator>();
 
         if (CurrentMapData == null)
@@ -157,6 +165,7 @@ public class MapEditorManager : MonoBehaviour
     private void OnEnable()
     {
         Instance = this;
+        EnsureTilesetLibrary();
         EnsureMapEditingService();
         EnsureSelectionClipboardService();
         EnsureViewportService();
@@ -183,6 +192,16 @@ public class MapEditorManager : MonoBehaviour
         }
 
         mapEditing = new MapEditorMapEditingService(() => CurrentMapData, () => activeLayer, IsLayerVisible, cells, GetPngTileSprite, RefreshMinimap);
+    }
+
+    private MapEditorTilesetLibraryService EnsureTilesetLibrary()
+    {
+        if (tilesetLibrary == null)
+        {
+            tilesetLibrary = new MapEditorTilesetLibraryService();
+        }
+
+        return tilesetLibrary;
     }
 
     private void EnsureSelectionClipboardService()
@@ -561,12 +580,19 @@ public class MapEditorManager : MonoBehaviour
 
     public void SelectImageBrush(Sprite sprite, string imagePath, int imageIndex, int rotation, bool flipX, bool flipY)
     {
+        ClearSelectedTileRegion();
         CancelTransientToolState();
         EnsureBrushSelectionService();
 
         if (!brushSelection.SelectImageBrush(this, sprite, imagePath, imageIndex, rotation, flipX, flipY))
         {
             return;
+        }
+
+        if (MapEditorTilesetLibraryService.TryGetByAtlasPath(imagePath, out MapEditorTilesetDefinition tileset))
+        {
+            activeLayer = tileset.defaultCollision ? MapEditorLayerType.WallCollision : tileset.defaultLayer;
+            useWallTileBrush = tileset.defaultCollision || activeLayer == MapEditorLayerType.WallCollision;
         }
 
         if (useWallTileBrush)
@@ -592,6 +618,82 @@ public class MapEditorManager : MonoBehaviour
         }
 
         Debug.Log("Selected image brush: " + sprite.name);
+    }
+
+    public void SelectImageTileRegion(
+        Sprite previewSprite,
+        string imagePath,
+        int gridSize,
+        int startX,
+        int startYFromTop,
+        int width,
+        int height)
+    {
+        SelectImageBrush(previewSprite, imagePath, -1);
+        selectedRegionGridSize = NormalizePngPaletteGridSize(gridSize);
+        selectedRegionStartX = Mathf.Clamp(startX, 0, selectedRegionGridSize - 1);
+        selectedRegionStartYFromTop = Mathf.Clamp(startYFromTop, 0, selectedRegionGridSize - 1);
+        selectedRegionWidth = Mathf.Clamp(width, 1, selectedRegionGridSize - selectedRegionStartX);
+        selectedRegionHeight = Mathf.Clamp(height, 1, selectedRegionGridSize - selectedRegionStartYFromTop);
+        UpdateBrushPreview();
+        UpdateBrushCursorPreview();
+    }
+
+    private bool HasSelectedTileRegion()
+    {
+        return selectedImageBrush != null
+            && !string.IsNullOrEmpty(selectedImagePath)
+            && selectedRegionGridSize > 0
+            && (selectedRegionWidth > 1 || selectedRegionHeight > 1);
+    }
+
+    private void ClearSelectedTileRegion()
+    {
+        selectedRegionGridSize = 0;
+        selectedRegionStartX = 0;
+        selectedRegionStartYFromTop = 0;
+        selectedRegionWidth = 1;
+        selectedRegionHeight = 1;
+    }
+
+    private void PaintSelectedTileRegion(GridCell centerCell)
+    {
+        int startMapX = centerCell.X - selectedRegionWidth / 2;
+        int startMapY = centerCell.Y - selectedRegionHeight / 2;
+        MapEditorPaintSelection selection = GetPaintSelection();
+        selection.brushSize = 1;
+
+        mapEditing.BeginTransaction();
+
+        for (int y = 0; y < selectedRegionHeight; y++)
+        {
+            int sourceYFromTop = selectedRegionStartYFromTop + y;
+            int sourceY = selectedRegionGridSize - 1 - sourceYFromTop;
+
+            for (int x = 0; x < selectedRegionWidth; x++)
+            {
+                if (!cells.TryGetValue(new Vector2Int(startMapX + x, startMapY + y), out GridCell targetCell))
+                {
+                    continue;
+                }
+
+                int sourceX = selectedRegionStartX + x;
+                int baseIndex = sourceY * selectedRegionGridSize + sourceX;
+                int imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(selectedRegionGridSize, baseIndex);
+                Sprite sprite = GetPngTileSprite(selectedImagePath, imageIndex);
+
+                if (sprite == null)
+                {
+                    continue;
+                }
+
+                selection.selectedImageBrush = sprite;
+                selection.selectedImageIndex = imageIndex;
+                mapEditing.PaintCell(targetCell, selection);
+            }
+        }
+
+        mapEditing.CommitTransaction();
     }
 
     public void UseCurrentTool(GridCell cell)
@@ -623,6 +725,19 @@ public class MapEditorManager : MonoBehaviour
         switch (EditorToolController.Instance.CurrentTool)
         {
             case EditorToolType.Brush:
+                if (paintWholeTile)
+                {
+                    if (HasSelectedTileRegion())
+                    {
+                        PaintSelectedTileRegion(cell);
+                    }
+                    else
+                    {
+                        mapEditing.PaintCell(cell, GetPaintSelection());
+                    }
+                    break;
+                }
+
                 if (!useWallTileBrush && selectedImageBrush == null && useSelectedColor && subPixelX >= 0 && subPixelY >= 0)
                 {
                     mapEditing.PaintSubPixel(cell, subPixelX, subPixelY, GetExportCellPixels(), selectedColor);
@@ -653,6 +768,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void ClearSelectedImageBrush()
     {
+        ClearSelectedTileRegion();
         CancelTransientToolState();
         EnsureBrushSelectionService();
         brushSelection.ClearImageBrush(this);
@@ -795,12 +911,14 @@ public class MapEditorManager : MonoBehaviour
     public void SaveMap()
     {
         EnsureSpawnPointList();
+        mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
 
     public void SaveMap(string fileName)
     {
         EnsureSpawnPointList();
+        mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave(), fileName);
     }
 
@@ -830,6 +948,10 @@ public class MapEditorManager : MonoBehaviour
 
     private void ApplyLoadedMap(MapSaveData saveData, string path)
     {
+        if (saveData.importedTilesets != null && saveData.importedTilesets.Length > 0)
+        {
+            EnsureTilesetLibrary().ReplaceDefinitions(saveData.importedTilesets);
+        }
         CurrentMapData = mapLoadApplyService.Apply(
             this,
             saveData,
@@ -1195,11 +1317,15 @@ public class MapEditorManager : MonoBehaviour
             selectedImageRotation,
             selectedImageFlipX,
             selectedImageFlipY,
+            paintWholeTile,
+            HasSelectedTileRegion() ? selectedRegionWidth : 1,
+            HasSelectedTileRegion() ? selectedRegionHeight : 1,
             GetExportCellPixels(),
             hoveredSubPixelX,
             hoveredSubPixelY,
             EditorToolController.Instance != null
                 && EditorToolController.Instance.CurrentTool == EditorToolType.Brush
+                && !paintWholeTile
                 && !useWallTileBrush
                 && selectedImageBrush == null
                 && useSelectedColor,
@@ -1214,6 +1340,73 @@ public class MapEditorManager : MonoBehaviour
         pngFiles.SetPaletteGridSize(GetPngPaletteGridSize());
         colorWheelWindow = pngFiles.LoadPaletteWithDialog(this, colorWheelWindow, colorPaletteOffset, maxRecentPngFiles);
         RefreshRecentPngList();
+    }
+
+    public void OpenTilesetLibrary()
+    {
+#if UNITY_EDITOR
+        MapEditorTilesetImporterWindow.Open(this);
+#else
+        Debug.LogWarning("Tileset importing is only available in the Unity Editor.");
+#endif
+    }
+
+    public bool ImportTileset(
+        string sourcePath,
+        string displayName,
+        int tileWidth,
+        int tileHeight,
+        int margin,
+        int spacing,
+        MapEditorLayerType defaultLayer,
+        bool collision)
+    {
+        if (!EnsureTilesetLibrary().Import(
+            sourcePath,
+            displayName,
+            tileWidth,
+            tileHeight,
+            margin,
+            spacing,
+            defaultLayer,
+            collision,
+            out MapEditorTilesetDefinition definition,
+            out string error))
+        {
+            Debug.LogError("Tileset import failed: " + error);
+            return false;
+        }
+
+        UseImportedTileset(definition.id);
+        Debug.Log("Tileset imported: " + definition.displayName + " (" + definition.columns + "x" + definition.rows + " tiles)");
+        return true;
+    }
+
+    public void UseImportedTileset(string id)
+    {
+        MapEditorTilesetDefinition definition = EnsureTilesetLibrary().FindById(id);
+        if (definition == null || !definition.IsUsable || !System.IO.File.Exists(definition.atlasPath))
+        {
+            Debug.LogWarning("Imported tileset is unavailable: " + id);
+            return;
+        }
+
+        SetPngPaletteGridSize(definition.atlasGridSize);
+        LoadPngPalette(definition.atlasPath);
+        SetActiveLayer(definition.defaultCollision ? MapEditorLayerType.WallCollision : definition.defaultLayer);
+    }
+
+    public void RemoveImportedTileset(string id)
+    {
+        if (EnsureTilesetLibrary().Remove(id))
+        {
+            Debug.Log("Imported tileset removed from library: " + id);
+        }
+    }
+
+    public IReadOnlyList<MapEditorTilesetDefinition> GetImportedTilesets()
+    {
+        return EnsureTilesetLibrary().Definitions;
     }
 
     public void LoadPngPalette(string path)
@@ -1363,7 +1556,25 @@ public class MapEditorManager : MonoBehaviour
 
     public void SetExportCellPixels(int pixels)
     {
+        paintWholeTile = false;
         exportCellPixels = NormalizeExportCellPixels(pixels);
+
+        RefreshDotSizeControls();
+    }
+
+    public void SetWholeTilePaintMode()
+    {
+        paintWholeTile = true;
+        RefreshDotSizeControls();
+    }
+
+    public bool IsWholeTilePaintMode()
+    {
+        return paintWholeTile;
+    }
+
+    private void RefreshDotSizeControls()
+    {
 
         if (colorWheelWindow != null)
         {

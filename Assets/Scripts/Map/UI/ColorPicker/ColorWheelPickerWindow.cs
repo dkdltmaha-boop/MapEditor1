@@ -463,6 +463,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         layout.childForceExpandHeight = true;
 
         CreateExportCellSizeLabel(selectorObject.transform);
+        CreateWholeTileButton(selectorObject.transform);
 
         foreach (int size in MapEditorManager.ExportCellPixelOptions)
         {
@@ -474,7 +475,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
     {
         GameObject labelObject = new GameObject("DotSizeLabel", typeof(RectTransform), typeof(Text));
         labelObject.transform.SetParent(parent, false);
-        labelObject.GetComponent<RectTransform>().sizeDelta = new Vector2(62f, 0f);
+        labelObject.GetComponent<RectTransform>().sizeDelta = new Vector2(48f, 0f);
 
         Text label = labelObject.GetComponent<Text>();
         label.text = "Dot Size";
@@ -484,14 +485,52 @@ public class ColorWheelPickerWindow : MonoBehaviour
         label.color = Color.white;
     }
 
+    private void CreateWholeTileButton(Transform parent)
+    {
+        GameObject buttonObject = new GameObject("WholeTilePaintButton", typeof(RectTransform), typeof(Image), typeof(Button), typeof(MapEditorToolbarButton));
+        buttonObject.transform.SetParent(parent, false);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(34f, 0f);
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = manager != null && manager.IsWholeTilePaintMode()
+            ? new Color(0.18f, 0.48f, 0.95f, 1f)
+            : new Color(0.25f, 0.25f, 0.25f, 1f);
+
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.ColorTint;
+
+        MapEditorToolbarButton toolbarButton = buttonObject.GetComponent<MapEditorToolbarButton>();
+        toolbarButton.manager = manager;
+        toolbarButton.action = MapEditorToolbarAction.WholeTilePaint;
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(buttonObject.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        Text text = textObject.GetComponent<Text>();
+        text.text = "Tile";
+        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.fontSize = 9;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+    }
+
     private void CreateExportCellSizeButton(Transform parent, int size)
     {
         GameObject buttonObject = new GameObject(ExportCellSizeButtonPrefix + size + "Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(MapEditorToolbarButton));
         buttonObject.transform.SetParent(parent, false);
-        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(31f, 0f);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(27f, 0f);
 
         Image image = buttonObject.GetComponent<Image>();
-        image.color = manager != null && manager.GetExportCellPixels() == size
+        image.color = manager != null
+            && !manager.IsWholeTilePaintMode()
+            && manager.GetExportCellPixels() == size
             ? new Color(0.18f, 0.48f, 0.95f, 1f)
             : new Color(0.25f, 0.25f, 0.25f, 1f);
 
@@ -516,7 +555,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         Text text = textObject.GetComponent<Text>();
         text.text = size + "px";
         text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
-        text.fontSize = 9;
+        text.fontSize = 8;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
     }

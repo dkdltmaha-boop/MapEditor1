@@ -176,7 +176,9 @@ public sealed class ColorWheelPngPaletteView
             return;
         }
 
-        paletteLabel.text = "PNG Palette " + paletteGridSize + "x" + paletteGridSize;
+        paletteLabel.text = MapEditorTilesetLibraryService.TryGetByAtlasPath(sourcePath, out MapEditorTilesetDefinition tileset)
+            ? "Tileset: " + tileset.displayName + " (" + tileset.tileWidth + "x" + tileset.tileHeight + "px)"
+            : "PNG Palette " + paletteGridSize + "x" + paletteGridSize;
         paletteLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
         paletteLabel.fontSize = 13;
         paletteLabel.alignment = TextAnchor.MiddleLeft;
@@ -286,10 +288,13 @@ public sealed class ColorWheelPngPaletteView
 
         this.sourceTexture = sourceTexture;
         this.sourcePath = sourcePath;
-        sourceContentRect = MapEditorPngTilesetService.GetContentPixelRect(sourceTexture);
+        sourceContentRect = MapEditorTilesetLibraryService.IsNormalizedAtlasPath(sourcePath)
+            ? new RectInt(0, 0, sourceTexture.width, sourceTexture.height)
+            : MapEditorPngTilesetService.GetContentPixelRect(sourceTexture);
         paletteColumns = paletteGridSize;
         paletteRows = paletteGridSize;
         UpdateViewportSize();
+        ConfigurePaletteLabel();
         FitPaletteToViewport();
 
         foreach (Transform child in contentRoot)
@@ -352,7 +357,30 @@ public sealed class ColorWheelPngPaletteView
 
         if (sprite != null)
         {
-            manager.SelectImageBrush(sprite, sourcePath, GetSelectionImageIndex(currentSelection));
+            int widthInTiles = currentSelection.width / LogicalPixelsPerPaletteTile;
+            int heightInTiles = currentSelection.height / LogicalPixelsPerPaletteTile;
+            bool isMultiTileSelection = manager.IsWholeTilePaintMode()
+                && currentSelection.x % LogicalPixelsPerPaletteTile == 0
+                && currentSelection.y % LogicalPixelsPerPaletteTile == 0
+                && currentSelection.width % LogicalPixelsPerPaletteTile == 0
+                && currentSelection.height % LogicalPixelsPerPaletteTile == 0
+                && (widthInTiles > 1 || heightInTiles > 1);
+
+            if (isMultiTileSelection)
+            {
+                manager.SelectImageTileRegion(
+                    sprite,
+                    sourcePath,
+                    paletteGridSize,
+                    currentSelection.x / LogicalPixelsPerPaletteTile,
+                    currentSelection.y / LogicalPixelsPerPaletteTile,
+                    widthInTiles,
+                    heightInTiles);
+            }
+            else
+            {
+                manager.SelectImageBrush(sprite, sourcePath, GetSelectionImageIndex(currentSelection));
+            }
         }
     }
 
@@ -923,7 +951,9 @@ public sealed class ColorWheelPngPaletteView
     private RectInt CreateSnappedSelection(Vector2Int start, Vector2Int end)
     {
         int pixelsPerTile = manager == null ? 16 : manager.GetExportCellPixels();
-        int step = Mathf.Max(1, 16 / Mathf.Max(1, MapEditorManager.NormalizeExportCellPixels(pixelsPerTile)));
+        int step = manager != null && manager.IsWholeTilePaintMode()
+            ? LogicalPixelsPerPaletteTile
+            : Mathf.Max(1, 16 / Mathf.Max(1, MapEditorManager.NormalizeExportCellPixels(pixelsPerTile)));
         int startX = SnapDown(start.x, step);
         int startY = SnapDown(start.y, step);
         int endX = SnapDown(end.x, step);

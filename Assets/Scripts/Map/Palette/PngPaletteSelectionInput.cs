@@ -43,8 +43,14 @@ public sealed class PngPaletteSelectionInput : MonoBehaviour, IPointerDownHandle
             return;
         }
 
-        if (eventData.button == PointerEventData.InputButton.Right)
+        if (IsPanButton(eventData.button))
         {
+            if (isSelecting)
+            {
+                picker.CancelPngPaletteSelection();
+                isSelecting = false;
+            }
+
             isPanning = true;
             eventData.Use();
         }
@@ -86,9 +92,10 @@ public sealed class PngPaletteSelectionInput : MonoBehaviour, IPointerDownHandle
             eventData.Use();
         }
 
-        if (eventData.button == PointerEventData.InputButton.Right)
+        if (IsPanButton(eventData.button))
         {
             isPanning = false;
+            eventData.Use();
         }
     }
 
@@ -101,6 +108,12 @@ public sealed class PngPaletteSelectionInput : MonoBehaviour, IPointerDownHandle
 
         isSelecting = false;
         isPanning = false;
+    }
+
+    private static bool IsPanButton(PointerEventData.InputButton button)
+    {
+        return button == PointerEventData.InputButton.Middle
+            || button == PointerEventData.InputButton.Right;
     }
 
     public void OnScroll(PointerEventData eventData)

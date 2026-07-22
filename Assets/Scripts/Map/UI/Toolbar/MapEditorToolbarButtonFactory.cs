@@ -148,7 +148,7 @@ public static class MapEditorToolbarButtonFactory
         textRect.offsetMin = new Vector2(6f, 0f);
         textRect.offsetMax = string.IsNullOrEmpty(shortcut) ? new Vector2(-6f, 0f) : new Vector2(-48f, 0f);
 
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = ToolbarButtonFontSize;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = Color.white;
@@ -186,7 +186,7 @@ public static class MapEditorToolbarButtonFactory
             }
         }
 
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = ToolbarShortcutFontSize;
         text.alignment = TextAnchor.MiddleRight;
         text.color = new Color(0.82f, 0.82f, 0.82f, 1f);

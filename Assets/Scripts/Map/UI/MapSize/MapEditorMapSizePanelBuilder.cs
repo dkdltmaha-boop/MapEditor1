@@ -140,7 +140,7 @@ public static class MapEditorMapSizePanelBuilder
         textRect.offsetMax = new Vector2(-6f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 11;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = Color.white;
@@ -227,7 +227,7 @@ public static class MapEditorMapSizePanelBuilder
 
         Text label = labelObject.GetComponent<Text>();
         label.text = value;
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = MapEditorFontProvider.Default;
         label.fontSize = fontSize;
         label.alignment = TextAnchor.MiddleLeft;
         label.color = Color.white;

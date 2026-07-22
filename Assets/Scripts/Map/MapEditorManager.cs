@@ -364,6 +364,7 @@ public class MapEditorManager : MonoBehaviour
         }
 
         ConfigureMapViewportVisual();
+        MapEditorFontProvider.ApplyToScene(gameObject.scene);
 
 #if UNITY_EDITOR
         if (!Application.isPlaying)

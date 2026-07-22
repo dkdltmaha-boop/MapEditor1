@@ -287,7 +287,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text text = titleObject.GetComponent<Text>();
         text.text = "Color";
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 15;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = Color.white;
@@ -387,7 +387,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text label = labelObject.GetComponent<Text>();
         label.text = "Wall Tile";
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = MapEditorFontProvider.Default;
         label.fontSize = 13;
         label.alignment = TextAnchor.MiddleLeft;
         label.color = Color.white;
@@ -479,7 +479,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text label = labelObject.GetComponent<Text>();
         label.text = "Dot Size";
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = MapEditorFontProvider.Default;
         label.fontSize = 11;
         label.alignment = TextAnchor.MiddleLeft;
         label.color = Color.white;
@@ -515,7 +515,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text text = textObject.GetComponent<Text>();
         text.text = "Tile";
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
@@ -554,7 +554,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text text = textObject.GetComponent<Text>();
         text.text = size + "px";
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 8;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;

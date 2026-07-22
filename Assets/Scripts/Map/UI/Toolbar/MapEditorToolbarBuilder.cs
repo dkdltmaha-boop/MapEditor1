@@ -316,7 +316,7 @@ public static class MapEditorToolbarBuilder
         }
 
         text.text = label + "   " + shortcut;
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = ToolbarHintFontSize;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = new Color(0.82f, 0.82f, 0.82f, 1f);
@@ -420,7 +420,7 @@ public static class MapEditorToolbarBuilder
         textObject.GetComponent<RectTransform>().sizeDelta = new Vector2(122f, 14f);
 
         Text text = textObject.GetComponent<Text>();
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 8;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = Color.white;
@@ -443,7 +443,7 @@ public static class MapEditorToolbarBuilder
 
         Text text = statusObject.GetComponent<Text>();
         text.text = "Validation\nNot checked";
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleLeft;
         text.color = new Color(0.82f, 0.82f, 0.82f, 1f);
@@ -460,7 +460,7 @@ public static class MapEditorToolbarBuilder
 
         Text label = labelObject.GetComponent<Text>();
         label.text = text;
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = MapEditorFontProvider.Default;
         label.fontSize = ToolbarLabelFontSize;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleLeft;
@@ -603,7 +603,7 @@ public static class MapEditorLayerPanelBuilder
 
         Text label = labelObject.GetComponent<Text>();
         label.text = text;
-        label.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        label.font = MapEditorFontProvider.Default;
         label.fontSize = LabelFontSize;
         label.fontStyle = FontStyle.Bold;
         label.alignment = TextAnchor.MiddleLeft;
@@ -650,7 +650,7 @@ public static class MapEditorLayerPanelBuilder
 
         Text text = textObject.GetComponent<Text>();
         text.text = label;
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
@@ -690,7 +690,7 @@ public static class MapEditorLayerPanelBuilder
 
         Text text = textObject.GetComponent<Text>();
         text.text = visible ? "On" : "Off";
-        text.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;

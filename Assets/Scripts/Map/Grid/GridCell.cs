@@ -565,7 +565,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         rect.offsetMax = Vector2.zero;
 
         spawnMarkerLabel.text = "SP";
-        spawnMarkerLabel.font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+        spawnMarkerLabel.font = MapEditorFontProvider.Default;
         spawnMarkerLabel.fontSize = 10;
         spawnMarkerLabel.fontStyle = FontStyle.Bold;
         spawnMarkerLabel.alignment = TextAnchor.MiddleCenter;

@@ -10,9 +10,6 @@ using UnityEditor;
 
 public sealed class MapEditorWorkshopExportService
 {
-    private const string PixelChromaProjectFolderName = "PixelChroma";
-    private const string PixelChromaRepositoryFolderName = "network-team-project-july-7-3";
-    private const string WorkshopMapsRelativePath = "Assets/WorkshopMaps";
     private const string ManifestFileName = "manifest.json";
     private const string MapFileName = "map.json";
     private const string PreviewFileName = "preview.png";
@@ -44,7 +41,7 @@ public sealed class MapEditorWorkshopExportService
         int cellSize,
         bool emptyCellsTransparent)
     {
-        string projectPath = FindPixelChromaProjectPath();
+        string projectPath = MapEditorPixelChromaProjectLocator.FindProjectPath();
 
         if (string.IsNullOrEmpty(projectPath))
         {
@@ -67,7 +64,7 @@ public sealed class MapEditorWorkshopExportService
         }
 
         string normalizedMapId = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "map" : mapId);
-        string packageFolder = Path.Combine(projectPath, "Assets", "WorkshopMaps", normalizedMapId);
+        string packageFolder = Path.Combine(MapEditorPixelChromaProjectLocator.GetWorkshopRoot(projectPath), normalizedMapId);
         bool exported = Export(
             mapData,
             packageFolder,
@@ -110,10 +107,10 @@ public sealed class MapEditorWorkshopExportService
     {
 #if UNITY_EDITOR
         string defaultFolder = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "workshop_map" : mapId);
-        string projectPath = FindPixelChromaProjectPath();
+        string projectPath = MapEditorPixelChromaProjectLocator.FindProjectPath();
         string initialFolder = string.IsNullOrEmpty(projectPath)
             ? string.Empty
-            : Path.Combine(projectPath, "Assets", "WorkshopMaps");
+            : MapEditorPixelChromaProjectLocator.GetWorkshopRoot(projectPath);
         string folderPath = EditorUtility.SaveFolderPanel("Export PixelChroma Workshop Package", initialFolder, defaultFolder);
 
         if (string.IsNullOrEmpty(folderPath))
@@ -143,48 +140,6 @@ public sealed class MapEditorWorkshopExportService
 #endif
     }
 
-    private static string FindPixelChromaProjectPath()
-    {
-        string configuredPath = Environment.GetEnvironmentVariable("PIXELCHROMA_PROJECT_PATH");
-
-        if (IsPixelChromaProject(configuredPath))
-        {
-            return Path.GetFullPath(configuredPath);
-        }
-
-        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
-        string knownProjectPath = Path.Combine(userProfile, PixelChromaRepositoryFolderName, PixelChromaProjectFolderName);
-
-        if (IsPixelChromaProject(knownProjectPath))
-        {
-            return Path.GetFullPath(knownProjectPath);
-        }
-
-        DirectoryInfo current = new DirectoryInfo(Directory.GetCurrentDirectory());
-
-        while (current != null)
-        {
-            string directChild = Path.Combine(current.FullName, PixelChromaProjectFolderName);
-
-            if (IsPixelChromaProject(directChild))
-            {
-                return Path.GetFullPath(directChild);
-            }
-
-            current = current.Parent;
-        }
-
-        return string.Empty;
-    }
-
-    private static bool IsPixelChromaProject(string projectPath)
-    {
-        return !string.IsNullOrWhiteSpace(projectPath)
-            && Directory.Exists(Path.Combine(projectPath, "Assets"))
-            && File.Exists(Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt"))
-            && Directory.Exists(Path.Combine(projectPath, WorkshopMapsRelativePath));
-    }
-
     public bool Export(
         MapData mapData,
         string folderPath,
@@ -209,93 +164,34 @@ public sealed class MapEditorWorkshopExportService
         Directory.CreateDirectory(folderPath);
 
         string normalizedMapId = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "map" : mapId);
-        string manifestPath = Path.Combine(folderPath, ManifestFileName);
-        string mapPath = Path.Combine(folderPath, MapFileName);
-        string previewPath = Path.Combine(folderPath, PreviewFileName);
-        string readmePath = Path.Combine(folderPath, ReadmeFileName);
-        string reportPath = Path.Combine(folderPath, ReportFileName);
-        string steamUploadPath = Path.Combine(folderPath, SteamUploadFileName);
-        string tilesetFolderPath = Path.Combine(folderPath, TilesetFolderName);
+        PackagePaths paths = new PackagePaths(folderPath);
         PixelChromaWorkshopPackageReport report = BuildPackageReport(mapData, normalizedMapId, spawnX, spawnY, spawnPoints);
 
         if (report.errors.Count > 0)
         {
-            WritePackageReport(reportPath, report);
-            Debug.LogError("PixelChroma workshop package export failed. See package_report.json for validation errors: " + reportPath);
+            WritePackageReport(paths.Report, report);
+            Debug.LogError("PixelChroma workshop package export failed. See package_report.json for validation errors: " + paths.Report);
             return false;
         }
 
-        if (!mapExportService.Export(mapData, mapPath, normalizedMapId, cellSize, TilesetFolderName, spawnX, spawnY, spawnPoints))
+        if (!mapExportService.Export(mapData, paths.Map, normalizedMapId, cellSize, TilesetFolderName, spawnX, spawnY, spawnPoints))
         {
-            WritePackageReport(reportPath, report);
+            WritePackageReport(paths.Report, report);
             return false;
         }
 
-        Directory.CreateDirectory(tilesetFolderPath);
+        Directory.CreateDirectory(paths.TilesetFolder);
         report.tilesetCount = 0;
-        previewExportService.ExportPng(mapData, previewPath, cellSize, emptyCellsTransparent);
-        WriteManifest(manifestPath, normalizedMapId, title, author, description, requiredGameVersion);
-        WriteSteamUploadConfig(steamUploadPath, normalizedMapId, title, description, steamVisibility, steamTags);
-        WriteReadme(readmePath, normalizedMapId);
-        ValidateRequiredPackageFiles(folderPath, report);
+        previewExportService.ExportPng(mapData, paths.Preview, cellSize, emptyCellsTransparent);
+        WriteManifest(paths.Manifest, normalizedMapId, title, author, description, requiredGameVersion);
+        WriteSteamUploadConfig(paths.SteamUpload, normalizedMapId, title, description, steamVisibility, steamTags);
+        WriteReadme(paths.Readme, normalizedMapId);
+        ValidateRequiredPackageFiles(paths, report);
         AddFileInventory(folderPath, report);
-        WritePackageReport(reportPath, report);
+        WritePackageReport(paths.Report, report);
 
         Debug.Log("PixelChroma workshop package exported: " + folderPath);
         return true;
-    }
-
-    private static void CopyUsedTilesets(MapData mapData, string tilesetFolderPath, PixelChromaWorkshopPackageReport report)
-    {
-        HashSet<string> copiedPaths = new HashSet<string>();
-        Directory.CreateDirectory(tilesetFolderPath);
-
-        for (int y = 0; y < mapData.height; y++)
-        {
-            for (int x = 0; x < mapData.width; x++)
-            {
-                CopyTilesetIfNeeded(mapData.GetImagePath(x, y), tilesetFolderPath, copiedPaths, report);
-
-                foreach (MapEditorLayerType layerType in MapData.GetSerializableLayers())
-                {
-                    CopyTilesetIfNeeded(mapData.GetImagePath(x, y, layerType), tilesetFolderPath, copiedPaths, report);
-                }
-            }
-        }
-
-        report.tilesetCount = copiedPaths.Count;
-        report.isValid = report.warnings.Count == 0 && report.paintedTileCount > 0;
-    }
-
-    private static void CopyTilesetIfNeeded(string imagePath, string tilesetFolderPath, HashSet<string> copiedPaths, PixelChromaWorkshopPackageReport report)
-    {
-        if (string.IsNullOrEmpty(imagePath) || copiedPaths.Contains(imagePath))
-        {
-            return;
-        }
-
-        copiedPaths.Add(imagePath);
-
-        if (!File.Exists(imagePath))
-        {
-            string warning = "Missing tileset file: " + imagePath;
-            report.warnings.Add(warning);
-            Debug.LogWarning("Workshop export could not copy missing tileset: " + imagePath);
-            return;
-        }
-
-        string destinationPath = Path.Combine(tilesetFolderPath, Path.GetFileName(imagePath));
-
-        try
-        {
-            File.Copy(imagePath, destinationPath, true);
-        }
-        catch (Exception exception)
-        {
-            string warning = "Could not copy tileset file: " + imagePath;
-            report.warnings.Add(warning);
-            Debug.LogWarning("Workshop export could not copy tileset: " + imagePath + "\n" + exception.Message);
-        }
     }
 
     private static PixelChromaWorkshopPackageReport BuildPackageReport(MapData mapData, string mapId, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
@@ -367,32 +263,25 @@ public sealed class MapEditorWorkshopExportService
         File.WriteAllText(path, JsonUtility.ToJson(report, true));
     }
 
-    private static void ValidateRequiredPackageFiles(string folderPath, PixelChromaWorkshopPackageReport report)
+    private static void ValidateRequiredPackageFiles(PackagePaths paths, PixelChromaWorkshopPackageReport report)
     {
-        string manifestPath = Path.Combine(folderPath, ManifestFileName);
-        string mapPath = Path.Combine(folderPath, MapFileName);
-        string previewPath = Path.Combine(folderPath, PreviewFileName);
-        string tilesetFolderPath = Path.Combine(folderPath, TilesetFolderName);
-        string steamUploadPath = Path.Combine(folderPath, SteamUploadFileName);
-        string readmePath = Path.Combine(folderPath, ReadmeFileName);
-
-        report.manifestExists = ValidateRequiredFile(manifestPath, ManifestFileName, report);
-        report.mapFileExists = ValidateRequiredFile(mapPath, MapFileName, report);
-        report.previewExists = ValidateRequiredFile(previewPath, PreviewFileName, report);
-        report.steamUploadConfigExists = ValidateRequiredFile(steamUploadPath, SteamUploadFileName, report);
-        report.readmeExists = ValidateRequiredFile(readmePath, ReadmeFileName, report);
-        report.tilesetFolderExists = Directory.Exists(tilesetFolderPath);
+        report.manifestExists = ValidateRequiredFile(paths.Manifest, ManifestFileName, report);
+        report.mapFileExists = ValidateRequiredFile(paths.Map, MapFileName, report);
+        report.previewExists = ValidateRequiredFile(paths.Preview, PreviewFileName, report);
+        report.steamUploadConfigExists = ValidateRequiredFile(paths.SteamUpload, SteamUploadFileName, report);
+        report.readmeExists = ValidateRequiredFile(paths.Readme, ReadmeFileName, report);
+        report.tilesetFolderExists = Directory.Exists(paths.TilesetFolder);
 
         if (!report.tilesetFolderExists)
         {
             report.errors.Add("Required folder is missing: " + TilesetFolderName);
         }
 
-        ValidateFileContains(manifestPath, ManifestFileName, "\"format\": \"PixelChromaWorkshopMap\"", report);
-        ValidateFileContains(manifestPath, ManifestFileName, "\"mapFile\": \"" + MapFileName + "\"", report);
-        ValidateFileContains(manifestPath, ManifestFileName, "\"tilesetFolder\": \"" + TilesetFolderName + "\"", report);
-        ValidateFileContains(mapPath, MapFileName, "\"format\": \"PixelChromaMap\"", report);
-        ValidateFileContains(mapPath, MapFileName, "\"loaderStrategy\": \"RuntimeTilemapLoader\"", report);
+        ValidateFileContains(paths.Manifest, ManifestFileName, "\"format\": \"PixelChromaWorkshopMap\"", report);
+        ValidateFileContains(paths.Manifest, ManifestFileName, "\"mapFile\": \"" + MapFileName + "\"", report);
+        ValidateFileContains(paths.Manifest, ManifestFileName, "\"tilesetFolder\": \"" + TilesetFolderName + "\"", report);
+        ValidateFileContains(paths.Map, MapFileName, "\"format\": \"PixelChromaMap\"", report);
+        ValidateFileContains(paths.Map, MapFileName, "\"loaderStrategy\": \"RuntimeTilemapLoader\"", report);
 
         report.isValid = report.errors.Count == 0 && report.warnings.Count == 0 && report.paintedTileCount > 0;
     }
@@ -642,5 +531,27 @@ public sealed class MapEditorWorkshopExportService
 
         string sanitized = builder.ToString().Trim('_');
         return string.IsNullOrEmpty(sanitized) ? "map" : sanitized;
+    }
+
+    private sealed class PackagePaths
+    {
+        public readonly string Manifest;
+        public readonly string Map;
+        public readonly string Preview;
+        public readonly string Readme;
+        public readonly string Report;
+        public readonly string SteamUpload;
+        public readonly string TilesetFolder;
+
+        public PackagePaths(string root)
+        {
+            Manifest = Path.Combine(root, ManifestFileName);
+            Map = Path.Combine(root, MapFileName);
+            Preview = Path.Combine(root, PreviewFileName);
+            Readme = Path.Combine(root, ReadmeFileName);
+            Report = Path.Combine(root, ReportFileName);
+            SteamUpload = Path.Combine(root, SteamUploadFileName);
+            TilesetFolder = Path.Combine(root, TilesetFolderName);
+        }
     }
 }

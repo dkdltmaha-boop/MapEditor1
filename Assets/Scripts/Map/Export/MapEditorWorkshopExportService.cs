@@ -10,6 +10,9 @@ using UnityEditor;
 
 public sealed class MapEditorWorkshopExportService
 {
+    private const string PixelChromaProjectFolderName = "PixelChroma";
+    private const string PixelChromaRepositoryFolderName = "network-team-project-july-7-3";
+    private const string WorkshopMapsRelativePath = "Assets/WorkshopMaps";
     private const string ManifestFileName = "manifest.json";
     private const string MapFileName = "map.json";
     private const string PreviewFileName = "preview.png";
@@ -24,6 +27,70 @@ public sealed class MapEditorWorkshopExportService
     public MapEditorWorkshopExportService(Func<string, int, Sprite> getPngTileSprite)
     {
         previewExportService = new MapEditorMapExportService(getPngTileSprite);
+    }
+
+    public bool ExportToPixelChromaProject(
+        MapData mapData,
+        string mapId,
+        string title,
+        string author,
+        string description,
+        string requiredGameVersion,
+        string steamVisibility,
+        string steamTags,
+        int spawnX,
+        int spawnY,
+        MapEditorSpawnPointData[] spawnPoints,
+        int cellSize,
+        bool emptyCellsTransparent)
+    {
+        string projectPath = FindPixelChromaProjectPath();
+
+        if (string.IsNullOrEmpty(projectPath))
+        {
+            Debug.LogWarning("PixelChroma project was not found. Choose its Assets/WorkshopMaps folder manually.");
+            return ExportWithDialog(
+                mapData,
+                mapId,
+                title,
+                author,
+                description,
+                requiredGameVersion,
+                steamVisibility,
+                steamTags,
+                spawnX,
+                spawnY,
+                spawnPoints,
+                cellSize,
+                emptyCellsTransparent
+            );
+        }
+
+        string normalizedMapId = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "map" : mapId);
+        string packageFolder = Path.Combine(projectPath, "Assets", "WorkshopMaps", normalizedMapId);
+        bool exported = Export(
+            mapData,
+            packageFolder,
+            mapId,
+            title,
+            author,
+            description,
+            requiredGameVersion,
+            steamVisibility,
+            steamTags,
+            spawnX,
+            spawnY,
+            spawnPoints,
+            cellSize,
+            emptyCellsTransparent
+        );
+
+        if (exported)
+        {
+            Debug.Log("Workshop map installed in PixelChroma: " + packageFolder);
+        }
+
+        return exported;
     }
 
     public bool ExportWithDialog(
@@ -43,7 +110,11 @@ public sealed class MapEditorWorkshopExportService
     {
 #if UNITY_EDITOR
         string defaultFolder = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "workshop_map" : mapId);
-        string folderPath = EditorUtility.SaveFolderPanel("Export PixelChroma Workshop Package", "", defaultFolder);
+        string projectPath = FindPixelChromaProjectPath();
+        string initialFolder = string.IsNullOrEmpty(projectPath)
+            ? string.Empty
+            : Path.Combine(projectPath, "Assets", "WorkshopMaps");
+        string folderPath = EditorUtility.SaveFolderPanel("Export PixelChroma Workshop Package", initialFolder, defaultFolder);
 
         if (string.IsNullOrEmpty(folderPath))
         {
@@ -70,6 +141,48 @@ public sealed class MapEditorWorkshopExportService
         Debug.LogWarning("Workshop package export file picker is only available in the Unity Editor.");
         return false;
 #endif
+    }
+
+    private static string FindPixelChromaProjectPath()
+    {
+        string configuredPath = Environment.GetEnvironmentVariable("PIXELCHROMA_PROJECT_PATH");
+
+        if (IsPixelChromaProject(configuredPath))
+        {
+            return Path.GetFullPath(configuredPath);
+        }
+
+        string userProfile = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        string knownProjectPath = Path.Combine(userProfile, PixelChromaRepositoryFolderName, PixelChromaProjectFolderName);
+
+        if (IsPixelChromaProject(knownProjectPath))
+        {
+            return Path.GetFullPath(knownProjectPath);
+        }
+
+        DirectoryInfo current = new DirectoryInfo(Directory.GetCurrentDirectory());
+
+        while (current != null)
+        {
+            string directChild = Path.Combine(current.FullName, PixelChromaProjectFolderName);
+
+            if (IsPixelChromaProject(directChild))
+            {
+                return Path.GetFullPath(directChild);
+            }
+
+            current = current.Parent;
+        }
+
+        return string.Empty;
+    }
+
+    private static bool IsPixelChromaProject(string projectPath)
+    {
+        return !string.IsNullOrWhiteSpace(projectPath)
+            && Directory.Exists(Path.Combine(projectPath, "Assets"))
+            && File.Exists(Path.Combine(projectPath, "ProjectSettings", "ProjectVersion.txt"))
+            && Directory.Exists(Path.Combine(projectPath, WorkshopMapsRelativePath));
     }
 
     public bool Export(

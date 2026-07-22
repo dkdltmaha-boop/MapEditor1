@@ -1516,7 +1516,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureWorkshopExportService();
         EnsureSpawnPointList();
-        workshopExportService.ExportWithDialog(
+        workshopExportService.ExportToPixelChromaProject(
             CurrentMapData,
             pixelChromaMapId,
             workshopTitle,

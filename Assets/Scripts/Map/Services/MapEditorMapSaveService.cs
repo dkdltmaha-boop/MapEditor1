@@ -1,0 +1,395 @@
+using System.IO;
+using System.Collections.Generic;
+using UnityEngine;
+#if UNITY_EDITOR
+using UnityEditor;
+#endif
+
+public class MapEditorMapSaveService
+{
+    private const string DefaultSaveFileName = "mapeditor_project.json";
+
+    private readonly int maxMapSize;
+    private string currentMapFilePath = string.Empty;
+
+    public MapEditorMapSaveService(int maxMapSize)
+    {
+        this.maxMapSize = maxMapSize;
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath)
+    {
+        return Save(mapData, currentPngPalettePath, 0, 0);
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY)
+    {
+        return Save(mapData, currentPngPalettePath, spawnX, spawnY, (MapEditorSpawnPointData[])null);
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY, MapEditorSpawnPointData[] spawnPoints)
+    {
+#if UNITY_EDITOR
+        if (string.IsNullOrEmpty(currentMapFilePath))
+        {
+            string path = EditorUtility.SaveFilePanel("Save Editable Map", "", DefaultSaveFileName, "json");
+
+            if (string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+
+            currentMapFilePath = path;
+        }
+
+        return SaveToPath(mapData, currentPngPalettePath, spawnX, spawnY, spawnPoints, currentMapFilePath);
+#else
+        return Save(mapData, currentPngPalettePath, spawnX, spawnY, DefaultSaveFileName);
+#endif
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath, string fileName)
+    {
+        return Save(mapData, currentPngPalettePath, 0, 0, fileName);
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY, string fileName)
+    {
+        return Save(mapData, currentPngPalettePath, spawnX, spawnY, null, fileName);
+    }
+
+    public bool Save(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY, MapEditorSpawnPointData[] spawnPoints, string fileName)
+    {
+        return SaveToPath(mapData, currentPngPalettePath, spawnX, spawnY, spawnPoints, GetSavePath(fileName));
+    }
+
+    public bool Load(out MapSaveData saveData, out string path)
+    {
+#if UNITY_EDITOR
+        path = EditorUtility.OpenFilePanel("Load Editable Map", "", "json");
+
+        if (string.IsNullOrEmpty(path))
+        {
+            saveData = null;
+            return false;
+        }
+
+        return TryLoadFromPath(path, out saveData);
+#else
+        return Load(DefaultSaveFileName, out saveData, out path);
+#endif
+    }
+
+    public bool Load(string fileName, out MapSaveData saveData, out string path)
+    {
+        path = GetSavePath(fileName);
+        return TryLoadFromPath(path, out saveData);
+    }
+
+    private bool SaveToPath(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY, MapEditorSpawnPointData[] spawnPoints, string path)
+    {
+        if (mapData == null || string.IsNullOrEmpty(path))
+        {
+            return false;
+        }
+
+        MapSaveData saveData = mapData.ToSaveData();
+        saveData.currentPngPalettePath = currentPngPalettePath;
+        saveData.spawnX = Mathf.Clamp(spawnX, 0, mapData.width - 1);
+        saveData.spawnY = Mathf.Clamp(spawnY, 0, mapData.height - 1);
+        saveData.spawnPoints = spawnPoints == null || spawnPoints.Length == 0
+            ? new[] { new MapEditorSpawnPointData("SpawnPoint_1", saveData.spawnX, saveData.spawnY, "Any") }
+            : spawnPoints;
+        EmbedUsedPngAssets(saveData);
+        string json = JsonUtility.ToJson(saveData, true);
+        string directory = Path.GetDirectoryName(path);
+
+        if (!string.IsNullOrEmpty(directory))
+        {
+            Directory.CreateDirectory(directory);
+        }
+
+        File.WriteAllText(path, json);
+        currentMapFilePath = path;
+        Debug.Log("Map saved: " + path);
+        return true;
+    }
+
+    private bool TryLoadFromPath(string path, out MapSaveData saveData)
+    {
+        saveData = null;
+
+        if (!File.Exists(path))
+        {
+            Debug.LogWarning("Map file does not exist: " + path);
+            return false;
+        }
+
+        try
+        {
+            string json = File.ReadAllText(path);
+            if (json.Contains("\"format\"") && json.Contains("PixelChromaMap"))
+            {
+                Debug.LogWarning("This is a PixelChroma exported map. Use Import Map instead of Load Edit: " + path);
+                return false;
+            }
+
+            saveData = JsonUtility.FromJson<MapSaveData>(json);
+            RestoreEmbeddedPngAssets(saveData);
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogWarning("Could not read map file: " + path + "\n" + exception.Message);
+            return false;
+        }
+
+        if (!MapSaveDataValidator.IsValid(saveData, maxMapSize))
+        {
+            Debug.LogWarning("Could not read map file: " + path);
+            return false;
+        }
+
+        currentMapFilePath = path;
+        return true;
+    }
+
+    private static void EmbedUsedPngAssets(MapSaveData saveData)
+    {
+        if (saveData == null || saveData.imagePaths == null)
+        {
+            return;
+        }
+
+        Dictionary<string, EmbeddedPngAsset> embeddedAssets = new Dictionary<string, EmbeddedPngAsset>();
+
+        for (int i = 0; i < saveData.imagePaths.Length; i++)
+        {
+            TryEmbedPngAsset(saveData.imagePaths[i], embeddedAssets);
+        }
+
+        if (saveData.layerTiles != null)
+        {
+            for (int layerIndex = 0; layerIndex < saveData.layerTiles.Length; layerIndex++)
+            {
+                MapLayerTileData layer = saveData.layerTiles[layerIndex];
+
+                if (layer == null || layer.imagePaths == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < layer.imagePaths.Length; i++)
+                {
+                    TryEmbedPngAsset(layer.imagePaths[i], embeddedAssets);
+                }
+            }
+        }
+
+        saveData.embeddedPngAssets = new List<EmbeddedPngAsset>(embeddedAssets.Values).ToArray();
+    }
+
+    private static void TryEmbedPngAsset(string path, Dictionary<string, EmbeddedPngAsset> embeddedAssets)
+    {
+        if (string.IsNullOrEmpty(path) || embeddedAssets.ContainsKey(path) || !File.Exists(path))
+        {
+            return;
+        }
+
+        try
+        {
+            embeddedAssets[path] = new EmbeddedPngAsset
+            {
+                originalPath = path,
+                fileName = Path.GetFileName(path),
+                base64Png = System.Convert.ToBase64String(File.ReadAllBytes(path))
+            };
+        }
+        catch (System.Exception exception)
+        {
+            Debug.LogWarning("Could not embed PNG asset in edit save: " + path + "\n" + exception.Message);
+        }
+    }
+
+    private static void RestoreEmbeddedPngAssets(MapSaveData saveData)
+    {
+        if (saveData == null || saveData.embeddedPngAssets == null || saveData.embeddedPngAssets.Length == 0)
+        {
+            return;
+        }
+
+        string cacheDirectory = Path.Combine(Application.persistentDataPath, "MapEditorEmbeddedPng");
+        Directory.CreateDirectory(cacheDirectory);
+        Dictionary<string, string> restoredPaths = new Dictionary<string, string>();
+        string firstRestoredPath = string.Empty;
+
+        for (int i = 0; i < saveData.embeddedPngAssets.Length; i++)
+        {
+            EmbeddedPngAsset asset = saveData.embeddedPngAssets[i];
+
+            if (asset == null || string.IsNullOrEmpty(asset.originalPath) || string.IsNullOrEmpty(asset.base64Png))
+            {
+                continue;
+            }
+
+            try
+            {
+                string fileName = string.IsNullOrEmpty(asset.fileName) ? "embedded_" + i + ".png" : asset.fileName;
+                string restoredPath = Path.Combine(cacheDirectory, SanitizeFileName(fileName));
+                File.WriteAllBytes(restoredPath, System.Convert.FromBase64String(asset.base64Png));
+                restoredPaths[asset.originalPath] = restoredPath;
+
+                if (string.IsNullOrEmpty(firstRestoredPath))
+                {
+                    firstRestoredPath = restoredPath;
+                }
+            }
+            catch (System.Exception exception)
+            {
+                Debug.LogWarning("Could not restore embedded PNG asset: " + asset.originalPath + "\n" + exception.Message);
+            }
+        }
+
+        if (restoredPaths.Count == 0)
+        {
+            return;
+        }
+
+        if (saveData.imagePaths != null)
+        {
+            for (int i = 0; i < saveData.imagePaths.Length; i++)
+            {
+                string imagePath = saveData.imagePaths[i];
+
+                if (!string.IsNullOrEmpty(imagePath) && restoredPaths.TryGetValue(imagePath, out string restoredPath))
+                {
+                    saveData.imagePaths[i] = restoredPath;
+                    continue;
+                }
+
+                if (saveData.imageIndices != null
+                    && i < saveData.imageIndices.Length
+                    && saveData.imageIndices[i] >= 0
+                    && !string.IsNullOrEmpty(firstRestoredPath))
+                {
+                    saveData.imagePaths[i] = firstRestoredPath;
+                }
+            }
+        }
+
+        if (saveData.layerTiles != null)
+        {
+            for (int layerIndex = 0; layerIndex < saveData.layerTiles.Length; layerIndex++)
+            {
+                MapLayerTileData layer = saveData.layerTiles[layerIndex];
+
+                if (layer == null || layer.imagePaths == null || layer.imageIndices == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < layer.imagePaths.Length; i++)
+                {
+                    string imagePath = layer.imagePaths[i];
+
+                    if (!string.IsNullOrEmpty(imagePath) && restoredPaths.TryGetValue(imagePath, out string restoredPath))
+                    {
+                        layer.imagePaths[i] = restoredPath;
+                        continue;
+                    }
+
+                    if (i < layer.imageIndices.Length && layer.imageIndices[i] >= 0 && !string.IsNullOrEmpty(firstRestoredPath))
+                    {
+                        layer.imagePaths[i] = firstRestoredPath;
+                    }
+                }
+            }
+        }
+
+        if (!string.IsNullOrEmpty(saveData.currentPngPalettePath) && restoredPaths.TryGetValue(saveData.currentPngPalettePath, out string restoredPalettePath))
+        {
+            saveData.currentPngPalettePath = restoredPalettePath;
+        }
+        else if (string.IsNullOrEmpty(saveData.currentPngPalettePath) || !File.Exists(saveData.currentPngPalettePath))
+        {
+            saveData.currentPngPalettePath = firstRestoredPath;
+        }
+
+        BakeImageTilesIntoPixelData(saveData);
+        Debug.Log("Restored embedded PNG assets for Load Edit: " + restoredPaths.Count);
+    }
+
+    private static void BakeImageTilesIntoPixelData(MapSaveData saveData)
+    {
+        if (saveData == null || saveData.imagePaths == null || saveData.imageIndices == null || saveData.tiles == null)
+        {
+            return;
+        }
+
+        MapEditorPngTilesetService tilesets = new MapEditorPngTilesetService();
+        if (saveData.pixelData == null || saveData.pixelData.Length < saveData.tiles.Length)
+        {
+            saveData.pixelData = new MapTilePixelData[saveData.tiles.Length];
+        }
+
+        int count = Mathf.Min(saveData.tiles.Length, Mathf.Min(saveData.imagePaths.Length, saveData.imageIndices.Length));
+        int bakedCount = 0;
+
+        for (int i = 0; i < count; i++)
+        {
+            int tileId = saveData.tiles[i];
+
+            if ((tileId != MapEditorManager.CustomImageTileId && tileId != MapEditorManager.WallTileId) || saveData.imageIndices[i] < 0)
+            {
+                continue;
+            }
+
+            Sprite sprite = tilesets.GetTileSprite(
+                saveData.imagePaths[i],
+                saveData.imageIndices[i],
+                saveData.imageRotations != null && i < saveData.imageRotations.Length ? saveData.imageRotations[i] : 0,
+                saveData.imageFlipXs != null && i < saveData.imageFlipXs.Length && saveData.imageFlipXs[i],
+                saveData.imageFlipYs != null && i < saveData.imageFlipYs.Length && saveData.imageFlipYs[i]
+            );
+
+            if (sprite == null)
+            {
+                continue;
+            }
+
+            saveData.pixelData[i] = MapTilePixelData.CreateFromSprite(sprite, MapEditorManager.MaxExportCellPixels);
+            saveData.colors[i] = saveData.pixelData[i].GetAverageColor();
+            saveData.imagePaths[i] = string.Empty;
+            saveData.imageIndices[i] = -1;
+            saveData.imageRotations[i] = 0;
+            saveData.imageFlipXs[i] = false;
+            saveData.imageFlipYs[i] = false;
+
+            if (tileId == MapEditorManager.CustomImageTileId)
+            {
+                saveData.tiles[i] = MapEditorManager.CustomColorTileId;
+            }
+
+            bakedCount++;
+        }
+
+        if (bakedCount > 0)
+        {
+            Debug.Log("Baked embedded PNG map tiles into editable pixel data: " + bakedCount);
+        }
+    }
+
+    private static string SanitizeFileName(string fileName)
+    {
+        foreach (char invalid in Path.GetInvalidFileNameChars())
+        {
+            fileName = fileName.Replace(invalid, '_');
+        }
+
+        return fileName;
+    }
+
+    private string GetSavePath(string fileName)
+    {
+        return Path.Combine(Application.persistentDataPath, fileName);
+    }
+}

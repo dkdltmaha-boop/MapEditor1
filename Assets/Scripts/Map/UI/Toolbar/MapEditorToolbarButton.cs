@@ -1,0 +1,177 @@
+using UnityEngine;
+using UnityEngine.UI;
+
+public enum MapEditorToolbarAction
+{
+    None,
+    Brush,
+    Wall,
+    Eraser,
+    Select,
+    Rotate,
+    FlipH,
+    FlipV,
+    Copy,
+    Cut,
+    Paste,
+    SetSpawn,
+    Eyedropper,
+    Undo,
+    Redo,
+    Save,
+    Load,
+    ImportPixelChromaMap,
+    PngLoad,
+    PastePng,
+    ExportPng,
+    ValidateMap,
+    ExportPixelChroma,
+    ExportWorkshop,
+    LoadRecentPng,
+    MapPresetSquare,
+    ExportCellPixels,
+    PngPaletteGridSize,
+    SetLayer,
+    ToggleLayerVisible,
+    Clear
+}
+
+public enum MapEditorLayerType
+{
+    Ground,
+    Object,
+    WallVisual,
+    WallCollision,
+    Spawn,
+    Zone
+}
+
+[RequireComponent(typeof(Button))]
+public class MapEditorToolbarButton : MonoBehaviour
+{
+    public MapEditorManager manager;
+    public MapEditorToolbarAction action;
+    public string stringArgument;
+    public int intArgument;
+
+    private Button button;
+
+    private void OnEnable()
+    {
+        button = GetComponent<Button>();
+        button.onClick.RemoveListener(InvokeAction);
+        button.onClick.AddListener(InvokeAction);
+    }
+
+    private void OnDisable()
+    {
+        if (button != null)
+        {
+            button.onClick.RemoveListener(InvokeAction);
+        }
+    }
+
+    public void InvokeAction()
+    {
+        MapEditorManager target = manager != null ? manager : MapEditorManager.Instance;
+
+        if (target == null)
+        {
+            return;
+        }
+
+        switch (action)
+        {
+            case MapEditorToolbarAction.Brush:
+                target.SetBrushTool();
+                break;
+            case MapEditorToolbarAction.Wall:
+                target.SetWallTileTool();
+                break;
+            case MapEditorToolbarAction.Eraser:
+                target.SetEraserTool();
+                break;
+            case MapEditorToolbarAction.Select:
+                target.SetSelectionTool();
+                break;
+            case MapEditorToolbarAction.Rotate:
+                target.RotateSelectedImageBrush();
+                break;
+            case MapEditorToolbarAction.FlipH:
+                target.FlipSelectedImageBrushHorizontal();
+                break;
+            case MapEditorToolbarAction.FlipV:
+                target.FlipSelectedImageBrushVertical();
+                break;
+            case MapEditorToolbarAction.Copy:
+                target.CopySelection();
+                break;
+            case MapEditorToolbarAction.Cut:
+                target.CutSelection();
+                break;
+            case MapEditorToolbarAction.Paste:
+                target.PasteClipboardAtHoveredCell();
+                break;
+            case MapEditorToolbarAction.SetSpawn:
+                target.SetSpawnTool();
+                break;
+            case MapEditorToolbarAction.Eyedropper:
+                target.PickColorUnderMouse();
+                break;
+            case MapEditorToolbarAction.Undo:
+                target.Undo();
+                break;
+            case MapEditorToolbarAction.Redo:
+                target.Redo();
+                break;
+            case MapEditorToolbarAction.Save:
+                target.SaveMap();
+                break;
+            case MapEditorToolbarAction.Load:
+                target.LoadMap();
+                break;
+            case MapEditorToolbarAction.ImportPixelChromaMap:
+                target.ImportPixelChromaMap();
+                break;
+            case MapEditorToolbarAction.PngLoad:
+                target.LoadPngPalette();
+                break;
+            case MapEditorToolbarAction.PastePng:
+                target.PasteLoadedPngToMap();
+                break;
+            case MapEditorToolbarAction.ExportPng:
+                target.ExportMapPng();
+                break;
+            case MapEditorToolbarAction.ValidateMap:
+                target.ValidatePixelChromaMap();
+                break;
+            case MapEditorToolbarAction.ExportPixelChroma:
+                target.ExportForPixelChroma();
+                break;
+            case MapEditorToolbarAction.ExportWorkshop:
+                target.ExportWorkshopPackage();
+                break;
+            case MapEditorToolbarAction.LoadRecentPng:
+                target.LoadRecentPngPalette(stringArgument);
+                break;
+            case MapEditorToolbarAction.MapPresetSquare:
+                target.ResizeMap(intArgument, intArgument);
+                break;
+            case MapEditorToolbarAction.ExportCellPixels:
+                target.SetExportCellPixels(intArgument);
+                break;
+            case MapEditorToolbarAction.PngPaletteGridSize:
+                target.SetPngPaletteGridSize(intArgument);
+                break;
+            case MapEditorToolbarAction.SetLayer:
+                target.SetActiveLayer((MapEditorLayerType)intArgument);
+                break;
+            case MapEditorToolbarAction.ToggleLayerVisible:
+                target.ToggleLayerVisible((MapEditorLayerType)intArgument);
+                break;
+            case MapEditorToolbarAction.Clear:
+                target.ClearMap();
+                break;
+        }
+    }
+}

@@ -10,3 +10,6 @@ UserSettings/
 *.csproj
 *.sln
 *.user
+
+# Steam 테스트 업로더가 생성하는 앱 식별 파일 — 커밋 금지
+steam_appid.txt

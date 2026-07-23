@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using UnityEngine.UI;
 using System.Collections.Generic;
 #if UNITY_EDITOR
@@ -1555,6 +1555,58 @@ public class MapEditorManager : MonoBehaviour
         );
     }
 
+    // ── 런타임 창작마당 업로드용 seam ──────────────────────────────
+    // 왜 여기 있나: 맵 데이터/메타데이터/export 서비스가 전부 이 클래스의 private 이라,
+    // 외부 업로더가 접근할 수 있는 유일한 통로를 여기서 공개한다.
+
+    // 현재 맵을 창작마당 기준으로 검증한 리포트를 돌려준다(업로드 전 확인용).
+    public PixelChromaMapValidationReport ValidateForWorkshop()
+    {
+        EnsureSpawnPointList();
+        return MapEditorPixelChromaValidationService.Validate(
+            CurrentMapData,
+            pixelChromaSpawnX,
+            pixelChromaSpawnY,
+            GetSpawnPointsForSave());
+    }
+
+    // 현재 맵을 persistentDataPath 아래의 쓰기 가능한 폴더로 export 한다.
+    // 성공 시 true, folderPath 에 그 폴더 경로가 담긴다.
+    public bool ExportWorkshopPackageForUpload(out string folderPath)
+    {
+        EnsureWorkshopExportService();
+        EnsureSpawnPointList();
+
+        // mapId 를 폴더 이름으로 쓰므로 파일명에 못 쓰는 문자를 '_' 로 치환한다.
+        // 왜: "map/01" 같은 값이 들어오면 경로가 깨지기 때문.
+        string safeId = string.IsNullOrWhiteSpace(pixelChromaMapId) ? "map" : pixelChromaMapId;
+        foreach (char invalid in System.IO.Path.GetInvalidFileNameChars())
+        {
+            safeId = safeId.Replace(invalid, '_');
+        }
+
+        // 왜 persistentDataPath: 빌드에서 Assets/ 는 없고 StreamingAssets 는 읽기 전용.
+        // 유저 PC에서 항상 쓰기 가능한 곳은 여기뿐이라 Steam 이 이 폴더를 업로드할 수 있다.
+        folderPath = System.IO.Path.Combine(Application.persistentDataPath, "WorkshopUpload", safeId);
+
+        // 기존에 이미 검증/파일생성/SHA256 까지 하는 서비스를 그대로 재사용한다.
+        return workshopExportService.Export(
+            CurrentMapData,
+            folderPath,
+            pixelChromaMapId,
+            workshopTitle,
+            workshopAuthor,
+            workshopDescription,
+            requiredPixelChromaVersion,
+            steamWorkshopVisibility,
+            steamWorkshopTags,
+            pixelChromaSpawnX,
+            pixelChromaSpawnY,
+            GetSpawnPointsForSave(),
+            GetExportCellPixels(),
+            exportEmptyCellsTransparent);
+    }
+
     public void SetExportCellPixels(int pixels)
     {
         paintWholeTile = false;
@@ -1697,5 +1749,7 @@ public class MapEditorManager : MonoBehaviour
             minimap.UpdateViewRect();
         }
     }
+
+
 
 }

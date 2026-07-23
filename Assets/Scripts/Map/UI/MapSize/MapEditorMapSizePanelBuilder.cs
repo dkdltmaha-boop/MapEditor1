@@ -28,7 +28,7 @@ public static class MapEditorMapSizePanelBuilder
         ConfigurePanel(panel, toolbarOffset);
         ClearChildren(panel);
 
-        CreateLabel(panel, "Map Size", 13, 16f);
+        CreateLabel(panel, "맵 크기", 13, 16f);
         Text currentSizeText = CreateCurrentSizeLabel(panel, manager);
         CreateValueControls(panel, manager, currentSizeText, true);
         CreateValueControls(panel, manager, currentSizeText, false);
@@ -114,7 +114,7 @@ public static class MapEditorMapSizePanelBuilder
         rowLayout.childForceExpandWidth = false;
         rowLayout.childForceExpandHeight = true;
 
-        CreateSmallText(rowObject.transform, widthControl ? "Width" : "Height", 48f);
+        CreateSmallText(rowObject.transform, widthControl ? "너비" : "높이", 48f);
         int value = widthControl ? manager.mapWidth : manager.mapHeight;
         InputField input = CreateInput(rowObject.transform, value);
         CreateSlider(groupObject.transform, manager, currentSizeText, input, widthControl, widthControl ? "WidthSlider" : "HeightSlider");

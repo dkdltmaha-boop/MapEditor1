@@ -100,14 +100,14 @@ public sealed class MapEditorToolbarStateService
             brushPreviewImage.sprite = selectedImageBrush;
             brushPreviewImage.color = Color.white;
             ResetPreviewTransform(brushPreviewImage);
-            brushPreviewText.text = (useWallTileBrush ? "Wall Image" : "Image") + " R" + selectedImageRotation + "\nSize " + brushSize;
+            brushPreviewText.text = (useWallTileBrush ? "벽 이미지" : "이미지") + " R" + selectedImageRotation + "\n크기 " + brushSize;
             return;
         }
 
         brushPreviewImage.sprite = null;
         brushPreviewImage.color = selectedColor;
         ResetPreviewTransform(brushPreviewImage);
-        brushPreviewText.text = (useWallTileBrush ? "Wall" : "Color") + "\nSize " + brushSize;
+        brushPreviewText.text = (useWallTileBrush ? "벽" : "색상") + "\n크기 " + brushSize;
     }
 
     public void UpdateValidationStatus(PixelChromaMapValidationReport report)
@@ -118,8 +118,8 @@ public sealed class MapEditorToolbarStateService
         }
 
         validationStatusText.text =
-            "Validation " + (report.isValid ? "OK" : "Need Fix") +
-            "\nE " + report.errors.Count + " / W " + report.warnings.Count;
+            "맵 검사: " + (report.isValid ? "통과" : "수정 필요") +
+            "\n오류 " + report.errors.Count + " / 경고 " + report.warnings.Count;
         validationStatusText.color = report.isValid
             ? new Color(0.5f, 1f, 0.5f, 1f)
             : new Color(1f, 0.74f, 0.32f, 1f);

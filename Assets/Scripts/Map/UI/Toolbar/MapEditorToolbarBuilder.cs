@@ -87,7 +87,7 @@ public static class MapEditorToolbarBuilder
         {
             Transform child = recentPngListRoot.GetChild(i);
 
-            if (child.name != "Recent PNG")
+            if (child.name != "최근 PNG")
             {
                 MapEditorObjectUtility.DestroyObject(child.gameObject);
             }
@@ -198,35 +198,35 @@ public static class MapEditorToolbarBuilder
     private static void EnsureToolbarContents(Transform toolbar, MapEditorManager manager)
     {
         ClearToolbarContents(toolbar);
-        CreateToolbarLabel(toolbar, "Tools");
-        EnsureToolbarToolButton(toolbar, manager, "Brush", "B", EditorToolType.Brush);
-        EnsureToolbarToolButton(toolbar, manager, "Wall", "W", EditorToolType.Wall);
-        EnsureToolbarToolButton(toolbar, manager, "Erase Layer", "E", EditorToolType.Eraser);
-        EnsureToolbarToolButton(toolbar, manager, "Select", "S", EditorToolType.Selection);
-        EnsureToolbarActionButton(toolbar, manager, "Rotate", "R");
-        EnsureToolbarActionButton(toolbar, manager, "Flip H", "H");
-        EnsureToolbarActionButton(toolbar, manager, "Flip V", "V");
-        EnsureToolbarShortcutHint(toolbar, "Area", "Shift+Click");
-        EnsureToolbarActionButton(toolbar, manager, "Copy", "Ctrl+C");
-        EnsureToolbarActionButton(toolbar, manager, "Cut", "Ctrl+X");
-        EnsureToolbarActionButton(toolbar, manager, "Paste", "Ctrl+V");
-        EnsureToolbarActionButton(toolbar, manager, "Spawn", "Click");
-        EnsureToolbarShortcutHint(toolbar, "Clear Sel", "Esc/Del");
-        EnsureToolbarActionButton(toolbar, manager, "Eyedrop", "I/Space");
+        CreateToolbarLabel(toolbar, "도구");
+        EnsureToolbarToolButton(toolbar, manager, "브러시", "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
+        EnsureToolbarToolButton(toolbar, manager, "벽", "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
+        EnsureToolbarToolButton(toolbar, manager, "레이어 지우개", "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
+        EnsureToolbarToolButton(toolbar, manager, "선택", "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
+        EnsureToolbarActionButton(toolbar, manager, "회전", "R", MapEditorToolbarAction.Rotate, "RotateButton");
+        EnsureToolbarActionButton(toolbar, manager, "좌우 반전", "H", MapEditorToolbarAction.FlipH, "FlipHButton");
+        EnsureToolbarActionButton(toolbar, manager, "상하 반전", "V", MapEditorToolbarAction.FlipV, "FlipVButton");
+        EnsureToolbarShortcutHint(toolbar, "영역 채우기", "Shift+클릭");
+        EnsureToolbarActionButton(toolbar, manager, "복사", "Ctrl+C", MapEditorToolbarAction.Copy, "CopyButton");
+        EnsureToolbarActionButton(toolbar, manager, "잘라내기", "Ctrl+X", MapEditorToolbarAction.Cut, "CutButton");
+        EnsureToolbarActionButton(toolbar, manager, "붙여넣기", "Ctrl+V", MapEditorToolbarAction.Paste, "PasteButton");
+        EnsureToolbarActionButton(toolbar, manager, "시작 위치", "클릭", MapEditorToolbarAction.SetSpawn, "SpawnButton");
+        EnsureToolbarShortcutHint(toolbar, "선택 지우기", "Esc/Del");
+        EnsureToolbarActionButton(toolbar, manager, "스포이드", "I/Space", MapEditorToolbarAction.Eyedropper, "EyedropButton");
         EnsureToolbarDivider(toolbar);
-        EnsureToolbarActionButton(toolbar, manager, "Undo", "Ctrl+Z");
-        EnsureToolbarActionButton(toolbar, manager, "Redo", "Ctrl+Y");
-        EnsureToolbarActionButton(toolbar, manager, "Save Edit", "Ctrl+S");
-        EnsureToolbarActionButton(toolbar, manager, "Load Edit", "Ctrl+L");
-        EnsureToolbarActionButton(toolbar, manager, "Import Map", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Tilesets", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Load PNG", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Paste PNG", "Ctrl+P");
-        EnsureToolbarActionButton(toolbar, manager, "PNG Out", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Validate", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Game Out", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Workshop", "Click");
-        EnsureToolbarActionButton(toolbar, manager, "Clear", "Click");
+        EnsureToolbarActionButton(toolbar, manager, "실행 취소", "Ctrl+Z", MapEditorToolbarAction.Undo, "UndoButton");
+        EnsureToolbarActionButton(toolbar, manager, "다시 실행", "Ctrl+Y", MapEditorToolbarAction.Redo, "RedoButton");
+        EnsureToolbarActionButton(toolbar, manager, "편집 저장", "Ctrl+S", MapEditorToolbarAction.Save, "SaveEditButton");
+        EnsureToolbarActionButton(toolbar, manager, "편집 불러오기", "Ctrl+L", MapEditorToolbarAction.Load, "LoadEditButton");
+        EnsureToolbarActionButton(toolbar, manager, "게임 맵 가져오기", "클릭", MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
+        EnsureToolbarActionButton(toolbar, manager, "타일셋", "클릭", MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
+        EnsureToolbarActionButton(toolbar, manager, "PNG 불러오기", "클릭", MapEditorToolbarAction.PngLoad, "LoadPNGButton");
+        EnsureToolbarActionButton(toolbar, manager, "PNG 붙여넣기", "Ctrl+P", MapEditorToolbarAction.PastePng, "PastePNGButton");
+        EnsureToolbarActionButton(toolbar, manager, "PNG 내보내기", "클릭", MapEditorToolbarAction.ExportPng, "PNGOutButton");
+        EnsureToolbarActionButton(toolbar, manager, "맵 검사", "클릭", MapEditorToolbarAction.ValidateMap, "ValidateButton");
+        EnsureToolbarActionButton(toolbar, manager, "게임용 내보내기", "클릭", MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
+        EnsureToolbarActionButton(toolbar, manager, "창작마당 내보내기", "클릭", MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
+        EnsureToolbarActionButton(toolbar, manager, "전체 지우기", "클릭", MapEditorToolbarAction.Clear, "ClearButton");
         EnsureBrushPreview(toolbar);
         EnsureValidationStatus(toolbar);
         EnsureRecentPngList(toolbar);
@@ -322,37 +322,30 @@ public static class MapEditorToolbarBuilder
         text.color = new Color(0.82f, 0.82f, 0.82f, 1f);
     }
 
-    private static void EnsureToolbarToolButton(Transform toolbar, MapEditorManager manager, string label, string shortcut, EditorToolType toolType)
+    private static void EnsureToolbarToolButton(Transform toolbar, MapEditorManager manager, string label, string shortcut, EditorToolType toolType, MapEditorToolbarAction action, string objectName)
     {
-        string objectName = GetToolbarObjectName(label, "ToolButton");
         Transform existing = toolbar.Find(objectName);
-
-        if (existing == null)
-        {
-            existing = toolbar.Find(GetToolbarObjectName(label, "Button"));
-        }
 
         if (existing != null)
         {
-            MapEditorToolbarButtonFactory.ConfigureActionButton(existing, manager, label, shortcut);
+            MapEditorToolbarButtonFactory.ConfigureActionButton(existing, manager, label, shortcut, action);
             return;
         }
 
-        MapEditorToolbarButtonFactory.CreateActionButton(toolbar, manager, label, shortcut, objectName);
+        MapEditorToolbarButtonFactory.CreateActionButton(toolbar, manager, label, shortcut, action, objectName);
     }
 
-    private static void EnsureToolbarActionButton(Transform toolbar, MapEditorManager manager, string label, string shortcut)
+    private static void EnsureToolbarActionButton(Transform toolbar, MapEditorManager manager, string label, string shortcut, MapEditorToolbarAction action, string objectName)
     {
-        string objectName = GetToolbarObjectName(label, "Button");
         Transform existing = toolbar.Find(objectName);
 
         if (existing != null)
         {
-            MapEditorToolbarButtonFactory.ConfigureActionButton(existing, manager, label, shortcut);
+            MapEditorToolbarButtonFactory.ConfigureActionButton(existing, manager, label, shortcut, action);
             return;
         }
 
-        MapEditorToolbarButtonFactory.CreateActionButton(toolbar, manager, label, shortcut, objectName);
+        MapEditorToolbarButtonFactory.CreateActionButton(toolbar, manager, label, shortcut, action, objectName);
     }
 
     private static string GetToolbarObjectName(string label, string suffix)
@@ -382,7 +375,7 @@ public static class MapEditorToolbarBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        CreateToolbarLabel(root.transform, "Recent PNG");
+        CreateToolbarLabel(root.transform, "최근 PNG");
         return root.transform;
     }
 
@@ -442,7 +435,7 @@ public static class MapEditorToolbarBuilder
         rect.sizeDelta = new Vector2(0f, ToolbarValidationHeight);
 
         Text text = statusObject.GetComponent<Text>();
-        text.text = "Validation\nNot checked";
+        text.text = "맵 검사\n검사 안 함";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleLeft;
@@ -570,7 +563,7 @@ public static class MapEditorLayerPanelBuilder
             MapEditorObjectUtility.DestroyObject(child.gameObject);
         }
 
-        CreateLabel(panel, "Layer");
+        CreateLabel(panel, "레이어");
 
         GameObject gridObject = new GameObject("LayerGrid", typeof(RectTransform), typeof(GridLayoutGroup));
         gridObject.transform.SetParent(panel, false);
@@ -585,12 +578,12 @@ public static class MapEditorLayerPanelBuilder
         grid.constraintCount = 1;
         grid.childAlignment = TextAnchor.UpperLeft;
 
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Paint Floor", MapEditorLayerType.Ground);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Paint Object", MapEditorLayerType.Object);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Paint Wall", MapEditorLayerType.WallVisual);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Block Path", MapEditorLayerType.WallCollision);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Set Start", MapEditorLayerType.Spawn);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "Mark Zone", MapEditorLayerType.Zone);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "바닥 그리기", MapEditorLayerType.Ground);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "오브젝트 그리기", MapEditorLayerType.Object);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "벽 모양 그리기", MapEditorLayerType.WallVisual);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "이동 막기", MapEditorLayerType.WallCollision);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "시작점 지정", MapEditorLayerType.Spawn);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, "구역 표시", MapEditorLayerType.Zone);
     }
 
     private static void CreateLabel(Transform parent, string text)
@@ -689,7 +682,7 @@ public static class MapEditorLayerPanelBuilder
         textRect.offsetMax = new Vector2(-3f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.text = visible ? "On" : "Off";
+        text.text = visible ? "표시" : "숨김";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;

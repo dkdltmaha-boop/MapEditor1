@@ -18,14 +18,14 @@ public class MapEditorManager : MonoBehaviour
     public static readonly int[] PngPaletteGridSizeOptions = { 16, 32, 64, 128 };
     public static MapEditorManager Instance { get; private set; }
 
-    [Header("Map")]
+    [Header("맵")]
     public int mapWidth = 64;
     public int mapHeight = 64;
 
-    [Header("PNG Palette")]
+    [Header("PNG 팔레트")]
     public int pngPaletteGridSize = 16;
 
-    [Header("Paint Color")]
+    [Header("그리기 색상")]
     public Color selectedColor = Color.red;
     public bool useSelectedColor = true;
     public bool useWallTileBrush;
@@ -37,7 +37,7 @@ public class MapEditorManager : MonoBehaviour
     public bool selectedImageFlipY;
     public int brushSize = 1;
 
-    [Header("Layer")]
+    [Header("레이어")]
     public MapEditorLayerType activeLayer = MapEditorLayerType.Ground;
     public bool showGroundLayer = true;
     public bool showObjectLayer = true;
@@ -45,40 +45,40 @@ public class MapEditorManager : MonoBehaviour
     public bool showWallCollisionLayer = true;
     public bool showZoneLayer = true;
 
-    [Header("Tools")]
+    [Header("도구")]
     public BrushTool brushTool;
     public EraserTool eraserTool;
 
-    [Header("Input")]
+    [Header("입력")]
     public bool enableKeyboardShortcuts = true;
     public KeyCode eyedropperKey = KeyCode.Space;
 
-    [Header("Tool Toolbar")]
+    [Header("도구 모음")]
     public bool createToolToolbar = true;
     public bool removeLegacyToolButtons = true;
     public Vector2 toolToolbarOffset = new Vector2(-12f, -12f);
     public int maxRecentPngFiles = 5;
 
-    [Header("Minimap")]
+    [Header("미니맵")]
     public bool createMinimap = false;
     public Vector2 minimapOffset = new Vector2(-198f, -152f);
     public Vector2 minimapSize = new Vector2(120f, 120f);
 
-    [Header("Map Zoom")]
+    [Header("맵 확대/축소")]
     public float mapZoomStep = 4f;
     public float maxMapCellSize = 96f;
 
-    [Header("Brush Cursor Preview")]
+    [Header("브러시 커서 미리보기")]
     public bool showBrushCursorPreview = true;
     public float brushCursorAlpha = 0.45f;
 
-    [Header("Export")]
+    [Header("내보내기")]
     public int exportCellPixels = 1;
     public bool paintWholeTile;
     public bool exportEmptyCellsTransparent = true;
     public string pixelChromaMapId = "map_01";
-    public string workshopTitle = "New PixelChroma Map";
-    public string workshopAuthor = "Unknown";
+    public string workshopTitle = "새 PixelChroma 맵";
+    public string workshopAuthor = "작성자 미상";
     [TextArea(2, 4)]
     public string workshopDescription = string.Empty;
     public string requiredPixelChromaVersion = "1.0.0";
@@ -88,7 +88,7 @@ public class MapEditorManager : MonoBehaviour
     public int pixelChromaSpawnY;
     public List<MapEditorSpawnPointData> pixelChromaSpawnPoints = new List<MapEditorSpawnPointData>();
 
-    [Header("Color Window")]
+    [Header("색상 창")]
     public bool createColorWheelWindow = true;
     public Vector2 colorPaletteOffset = new Vector2(12f, -12f);
 
@@ -488,7 +488,7 @@ public class MapEditorManager : MonoBehaviour
             toolbarState.RefreshLayerSelection();
         }
 
-        Debug.Log("Selected layer: " + activeLayer);
+        Debug.Log("선택한 레이어: " + activeLayer);
     }
 
     public bool IsLayerVisible(MapEditorLayerType layerType)
@@ -544,7 +544,7 @@ public class MapEditorManager : MonoBehaviour
             RefreshToolToolbarSelection();
         }
 
-        Debug.Log("Layer visibility: " + layerType + " = " + IsLayerVisible(layerType));
+        Debug.Log("레이어 표시 상태: " + layerType + " = " + IsLayerVisible(layerType));
     }
 
     private void CancelTransientToolState()
@@ -566,7 +566,7 @@ public class MapEditorManager : MonoBehaviour
 
         UpdateBrushPreview();
         UpdateBrushCursorPreview();
-        Debug.Log("Selected color: " + ColorUtility.ToHtmlStringRGBA(color));
+        Debug.Log("선택한 색상: " + ColorUtility.ToHtmlStringRGBA(color));
     }
 
     public void SelectImageBrush(Sprite sprite)
@@ -618,7 +618,7 @@ public class MapEditorManager : MonoBehaviour
             colorWheelWindow.SelectPngTile(imagePath, imageIndex);
         }
 
-        Debug.Log("Selected image brush: " + sprite.name);
+        Debug.Log("선택한 이미지 브러시: " + sprite.name);
     }
 
     public void SelectImageTileRegion(
@@ -1013,7 +1013,7 @@ public class MapEditorManager : MonoBehaviour
         ConfigureMapViewportVisual();
         UpdateBrushCursorPreview();
         RefreshMinimap();
-        Debug.Log("Loaded PNG pasted to map: " + pngFiles.CurrentPath + " at " + topLeft + " size " + pngTileGridSize + "x" + pngTileGridSize);
+        Debug.Log("불러온 PNG를 맵에 붙여넣었습니다: " + pngFiles.CurrentPath + " / 위치 " + topLeft + " / 크기 " + pngTileGridSize + "x" + pngTileGridSize);
     }
 
     public void SetPixelChromaSpawnAtHoveredCell()
@@ -1034,12 +1034,12 @@ public class MapEditorManager : MonoBehaviour
         if (existingIndex >= 0)
         {
             pixelChromaSpawnPoints.RemoveAt(existingIndex);
-            Debug.Log("PixelChroma spawn point removed: " + cell.X + ", " + cell.Y);
+            Debug.Log("PixelChroma 시작 위치 삭제: " + cell.X + ", " + cell.Y);
         }
         else
         {
             pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(GetNextSpawnPointId(), cell.X, cell.Y, "Any"));
-            Debug.Log("PixelChroma spawn point added: " + cell.X + ", " + cell.Y);
+            Debug.Log("PixelChroma 시작 위치 추가: " + cell.X + ", " + cell.Y);
         }
 
         SyncPrimarySpawnPoint();
@@ -1348,7 +1348,7 @@ public class MapEditorManager : MonoBehaviour
 #if UNITY_EDITOR
         MapEditorTilesetImporterWindow.Open(this);
 #else
-        Debug.LogWarning("Tileset importing is only available in the Unity Editor.");
+        Debug.LogWarning("타일셋 가져오기는 Unity 에디터에서만 사용할 수 있습니다.");
 #endif
     }
 
@@ -1374,12 +1374,12 @@ public class MapEditorManager : MonoBehaviour
             out MapEditorTilesetDefinition definition,
             out string error))
         {
-            Debug.LogError("Tileset import failed: " + error);
+            Debug.LogError("타일셋 가져오기 실패: " + error);
             return false;
         }
 
         UseImportedTileset(definition.id);
-        Debug.Log("Tileset imported: " + definition.displayName + " (" + definition.columns + "x" + definition.rows + " tiles)");
+        Debug.Log("타일셋을 가져왔습니다: " + definition.displayName + " (" + definition.columns + "x" + definition.rows + " 타일)");
         return true;
     }
 
@@ -1388,7 +1388,7 @@ public class MapEditorManager : MonoBehaviour
         MapEditorTilesetDefinition definition = EnsureTilesetLibrary().FindById(id);
         if (definition == null || !definition.IsUsable || !System.IO.File.Exists(definition.atlasPath))
         {
-            Debug.LogWarning("Imported tileset is unavailable: " + id);
+            Debug.LogWarning("가져온 타일셋을 사용할 수 없습니다: " + id);
             return;
         }
 
@@ -1401,7 +1401,7 @@ public class MapEditorManager : MonoBehaviour
     {
         if (EnsureTilesetLibrary().Remove(id))
         {
-            Debug.Log("Imported tileset removed from library: " + id);
+            Debug.Log("타일셋 보관함에서 삭제했습니다: " + id);
         }
     }
 
@@ -1479,16 +1479,16 @@ public class MapEditorManager : MonoBehaviour
         toolbarState.UpdateValidationStatus(report);
 
         string summary =
-            "PixelChroma map validation: " + (report.isValid ? "Valid" : "Invalid") +
-            " | painted=" + report.paintedTileCount +
-            " | walls=" + report.wallTileCount +
-            " | color=" + report.colorTileCount +
-            " | image=" + report.imageTileCount +
-            " | tilesets=" + report.tilesetCount +
-            " | spawns=" + report.spawnPointCount +
-            " | zones=" + report.zoneCount +
-            " | errors=" + report.errors.Count +
-            " | warnings=" + report.warnings.Count;
+            "PixelChroma 맵 검사: " + (report.isValid ? "통과" : "수정 필요") +
+            " | 그린 타일=" + report.paintedTileCount +
+            " | 벽=" + report.wallTileCount +
+            " | 색상=" + report.colorTileCount +
+            " | 이미지=" + report.imageTileCount +
+            " | 타일셋=" + report.tilesetCount +
+            " | 시작 위치=" + report.spawnPointCount +
+            " | 구역=" + report.zoneCount +
+            " | 오류=" + report.errors.Count +
+            " | 경고=" + report.warnings.Count;
 
         if (report.isValid)
         {

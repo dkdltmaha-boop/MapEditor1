@@ -22,6 +22,16 @@ public static class MapEditorSizeConfigurationSmokeTest
 
             Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
             Require(canvas != null, "SampleScene is missing Canvas.");
+            MapEditorToolbarBuilder.Ensure(manager, manager.toolToolbarOffset, Array.Empty<string>());
+            Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
+            Require(toolbar != null, "Tool toolbar was not created.");
+            RequireToolbarButton(toolbar, "BrushToolButton", "브러시", MapEditorToolbarAction.Brush);
+            RequireToolbarButton(toolbar, "WallToolButton", "벽", MapEditorToolbarAction.Wall);
+            RequireToolbarButton(toolbar, "SaveEditButton", "편집 저장", MapEditorToolbarAction.Save);
+            RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
+            RequireToolbarButton(toolbar, "ValidateButton", "맵 검사", MapEditorToolbarAction.ValidateMap);
+            RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
+
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, manager.toolToolbarOffset);
             Transform panel = canvas.transform.Find("MapEditor_MapSizePanel");
             Require(panel != null, "Map size panel was not created.");
@@ -55,6 +65,10 @@ public static class MapEditorSizeConfigurationSmokeTest
             ColorWheelPickerWindow picker = ColorWheelPickerWindow.Create(manager, manager.colorPaletteOffset);
             Require(picker != null, "Color picker window was not created.");
             picker.SetPngPalette(texture, texturePath);
+            Require(picker.transform.Find("Title")?.GetComponent<Text>()?.text == "색상", "Color picker title was not localized.");
+            Require(picker.transform.Find("WallTileSelector/WallTileLabel")?.GetComponent<Text>()?.text == "벽 타일", "Wall tile label was not localized.");
+            Require(picker.transform.Find("ExportCellSizeSelector/DotSizeLabel")?.GetComponent<Text>()?.text == "그리기 크기", "Paint size label was not localized.");
+            Require(picker.transform.Find("PngPaletteLabel")?.GetComponent<Text>()?.text.StartsWith("PNG 팔레트 ") == true, "PNG palette label was not localized.");
 
             Transform selector = picker.transform.Find("PngPaletteSizeSelector");
             Require(selector != null && selector.childCount == 4, "PNG palette size selector does not contain four options.");
@@ -97,6 +111,14 @@ public static class MapEditorSizeConfigurationSmokeTest
         }
 
         return pixels;
+    }
+
+    private static void RequireToolbarButton(Transform toolbar, string objectName, string label, MapEditorToolbarAction action)
+    {
+        Transform button = toolbar.Find(objectName);
+        Require(button != null, objectName + " is missing.");
+        Require(button.Find("Text")?.GetComponent<Text>()?.text == label, objectName + " label was not localized.");
+        Require(button.GetComponent<MapEditorToolbarButton>()?.action == action, objectName + " action mapping changed.");
     }
 
     private static void Require(bool condition, string message)

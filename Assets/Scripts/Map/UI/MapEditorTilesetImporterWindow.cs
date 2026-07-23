@@ -7,7 +7,7 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
 {
     private MapEditorManager manager;
     private string sourcePath = string.Empty;
-    private string displayName = "New Tileset";
+    private string displayName = "새 타일셋";
     private int tileWidth = 16;
     private int tileHeight = 16;
     private int margin;
@@ -19,7 +19,7 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
 
     public static void Open(MapEditorManager manager)
     {
-        MapEditorTilesetImporterWindow window = GetWindow<MapEditorTilesetImporterWindow>(true, "Tileset Library", true);
+        MapEditorTilesetImporterWindow window = GetWindow<MapEditorTilesetImporterWindow>(true, "타일셋 보관함", true);
         window.manager = manager;
         window.minSize = new Vector2(420f, 520f);
         window.Show();
@@ -27,37 +27,38 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
 
     private void OnGUI()
     {
-        EditorGUILayout.LabelField("Import Tileset", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("타일셋 가져오기", EditorStyles.boldLabel);
         EditorGUILayout.Space(4f);
 
         using (new EditorGUILayout.HorizontalScope())
         {
             EditorGUILayout.TextField("PNG", sourcePath);
-            if (GUILayout.Button("Browse", GUILayout.Width(72f)))
+            if (GUILayout.Button("찾아보기", GUILayout.Width(72f)))
             {
                 Browse();
             }
         }
 
-        displayName = EditorGUILayout.TextField("Name", displayName);
-        tileWidth = Mathf.Max(1, EditorGUILayout.IntField("Tile Width", tileWidth));
-        tileHeight = Mathf.Max(1, EditorGUILayout.IntField("Tile Height", tileHeight));
-        margin = Mathf.Max(0, EditorGUILayout.IntField("Margin", margin));
-        spacing = Mathf.Max(0, EditorGUILayout.IntField("Spacing", spacing));
-        defaultLayer = (MapEditorLayerType)EditorGUILayout.EnumPopup("Default Layer", defaultLayer);
-        collision = EditorGUILayout.Toggle("Collision", collision);
+        displayName = EditorGUILayout.TextField("이름", displayName);
+        tileWidth = Mathf.Max(1, EditorGUILayout.IntField("타일 너비", tileWidth));
+        tileHeight = Mathf.Max(1, EditorGUILayout.IntField("타일 높이", tileHeight));
+        margin = Mathf.Max(0, EditorGUILayout.IntField("바깥 여백", margin));
+        spacing = Mathf.Max(0, EditorGUILayout.IntField("타일 간격", spacing));
+        string[] layerNames = { "바닥", "오브젝트", "벽 모양", "벽 충돌", "시작 위치", "구역" };
+        defaultLayer = (MapEditorLayerType)EditorGUILayout.Popup("기본 레이어", (int)defaultLayer, layerNames);
+        collision = EditorGUILayout.Toggle("충돌 사용", collision);
 
         DrawPreview();
 
         GUI.enabled = manager != null && File.Exists(sourcePath);
-        if (GUILayout.Button("Import And Use", GUILayout.Height(30f)))
+        if (GUILayout.Button("가져와서 사용", GUILayout.Height(30f)))
         {
             manager.ImportTileset(sourcePath, displayName, tileWidth, tileHeight, margin, spacing, defaultLayer, collision);
         }
         GUI.enabled = true;
 
         EditorGUILayout.Space(12f);
-        EditorGUILayout.LabelField("Imported Tilesets", EditorStyles.boldLabel);
+        EditorGUILayout.LabelField("가져온 타일셋", EditorStyles.boldLabel);
         scroll = EditorGUILayout.BeginScrollView(scroll);
 
         if (manager != null)
@@ -76,11 +77,11 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
                     EditorGUILayout.LabelField(
                         definition.displayName + "  " + definition.tileWidth + "x" + definition.tileHeight + "px",
                         GUILayout.ExpandWidth(true));
-                    if (GUILayout.Button("Use", GUILayout.Width(52f)))
+                    if (GUILayout.Button("사용", GUILayout.Width(52f)))
                     {
                         manager.UseImportedTileset(definition.id);
                     }
-                    if (GUILayout.Button("Remove", GUILayout.Width(62f)))
+                    if (GUILayout.Button("삭제", GUILayout.Width(62f)))
                     {
                         manager.RemoveImportedTileset(definition.id);
                         GUIUtility.ExitGUI();
@@ -94,7 +95,7 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
 
     private void Browse()
     {
-        string path = EditorUtility.OpenFilePanel("Import Tileset PNG", string.Empty, "png");
+        string path = EditorUtility.OpenFilePanel("타일셋 PNG 가져오기", string.Empty, "png");
         if (string.IsNullOrEmpty(path))
         {
             return;
@@ -126,7 +127,7 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
         EditorGUI.DrawRect(rect, new Color(0.12f, 0.12f, 0.12f));
         if (preview == null)
         {
-            GUI.Label(rect, "Select a PNG tileset", EditorStyles.centeredGreyMiniLabel);
+            GUI.Label(rect, "PNG 타일셋을 선택하세요", EditorStyles.centeredGreyMiniLabel);
             return;
         }
 

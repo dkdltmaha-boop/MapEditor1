@@ -14,7 +14,7 @@ public sealed class MapEditorPixelChromaImportService
         path = string.Empty;
 
 #if UNITY_EDITOR
-        path = EditorUtility.OpenFilePanel("Import PixelChroma Map", "", "json");
+        path = EditorUtility.OpenFilePanel("PixelChroma 맵 가져오기", "", "json");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -23,7 +23,7 @@ public sealed class MapEditorPixelChromaImportService
 
         return TryImport(path, out saveData);
 #else
-        Debug.LogWarning("PixelChroma map import file picker is only available in the Unity Editor.");
+        Debug.LogWarning("PixelChroma 맵 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
         return false;
 #endif
     }
@@ -34,7 +34,7 @@ public sealed class MapEditorPixelChromaImportService
 
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
-            Debug.LogWarning("PixelChroma map file does not exist: " + path);
+            Debug.LogWarning("PixelChroma 맵 파일이 없습니다: " + path);
             return false;
         }
 
@@ -46,18 +46,18 @@ public sealed class MapEditorPixelChromaImportService
         }
         catch (Exception exception)
         {
-            Debug.LogWarning("Could not read PixelChroma map file: " + path + "\n" + exception.Message);
+            Debug.LogWarning("PixelChroma 맵 파일을 읽을 수 없습니다: " + path + "\n" + exception.Message);
             return false;
         }
 
         if (!IsValid(exportData))
         {
-            Debug.LogWarning("Selected file is not a valid PixelChroma map export: " + path);
+            Debug.LogWarning("선택한 파일은 올바른 PixelChroma 맵 파일이 아닙니다: " + path);
             return false;
         }
 
         saveData = ConvertToSaveData(exportData, Path.GetDirectoryName(path));
-        Debug.Log("PixelChroma map imported: " + path);
+        Debug.Log("PixelChroma 맵을 가져왔습니다: " + path);
         return true;
     }
 

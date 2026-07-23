@@ -192,6 +192,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     private void CacheExistingReferences()
     {
+        SetExistingText("Title", "색상");
         Transform preview = transform.Find("Preview");
         Transform wallTileSelector = transform.Find(WallTileSelectorObjectName);
         Transform wheel = transform.Find("HueWheel");
@@ -204,6 +205,14 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         if (wallTileSelector != null)
         {
+            Transform wallTileLabel = wallTileSelector.Find("WallTileLabel");
+            Text label = wallTileLabel == null ? null : wallTileLabel.GetComponent<Text>();
+            if (label != null)
+            {
+                label.text = "벽 타일";
+                label.font = MapEditorFontProvider.Default;
+            }
+
             Transform wallTilePreview = wallTileSelector.Find(WallTilePreviewObjectName);
             wallTilePreviewImage = wallTilePreview == null ? null : wallTilePreview.GetComponent<Image>();
 
@@ -261,6 +270,18 @@ public class ColorWheelPickerWindow : MonoBehaviour
         pngPaletteView.CacheExistingReferences(transform);
     }
 
+    private void SetExistingText(string objectName, string value)
+    {
+        Transform target = transform.Find(objectName);
+        Text text = target == null ? null : target.GetComponent<Text>();
+
+        if (text != null)
+        {
+            text.text = value;
+            text.font = MapEditorFontProvider.Default;
+        }
+    }
+
     private void RemoveMissingScripts()
     {
 #if UNITY_EDITOR
@@ -286,7 +307,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.sizeDelta = new Vector2(-16f, 24f);
 
         Text text = titleObject.GetComponent<Text>();
-        text.text = "Color";
+        text.text = "색상";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 15;
         text.alignment = TextAnchor.MiddleLeft;
@@ -386,7 +407,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         labelRect.offsetMax = new Vector2(-56f, 0f);
 
         Text label = labelObject.GetComponent<Text>();
-        label.text = "Wall Tile";
+        label.text = "벽 타일";
         label.font = MapEditorFontProvider.Default;
         label.fontSize = 13;
         label.alignment = TextAnchor.MiddleLeft;
@@ -478,7 +499,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         labelObject.GetComponent<RectTransform>().sizeDelta = new Vector2(48f, 0f);
 
         Text label = labelObject.GetComponent<Text>();
-        label.text = "Dot Size";
+        label.text = "그리기 크기";
         label.font = MapEditorFontProvider.Default;
         label.fontSize = 11;
         label.alignment = TextAnchor.MiddleLeft;
@@ -514,7 +535,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
 
         Text text = textObject.GetComponent<Text>();
-        text.text = "Tile";
+        text.text = "타일";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleCenter;

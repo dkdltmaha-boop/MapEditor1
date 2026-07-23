@@ -62,6 +62,6 @@ public class EditorToolController : MonoBehaviour
 
         CurrentTool = tool;
         ToolChanged?.Invoke(CurrentTool);
-        Debug.Log("Selected tool: " + CurrentTool);
+        Debug.Log("선택한 도구: " + CurrentTool);
     }
 }

@@ -24,13 +24,13 @@ public class GridGenerator : MonoBehaviour
     {
         if (gridParent == null)
         {
-            Debug.LogWarning("GridGenerator is missing gridParent.");
+            Debug.LogWarning("GridGenerator에 gridParent가 연결되지 않았습니다.");
             return;
         }
 
         if (cellPrefab == null)
         {
-            Debug.LogWarning("GridGenerator is missing cellPrefab.");
+            Debug.LogWarning("GridGenerator에 cellPrefab이 연결되지 않았습니다.");
             return;
         }
 

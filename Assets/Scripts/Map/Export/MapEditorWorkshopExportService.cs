@@ -45,7 +45,7 @@ public sealed class MapEditorWorkshopExportService
 
         if (string.IsNullOrEmpty(projectPath))
         {
-            Debug.LogWarning("PixelChroma project was not found. Choose its Assets/WorkshopMaps folder manually.");
+            Debug.LogWarning("PixelChroma 프로젝트를 찾지 못했습니다. Assets/WorkshopMaps 폴더를 직접 선택하세요.");
             return ExportWithDialog(
                 mapData,
                 mapId,
@@ -84,7 +84,7 @@ public sealed class MapEditorWorkshopExportService
 
         if (exported)
         {
-            Debug.Log("Workshop map installed in PixelChroma: " + packageFolder);
+            Debug.Log("창작마당 맵을 PixelChroma에 설치했습니다: " + packageFolder);
         }
 
         return exported;
@@ -111,7 +111,7 @@ public sealed class MapEditorWorkshopExportService
         string initialFolder = string.IsNullOrEmpty(projectPath)
             ? string.Empty
             : MapEditorPixelChromaProjectLocator.GetWorkshopRoot(projectPath);
-        string folderPath = EditorUtility.SaveFolderPanel("Export PixelChroma Workshop Package", initialFolder, defaultFolder);
+        string folderPath = EditorUtility.SaveFolderPanel("PixelChroma 창작마당 패키지 내보내기", initialFolder, defaultFolder);
 
         if (string.IsNullOrEmpty(folderPath))
         {
@@ -135,7 +135,7 @@ public sealed class MapEditorWorkshopExportService
             emptyCellsTransparent
         );
 #else
-        Debug.LogWarning("Workshop package export file picker is only available in the Unity Editor.");
+        Debug.LogWarning("창작마당 패키지 내보내기 폴더 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
         return false;
 #endif
     }
@@ -170,7 +170,7 @@ public sealed class MapEditorWorkshopExportService
         if (report.errors.Count > 0)
         {
             WritePackageReport(paths.Report, report);
-            Debug.LogError("PixelChroma workshop package export failed. See package_report.json for validation errors: " + paths.Report);
+            Debug.LogError("PixelChroma 창작마당 패키지를 내보내지 못했습니다. package_report.json의 검사 오류를 확인하세요: " + paths.Report);
             return false;
         }
 
@@ -190,7 +190,7 @@ public sealed class MapEditorWorkshopExportService
         AddFileInventory(folderPath, report);
         WritePackageReport(paths.Report, report);
 
-        Debug.Log("PixelChroma workshop package exported: " + folderPath);
+        Debug.Log("PixelChroma 창작마당 패키지를 내보냈습니다: " + folderPath);
         return true;
     }
 

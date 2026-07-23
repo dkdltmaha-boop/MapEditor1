@@ -36,7 +36,7 @@ public class MapEditorMapExportService
         output.Apply();
         File.WriteAllBytes(path, output.EncodeToPNG());
         MapEditorObjectUtility.DestroyObject(output);
-        Debug.Log("Map PNG exported: " + path);
+        Debug.Log("맵 PNG를 내보냈습니다: " + path);
     }
 
     private void FillEmptyPixels(Texture2D output, Color emptyColor)

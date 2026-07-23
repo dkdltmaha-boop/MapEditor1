@@ -177,8 +177,8 @@ public sealed class ColorWheelPngPaletteView
         }
 
         paletteLabel.text = MapEditorTilesetLibraryService.TryGetByAtlasPath(sourcePath, out MapEditorTilesetDefinition tileset)
-            ? "Tileset: " + tileset.displayName + " (" + tileset.tileWidth + "x" + tileset.tileHeight + "px)"
-            : "PNG Palette " + paletteGridSize + "x" + paletteGridSize;
+            ? "타일셋: " + tileset.displayName + " (" + tileset.tileWidth + "x" + tileset.tileHeight + "px)"
+            : "PNG 팔레트 " + paletteGridSize + "x" + paletteGridSize;
         paletteLabel.font = MapEditorFontProvider.Default;
         paletteLabel.fontSize = 13;
         paletteLabel.alignment = TextAnchor.MiddleLeft;

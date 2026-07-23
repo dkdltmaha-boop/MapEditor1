@@ -110,7 +110,7 @@ public class MapEditorSelectionClipboardService
 
         if (selectedRect.HasValue)
         {
-            Debug.Log("Selection: " + selectedRect.Value.width + "x" + selectedRect.Value.height);
+            Debug.Log("선택 영역: " + selectedRect.Value.width + "x" + selectedRect.Value.height);
         }
     }
 
@@ -118,19 +118,19 @@ public class MapEditorSelectionClipboardService
     {
         if (!selectedRect.HasValue)
         {
-            Debug.Log("No map selection to copy.");
+            Debug.Log("복사할 선택 영역이 없습니다.");
             return;
         }
 
         clipboard = mapEditing.CopyRect(selectedRect.Value);
-        Debug.Log("Selection copied: " + selectedRect.Value.width + "x" + selectedRect.Value.height);
+        Debug.Log("선택 영역을 복사했습니다: " + selectedRect.Value.width + "x" + selectedRect.Value.height);
     }
 
     public void CutSelection()
     {
         if (!selectedRect.HasValue)
         {
-            Debug.Log("No map selection to cut.");
+            Debug.Log("잘라낼 선택 영역이 없습니다.");
             return;
         }
 
@@ -140,14 +140,14 @@ public class MapEditorSelectionClipboardService
         selectionStart = null;
         updateBrushCursorPreview();
         refreshMinimap();
-        Debug.Log("Selection cut.");
+        Debug.Log("선택 영역을 잘라냈습니다.");
     }
 
     public void PasteClipboardAtCurrentTarget()
     {
         if (clipboard == null)
         {
-            Debug.Log("Clipboard is empty.");
+            Debug.Log("클립보드가 비어 있습니다.");
             return;
         }
 
@@ -161,7 +161,7 @@ public class MapEditorSelectionClipboardService
         configureMapViewportVisual();
         updateBrushCursorPreview();
         refreshMinimap();
-        Debug.Log("Clipboard pasted at " + topLeft + " size " + clipboard.width + "x" + clipboard.height);
+        Debug.Log("클립보드를 붙여넣었습니다: 위치 " + topLeft + " / 크기 " + clipboard.width + "x" + clipboard.height);
     }
 
     public Vector2Int GetPasteTopLeft()

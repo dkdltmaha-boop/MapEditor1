@@ -36,7 +36,7 @@ public class MapEditorPngPaletteService
     {
         if (string.IsNullOrEmpty(CurrentPath))
         {
-            Debug.LogWarning("No PNG palette loaded.");
+            Debug.LogWarning("불러온 PNG 팔레트가 없습니다.");
             return null;
         }
 
@@ -44,7 +44,7 @@ public class MapEditorPngPaletteService
 
         if (texture == null)
         {
-            Debug.LogWarning("Could not paste PNG because it is not loaded: " + CurrentPath);
+            Debug.LogWarning("PNG가 불러와지지 않아 붙여넣을 수 없습니다: " + CurrentPath);
         }
 
         return texture;

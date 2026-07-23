@@ -52,7 +52,7 @@ public sealed class MapEditorPngFileService
         int maxRecentFiles)
     {
 #if UNITY_EDITOR
-        string path = EditorUtility.OpenFilePanel("Load PNG Palette", "", "png");
+        string path = EditorUtility.OpenFilePanel("PNG 팔레트 불러오기", "", "png");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -61,7 +61,7 @@ public sealed class MapEditorPngFileService
 
         return LoadPalette(manager, colorWheelWindow, colorPaletteOffset, maxRecentFiles, path);
 #else
-        Debug.LogWarning("PNG file picker is only available in the Unity Editor.");
+        Debug.LogWarning("PNG 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
         return colorWheelWindow;
 #endif
     }
@@ -90,14 +90,14 @@ public sealed class MapEditorPngFileService
             colorWheelWindow.SetPngPalette(texture, path);
         }
 
-        Debug.Log("PNG palette loaded: " + path);
+        Debug.Log("PNG 팔레트를 불러왔습니다: " + path);
         return colorWheelWindow;
     }
 
     public void ExportMapPngWithDialog(MapData mapData, int cellPixels, bool emptyCellsTransparent)
     {
 #if UNITY_EDITOR
-        string path = EditorUtility.SaveFilePanel("Export Map PNG", "", "map.png", "png");
+        string path = EditorUtility.SaveFilePanel("맵 PNG 내보내기", "", "map.png", "png");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -106,7 +106,7 @@ public sealed class MapEditorPngFileService
 
         ExportMapPng(mapData, path, cellPixels, emptyCellsTransparent);
 #else
-        Debug.LogWarning("PNG export file picker is only available in the Unity Editor.");
+        Debug.LogWarning("PNG 내보내기 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
 #endif
     }
 

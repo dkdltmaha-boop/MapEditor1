@@ -49,7 +49,7 @@ public sealed class MapEditorMapLoadApplyService
             createToolToolbar?.Invoke();
         }
 
-        Debug.Log("Map loaded: " + path + " (" + manager.mapWidth + "x" + manager.mapHeight + ", v" + saveData.formatVersion + ")");
+        Debug.Log("맵을 불러왔습니다: " + path + " (" + manager.mapWidth + "x" + manager.mapHeight + ", 버전 " + saveData.formatVersion + ")");
         return loadedMapData;
     }
 
@@ -87,7 +87,7 @@ public sealed class MapEditorMapLoadApplyService
 
         if (repairedCount > 0)
         {
-            Debug.LogWarning("Repaired saved PNG tile paths from embedded edit data: " + repairedCount + " tiles");
+            Debug.LogWarning("포함된 편집 데이터에서 PNG 타일 경로를 복구했습니다: " + repairedCount + "개");
         }
     }
 
@@ -97,7 +97,7 @@ public sealed class MapEditorMapLoadApplyService
 
         if (!string.IsNullOrEmpty(pngFiles.CurrentPath))
         {
-            Debug.Log("Saved PNG palette path restored for internal references: " + pngFiles.CurrentPath);
+            Debug.Log("내부 참조용 PNG 팔레트 경로를 복원했습니다: " + pngFiles.CurrentPath);
         }
     }
 }

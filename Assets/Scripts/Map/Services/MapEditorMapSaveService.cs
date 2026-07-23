@@ -38,7 +38,7 @@ public class MapEditorMapSaveService
 #if UNITY_EDITOR
         if (string.IsNullOrEmpty(currentMapFilePath))
         {
-            string path = EditorUtility.SaveFilePanel("Save Editable Map", "", DefaultSaveFileName, "json");
+            string path = EditorUtility.SaveFilePanel("편집용 맵 저장", "", DefaultSaveFileName, "json");
 
             if (string.IsNullOrEmpty(path))
             {
@@ -72,7 +72,7 @@ public class MapEditorMapSaveService
     public bool Load(out MapSaveData saveData, out string path)
     {
 #if UNITY_EDITOR
-        path = EditorUtility.OpenFilePanel("Load Editable Map", "", "json");
+        path = EditorUtility.OpenFilePanel("편집용 맵 불러오기", "", "json");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -118,7 +118,7 @@ public class MapEditorMapSaveService
 
         File.WriteAllText(path, json);
         currentMapFilePath = path;
-        Debug.Log("Map saved: " + path);
+        Debug.Log("맵을 저장했습니다: " + path);
         return true;
     }
 
@@ -128,7 +128,7 @@ public class MapEditorMapSaveService
 
         if (!File.Exists(path))
         {
-            Debug.LogWarning("Map file does not exist: " + path);
+            Debug.LogWarning("맵 파일이 없습니다: " + path);
             return false;
         }
 
@@ -137,7 +137,7 @@ public class MapEditorMapSaveService
             string json = File.ReadAllText(path);
             if (json.Contains("\"format\"") && json.Contains("PixelChromaMap"))
             {
-                Debug.LogWarning("This is a PixelChroma exported map. Use Import Map instead of Load Edit: " + path);
+                Debug.LogWarning("PixelChroma용으로 내보낸 맵입니다. 편집 불러오기 대신 게임 맵 가져오기를 사용하세요: " + path);
                 return false;
             }
 
@@ -146,13 +146,13 @@ public class MapEditorMapSaveService
         }
         catch (System.Exception exception)
         {
-            Debug.LogWarning("Could not read map file: " + path + "\n" + exception.Message);
+            Debug.LogWarning("맵 파일을 읽을 수 없습니다: " + path + "\n" + exception.Message);
             return false;
         }
 
         if (!MapSaveDataValidator.IsValid(saveData, maxMapSize))
         {
-            Debug.LogWarning("Could not read map file: " + path);
+            Debug.LogWarning("맵 파일을 읽을 수 없습니다: " + path);
             return false;
         }
 
@@ -225,7 +225,7 @@ public class MapEditorMapSaveService
         }
         catch (System.Exception exception)
         {
-            Debug.LogWarning("Could not embed PNG asset in edit save: " + path + "\n" + exception.Message);
+            Debug.LogWarning("편집 저장 파일에 PNG를 포함하지 못했습니다: " + path + "\n" + exception.Message);
         }
     }
 
@@ -264,7 +264,7 @@ public class MapEditorMapSaveService
             }
             catch (System.Exception exception)
             {
-                Debug.LogWarning("Could not restore embedded PNG asset: " + asset.originalPath + "\n" + exception.Message);
+                Debug.LogWarning("포함된 PNG를 복원하지 못했습니다: " + asset.originalPath + "\n" + exception.Message);
             }
         }
 
@@ -348,7 +348,7 @@ public class MapEditorMapSaveService
         }
 
         BakeImageTilesIntoPixelData(saveData);
-        Debug.Log("Restored embedded PNG assets for Load Edit: " + restoredPaths.Count);
+        Debug.Log("편집 불러오기용 PNG를 복원했습니다: " + restoredPaths.Count + "개");
     }
 
     private static void BakeImageTilesIntoPixelData(MapSaveData saveData)
@@ -407,7 +407,7 @@ public class MapEditorMapSaveService
 
         if (bakedCount > 0)
         {
-            Debug.Log("Baked embedded PNG map tiles into editable pixel data: " + bakedCount);
+            Debug.Log("포함된 PNG 맵 타일을 편집 가능한 픽셀 데이터로 변환했습니다: " + bakedCount + "개");
         }
     }
 

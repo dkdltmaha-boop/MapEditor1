@@ -30,7 +30,7 @@ public class MapEditorPngTilesetService
 
         if (string.IsNullOrEmpty(path) || !File.Exists(path))
         {
-            Debug.LogWarning("PNG file does not exist: " + path);
+            Debug.LogWarning("PNG 파일이 없습니다: " + path);
             return null;
         }
 
@@ -39,7 +39,7 @@ public class MapEditorPngTilesetService
 
         if (!texture.LoadImage(bytes))
         {
-            Debug.LogWarning("Could not load PNG file: " + path);
+            Debug.LogWarning("PNG 파일을 불러올 수 없습니다: " + path);
             MapEditorObjectUtility.DestroyObject(texture);
             return null;
         }

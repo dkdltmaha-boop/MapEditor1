@@ -217,7 +217,7 @@ public sealed class MapEditorTilesetLibraryService
         }
         catch (Exception exception)
         {
-            Debug.LogWarning("Could not read imported tileset catalog.\n" + exception.Message);
+            Debug.LogWarning("가져온 타일셋 목록을 읽을 수 없습니다.\n" + exception.Message);
         }
     }
 
@@ -257,7 +257,7 @@ public sealed class MapEditorTilesetLibraryService
         }
         catch (Exception exception)
         {
-            Debug.LogWarning("Could not load tileset PNG: " + path + "\n" + exception.Message);
+            Debug.LogWarning("타일셋 PNG를 불러올 수 없습니다: " + path + "\n" + exception.Message);
         }
 
         return null;

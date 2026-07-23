@@ -15,7 +15,7 @@ public static class MapEditorPixelChromaValidationService
 
         if (mapData == null)
         {
-            report.errors.Add("Map data is missing.");
+            report.errors.Add("맵 데이터가 없습니다.");
             report.isValid = false;
             return report;
         }
@@ -24,12 +24,12 @@ public static class MapEditorPixelChromaValidationService
 
         if (mapData.width <= 0 || mapData.height <= 0)
         {
-            report.errors.Add("Map size must be greater than zero.");
+            report.errors.Add("맵 크기는 0보다 커야 합니다.");
         }
 
         if ((spawnPoints == null || spawnPoints.Count == 0) && (spawnX < 0 || spawnX >= mapData.width || spawnY < 0 || spawnY >= mapData.height))
         {
-            report.errors.Add("Spawn point is outside the map.");
+            report.errors.Add("시작 위치가 맵 바깥에 있습니다.");
         }
 
         HashSet<string> usedTilesets = new HashSet<string>();
@@ -88,19 +88,19 @@ public static class MapEditorPixelChromaValidationService
 
         if (report.paintedTileCount == 0)
         {
-            report.errors.Add("Map has no painted tiles.");
+            report.errors.Add("맵에 그려진 타일이 없습니다.");
         }
 
         if (report.wallTileCount == 0)
         {
-            report.warnings.Add("Map has no wall tiles. PixelChroma collision may be missing.");
+            report.warnings.Add("벽 타일이 없습니다. PixelChroma에서 충돌이 적용되지 않을 수 있습니다.");
         }
 
         if (missingTilesets.Count > 0)
         {
             foreach (string missingTileset in missingTilesets)
             {
-                report.errors.Add("Missing tileset file: " + missingTileset);
+                report.errors.Add("타일셋 파일을 찾을 수 없습니다: " + missingTileset);
             }
         }
 
@@ -124,13 +124,13 @@ public static class MapEditorPixelChromaValidationService
     {
         if (spawnPoint == null)
         {
-            report.errors.Add("Spawn point " + (index + 1) + " is missing.");
+            report.errors.Add("시작 위치 " + (index + 1) + "이(가) 없습니다.");
             return;
         }
 
         if (spawnPoint.x < 0 || spawnPoint.x >= mapData.width || spawnPoint.y < 0 || spawnPoint.y >= mapData.height)
         {
-            report.errors.Add("Spawn point " + (index + 1) + " is outside the map.");
+            report.errors.Add("시작 위치 " + (index + 1) + "이(가) 맵 바깥에 있습니다.");
             return;
         }
 
@@ -138,11 +138,11 @@ public static class MapEditorPixelChromaValidationService
 
         if (wallTileId == MapEditorManager.WallTileId)
         {
-            report.errors.Add("Spawn point " + (index + 1) + " is on a wall tile.");
+            report.errors.Add("시작 위치 " + (index + 1) + "이(가) 벽 타일 위에 있습니다.");
         }
         else if (mapData.GetTile(spawnPoint.x, spawnPoint.y, MapEditorLayerType.Ground) == -1)
         {
-            report.warnings.Add("Spawn point " + (index + 1) + " is on an empty floor tile.");
+            report.warnings.Add("시작 위치 " + (index + 1) + "이(가) 빈 바닥 타일 위에 있습니다.");
         }
     }
 
@@ -155,12 +155,12 @@ public static class MapEditorPixelChromaValidationService
 
         for (int i = 0; i < report.errors.Count; i++)
         {
-            Debug.LogError("PixelChroma map validation error: " + report.errors[i]);
+            Debug.LogError("PixelChroma 맵 검사 오류: " + report.errors[i]);
         }
 
         for (int i = 0; i < report.warnings.Count; i++)
         {
-            Debug.LogWarning("PixelChroma map validation warning: " + report.warnings[i]);
+            Debug.LogWarning("PixelChroma 맵 검사 경고: " + report.warnings[i]);
         }
     }
 }

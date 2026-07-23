@@ -11,6 +11,11 @@ public static class MapEditorToolbarButtonFactory
 
     public static Button CreateActionButton(Transform parent, MapEditorManager manager, string label, string shortcut, string objectName = null)
     {
+        return CreateActionButton(parent, manager, label, shortcut, GetToolbarAction(label), objectName);
+    }
+
+    public static Button CreateActionButton(Transform parent, MapEditorManager manager, string label, string shortcut, MapEditorToolbarAction action, string objectName = null)
+    {
         GameObject buttonObject = new GameObject(objectName ?? label + "Button", typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(parent, false);
 
@@ -25,12 +30,17 @@ public static class MapEditorToolbarButtonFactory
         button.transition = Selectable.Transition.None;
 
         MapEditorToolbarButton toolbarButton = buttonObject.AddComponent<MapEditorToolbarButton>();
-        ConfigureToolbarButton(toolbarButton, manager, label);
+        ConfigureToolbarButton(toolbarButton, manager, action);
         EnsureButtonText(buttonObject.transform, label, shortcut);
         return button;
     }
 
     public static void ConfigureActionButton(Transform buttonTransform, MapEditorManager manager, string label, string shortcut)
+    {
+        ConfigureActionButton(buttonTransform, manager, label, shortcut, GetToolbarAction(label));
+    }
+
+    public static void ConfigureActionButton(Transform buttonTransform, MapEditorManager manager, string label, string shortcut, MapEditorToolbarAction action)
     {
         Image image = buttonTransform.GetComponent<Image>();
 
@@ -57,7 +67,7 @@ public static class MapEditorToolbarButtonFactory
             toolbarButton = buttonTransform.gameObject.AddComponent<MapEditorToolbarButton>();
         }
 
-        ConfigureToolbarButton(toolbarButton, manager, label);
+        ConfigureToolbarButton(toolbarButton, manager, action);
         EnsureButtonText(buttonTransform, label, shortcut);
     }
 
@@ -70,7 +80,7 @@ public static class MapEditorToolbarButtonFactory
             label = "PNG";
         }
 
-        Button button = CreateActionButton(parent, manager, label, "Recent");
+        Button button = CreateActionButton(parent, manager, label, "최근", MapEditorToolbarAction.LoadRecentPng);
         button.name = "Recent_" + label;
 
         MapEditorToolbarButton toolbarButton = button.GetComponent<MapEditorToolbarButton>();
@@ -108,10 +118,10 @@ public static class MapEditorToolbarButtonFactory
         }
     }
 
-    private static void ConfigureToolbarButton(MapEditorToolbarButton toolbarButton, MapEditorManager manager, string label)
+    private static void ConfigureToolbarButton(MapEditorToolbarButton toolbarButton, MapEditorManager manager, MapEditorToolbarAction action)
     {
         toolbarButton.manager = manager;
-        toolbarButton.action = GetToolbarAction(label);
+        toolbarButton.action = action;
         toolbarButton.stringArgument = string.Empty;
     }
 

@@ -33,7 +33,7 @@ public sealed class MapEditorPixelChromaExportService
     {
 #if UNITY_EDITOR
         string defaultName = string.IsNullOrWhiteSpace(mapId) ? "pixelchroma_map.json" : SanitizeId(mapId) + ".json";
-        string path = EditorUtility.SaveFilePanel("Export For PixelChroma", "", defaultName, "json");
+        string path = EditorUtility.SaveFilePanel("PixelChroma용 맵 내보내기", "", defaultName, "json");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -42,7 +42,7 @@ public sealed class MapEditorPixelChromaExportService
 
         return Export(mapData, path, mapId, cellSize, spawnX, spawnY, spawnPoints);
 #else
-        Debug.LogWarning("PixelChroma export file picker is only available in the Unity Editor.");
+        Debug.LogWarning("PixelChroma 내보내기 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
         return false;
 #endif
     }
@@ -84,7 +84,7 @@ public sealed class MapEditorPixelChromaExportService
 
         if (!validation.isValid)
         {
-            Debug.LogError("PixelChroma map export failed because validation found blocking errors.");
+            Debug.LogError("맵 검사에서 오류가 발견되어 PixelChroma 맵을 내보내지 못했습니다.");
             return false;
         }
 
@@ -98,7 +98,7 @@ public sealed class MapEditorPixelChromaExportService
         }
 
         File.WriteAllText(path, json);
-        Debug.Log("PixelChroma map exported: " + path);
+        Debug.Log("PixelChroma 맵을 내보냈습니다: " + path);
         return true;
     }
 
@@ -501,7 +501,7 @@ public sealed class MapEditorPixelChromaExportService
 
             if (imagePixels == null)
             {
-                Debug.LogError("Could not bake PNG tile for PixelChroma export: " + imagePath + " #" + imageIndex);
+                Debug.LogError("PixelChroma 내보내기용 PNG 타일을 만들 수 없습니다: " + imagePath + " #" + imageIndex);
                 return null;
             }
 

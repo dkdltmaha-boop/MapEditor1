@@ -19,18 +19,38 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorManager manager = UnityEngine.Object.FindFirstObjectByType<MapEditorManager>();
             Require(manager != null, "SampleScene is missing MapEditorManager.");
             Require(manager.mapWidth == 64 && manager.mapHeight == 64, "Default map size is not 64 x 64.");
+            GridGenerator gridGenerator = manager.GetComponent<GridGenerator>();
+            Require(gridGenerator != null && gridGenerator.gridParent != null, "SampleScene is missing the map grid.");
+            gridGenerator.ApplyLayoutSize();
+            Require(
+                gridGenerator.gridParent.GetComponent<RectMask2D>() != null,
+                "Map grid content is not clipped to the actual map bounds.");
+            Require(
+                typeof(MaskableGraphic).IsAssignableFrom(typeof(MapEditorGridLineOverlay)),
+                "Map grid line overlay does not support UI masking.");
 
             Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
             Require(canvas != null, "SampleScene is missing Canvas.");
+            MapEditorSceneUiBuilder.EnsureBackground();
+            RawImage background = canvas.transform.Find("MapEditor_Background")?.GetComponent<RawImage>();
+            RawImage logo = canvas.transform.Find("MapEditor_Logo")?.GetComponent<RawImage>();
+            Require(background != null && background.texture != null
+                && background.texture.name == "MapEditor_Title_20260727",
+                "The new PixelChroma title background was not applied.");
+            Require(background.GetComponent<AspectRatioFitter>()?.aspectMode == AspectRatioFitter.AspectMode.EnvelopeParent,
+                "The title background is not preserving its aspect ratio.");
+            Require(logo != null && logo.texture != null && logo.gameObject.activeSelf,
+                "The PixelChroma logo was not created.");
             MapEditorToolbarBuilder.Ensure(manager, manager.toolToolbarOffset, Array.Empty<string>());
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
             RequireToolbarButton(toolbar, "BrushToolButton", "브러시", MapEditorToolbarAction.Brush);
             RequireToolbarButton(toolbar, "WallToolButton", "벽", MapEditorToolbarAction.Wall);
-            RequireToolbarButton(toolbar, "SaveEditButton", "편집 저장", MapEditorToolbarAction.Save);
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
             RequireToolbarButton(toolbar, "ValidateButton", "맵 검사", MapEditorToolbarAction.ValidateMap);
             RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
+            RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
+            Require(toolbar.Find("CharacterTestToolButton") == null, "Removed character test tool is still visible.");
 
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, manager.toolToolbarOffset);
             Transform panel = canvas.transform.Find("MapEditor_MapSizePanel");
@@ -65,10 +85,30 @@ public static class MapEditorSizeConfigurationSmokeTest
             ColorWheelPickerWindow picker = ColorWheelPickerWindow.Create(manager, manager.colorPaletteOffset);
             Require(picker != null, "Color picker window was not created.");
             picker.SetPngPalette(texture, texturePath);
-            Require(picker.transform.Find("Title")?.GetComponent<Text>()?.text == "색상", "Color picker title was not localized.");
+            Require(picker.transform.Find("Title")?.GetComponent<Text>()?.text.StartsWith("색상") == true, "Color picker title was not localized.");
             Require(picker.transform.Find("WallTileSelector/WallTileLabel")?.GetComponent<Text>()?.text == "벽 타일", "Wall tile label was not localized.");
             Require(picker.transform.Find("ExportCellSizeSelector/DotSizeLabel")?.GetComponent<Text>()?.text == "그리기 크기", "Paint size label was not localized.");
             Require(picker.transform.Find("PngPaletteLabel")?.GetComponent<Text>()?.text.StartsWith("PNG 팔레트 ") == true, "PNG palette label was not localized.");
+            Require(picker.transform.Find("HueBar") != null, "PixelChroma-style hue bar is missing.");
+            Require(picker.transform.Find("HueWheel") == null, "Legacy circular hue wheel still exists.");
+
+            RectTransform svRect = picker.transform.Find("SaturationValueSquare") as RectTransform;
+            Require(svRect != null && Mathf.Abs(svRect.rect.width - 196f) < 0.1f && Mathf.Abs(svRect.rect.height - 140f) < 0.1f,
+                "PixelChroma-style saturation/value area has the wrong size.");
+
+            picker.SetHueFromLocalPoint(new Vector2(-98f, 0f));
+            picker.SetSaturationValueFromLocalPoint(new Vector2(98f, 70f));
+            Require(ColorDistance(manager.selectedColor, Color.red) < 0.01f, "HSV pointer mapping did not select red.");
+
+            RectTransform hexRow = picker.transform.Find("HexColorInput") as RectTransform;
+            InputField hexInput = picker.transform.Find("HexColorInput/Input")?.GetComponent<InputField>();
+            Require(hexRow != null && Mathf.Abs(hexRow.anchoredPosition.y + 228f) < 0.1f,
+                "HEX color input is not positioned below the color controls.");
+            Require(hexInput != null, "HEX color input field is missing.");
+            hexInput.text = "46F1F1";
+            hexInput.onEndEdit.Invoke(hexInput.text);
+            Require(ColorDistance(manager.selectedColor, new Color32(0x46, 0xF1, 0xF1, 0xFF)) < 0.02f,
+                "HEX color search did not update the selected color.");
 
             Transform selector = picker.transform.Find("PngPaletteSizeSelector");
             Require(selector != null && selector.childCount == 4, "PNG palette size selector does not contain four options.");
@@ -127,5 +167,10 @@ public static class MapEditorSizeConfigurationSmokeTest
         {
             throw new InvalidOperationException(message);
         }
+    }
+
+    private static float ColorDistance(Color a, Color b)
+    {
+        return Mathf.Abs(a.r - b.r) + Mathf.Abs(a.g - b.g) + Mathf.Abs(a.b - b.b);
     }
 }

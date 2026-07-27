@@ -13,23 +13,29 @@ public class MapEditorMapExportService
 
     public void ExportPng(MapData mapData, string path, int cellPixels, bool emptyCellsTransparent)
     {
+        ExportPng(mapData, path, cellPixels, emptyCellsTransparent, null);
+    }
+
+    public void ExportPng(MapData mapData, string path, int cellPixels, bool emptyCellsTransparent, RectInt? cropRegion)
+    {
         if (mapData == null || string.IsNullOrEmpty(path))
         {
             return;
         }
 
         int safeCellPixels = MapEditorManager.NormalizeExportCellPixels(cellPixels);
-        int exportWidth = mapData.width * safeCellPixels;
-        int exportHeight = mapData.height * safeCellPixels;
+        RectInt region = ResolveCropRegion(mapData, cropRegion);
+        int exportWidth = region.width * safeCellPixels;
+        int exportHeight = region.height * safeCellPixels;
         Texture2D output = new Texture2D(exportWidth, exportHeight, TextureFormat.RGBA32, false);
 
         FillEmptyPixels(output, emptyCellsTransparent ? Color.clear : Color.white);
 
-        for (int mapY = 0; mapY < mapData.height; mapY++)
+        for (int mapY = region.yMin; mapY < region.yMax; mapY++)
         {
-            for (int mapX = 0; mapX < mapData.width; mapX++)
+            for (int mapX = region.xMin; mapX < region.xMax; mapX++)
             {
-                DrawCell(output, mapData, mapX, mapY, safeCellPixels, exportHeight);
+                DrawCell(output, mapData, mapX, mapY, safeCellPixels, exportHeight, region.xMin, region.yMin);
             }
         }
 
@@ -50,7 +56,22 @@ public class MapEditorMapExportService
         }
     }
 
-    private void DrawCell(Texture2D output, MapData mapData, int mapX, int mapY, int cellPixels, int exportHeight)
+    private static RectInt ResolveCropRegion(MapData mapData, RectInt? cropRegion)
+    {
+        if (!cropRegion.HasValue)
+        {
+            return new RectInt(0, 0, mapData.width, mapData.height);
+        }
+
+        RectInt requested = cropRegion.Value;
+        int minX = Mathf.Clamp(requested.xMin, 0, mapData.width - 1);
+        int minY = Mathf.Clamp(requested.yMin, 0, mapData.height - 1);
+        int maxX = Mathf.Clamp(requested.xMax, minX + 1, mapData.width);
+        int maxY = Mathf.Clamp(requested.yMax, minY + 1, mapData.height);
+        return new RectInt(minX, minY, maxX - minX, maxY - minY);
+    }
+
+    private void DrawCell(Texture2D output, MapData mapData, int mapX, int mapY, int cellPixels, int exportHeight, int originX, int originY)
     {
         int tileId = mapData.GetTile(mapX, mapY);
 
@@ -59,8 +80,8 @@ public class MapEditorMapExportService
             return;
         }
 
-        int startX = mapX * cellPixels;
-        int startY = exportHeight - ((mapY + 1) * cellPixels);
+        int startX = (mapX - originX) * cellPixels;
+        int startY = exportHeight - ((mapY - originY + 1) * cellPixels);
 
         if (tileId == MapEditorManager.CustomColorTileId || (tileId == MapEditorManager.WallTileId && mapData.GetImageIndex(mapX, mapY) < 0 && string.IsNullOrEmpty(mapData.GetImagePath(mapX, mapY))))
         {

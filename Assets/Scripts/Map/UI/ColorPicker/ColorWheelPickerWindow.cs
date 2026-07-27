@@ -9,21 +9,25 @@ public class ColorWheelPickerWindow : MonoBehaviour
 {
     private const string WindowObjectName = "MapEditor_ColorPicker";
     private const string LegacyWindowObjectName = "ColorWheelWindow";
-    private const int WheelSize = 180;
-    private const int WheelThickness = 26;
-    private const int SquareSize = 104;
+    private const int SquareWidth = 196;
+    private const int SquareHeight = 140;
+    private const int HueBarWidth = 196;
+    private const int HueBarHeight = 16;
     private static readonly Vector2 PreferredWindowSize = new Vector2(246f, 620f);
     private const float WindowScreenMargin = 8f;
     private const string WallTileSelectorObjectName = "WallTileSelector";
     private const string WallTilePreviewObjectName = "WallTilePreview";
     private const string ExportCellSizeSelectorObjectName = "ExportCellSizeSelector";
     private const string ExportCellSizeButtonPrefix = "ExportCellSize";
+    private const string HexColorInputObjectName = "HexColorInput";
 
     private MapEditorManager manager;
     private RawImage wheelImage;
     private RawImage squareImage;
     private Image previewImage;
     private Image wallTilePreviewImage;
+    private Text titleText;
+    private InputField hexInputField;
     private RectTransform wheelHandle;
     private RectTransform squareHandle;
     private Texture2D squareTexture;
@@ -124,16 +128,25 @@ public class ColorWheelPickerWindow : MonoBehaviour
         this.manager = manager;
         pngPaletteView = new ColorWheelPngPaletteView(this, manager);
         RemoveMissingScripts();
+        RemoveChild("AlphaControl");
 
-        if (transform.Find("HueWheel") == null)
+        if (transform.Find("HueBar") == null)
         {
-            BuildWindow();
+            if (transform.childCount == 0)
+            {
+                BuildWindow();
+            }
+            else
+            {
+                UpgradeLegacyColorPicker();
+            }
         }
         else
         {
             CacheExistingReferences();
             EnsureWallTileSelector();
             EnsureExportCellSizeSelector();
+            EnsureHexColorInput();
         }
 
         isBuilt = true;
@@ -154,10 +167,30 @@ public class ColorWheelPickerWindow : MonoBehaviour
         UpdateHandles();
     }
 
+    public void RefreshLocalizedText()
+    {
+        UpdateColorDetails();
+
+        Transform wallTileLabel = transform.Find(WallTileSelectorObjectName + "/WallTileLabel");
+        Text wallText = wallTileLabel == null ? null : wallTileLabel.GetComponent<Text>();
+        if (wallText != null)
+        {
+            wallText.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
+        }
+
+        Transform sizeLabel = transform.Find(ExportCellSizeSelectorObjectName + "/DotSizeLabel");
+        Text sizeText = sizeLabel == null ? null : sizeLabel.GetComponent<Text>();
+        if (sizeText != null)
+        {
+            sizeText.text = MapEditorLocalization.Choose("그리기 크기", "Paint Size");
+        }
+
+        RefreshHexInputLabels(transform.Find(HexColorInputObjectName));
+    }
+
     public void SetHueFromLocalPoint(Vector2 localPoint)
     {
-        float angle = Mathf.Atan2(localPoint.y, localPoint.x);
-        hue = Mathf.Repeat(angle / (Mathf.PI * 2f), 1f);
+        hue = Mathf.InverseLerp(-HueBarWidth * 0.5f, HueBarWidth * 0.5f, localPoint.x);
         UpdateSquareTexture();
         UpdatePreview(true);
         UpdateHandles();
@@ -165,8 +198,8 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     public void SetSaturationValueFromLocalPoint(Vector2 localPoint)
     {
-        float x = Mathf.InverseLerp(-SquareSize * 0.5f, SquareSize * 0.5f, localPoint.x);
-        float y = Mathf.InverseLerp(-SquareSize * 0.5f, SquareSize * 0.5f, localPoint.y);
+        float x = Mathf.InverseLerp(-SquareWidth * 0.5f, SquareWidth * 0.5f, localPoint.x);
+        float y = Mathf.InverseLerp(-SquareHeight * 0.5f, SquareHeight * 0.5f, localPoint.y);
 
         saturation = Mathf.Clamp01(x);
         value = Mathf.Clamp01(y);
@@ -185,23 +218,68 @@ public class ColorWheelPickerWindow : MonoBehaviour
         CreatePreview();
         CreateWheel();
         CreateSquare();
+        CreateHexColorInput();
         CreateWallTileSelector();
         CreateExportCellSizeSelector();
         pngPaletteView.CreateArea(transform);
     }
 
+    private void UpgradeLegacyColorPicker()
+    {
+        RemoveChild("Title");
+        RemoveChild("Preview");
+        RemoveChild("AlphaControl");
+        RemoveChild("HueWheel");
+        RemoveChild("HueBar");
+        RemoveChild("SaturationValueSquare");
+
+        CreateTitle();
+        CreatePreview();
+        CreateSquare();
+        CreateWheel();
+        CreateHexColorInput();
+
+        EnsureWallTileSelector();
+        EnsureExportCellSizeSelector();
+
+        if (transform.Find("ColorPicker_PngTilesetViewport") == null
+            && transform.Find("PngPaletteViewport") == null)
+        {
+            pngPaletteView.CreateArea(transform);
+        }
+        else
+        {
+            pngPaletteView.CacheExistingReferences(transform);
+        }
+    }
+
+    private void RemoveChild(string objectName)
+    {
+        Transform child = transform.Find(objectName);
+        if (child != null)
+        {
+            MapEditorObjectUtility.DestroyObject(child.gameObject);
+        }
+    }
+
     private void CacheExistingReferences()
     {
-        SetExistingText("Title", "색상");
+        SetExistingText("Title", MapEditorLocalization.Choose("색상", "Color"));
         Transform preview = transform.Find("Preview");
+        Transform title = transform.Find("Title");
         Transform wallTileSelector = transform.Find(WallTileSelectorObjectName);
-        Transform wheel = transform.Find("HueWheel");
+        Transform wheel = transform.Find("HueBar");
         Transform square = transform.Find("SaturationValueSquare");
+        Transform hexInput = transform.Find(HexColorInputObjectName);
 
         if (preview != null)
         {
             previewImage = preview.GetComponent<Image>();
         }
+
+        titleText = title == null ? null : title.GetComponent<Text>();
+        hexInputField = hexInput == null ? null : hexInput.GetComponentInChildren<InputField>(true);
+        ConfigureHexInputEvents();
 
         if (wallTileSelector != null)
         {
@@ -209,7 +287,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
             Text label = wallTileLabel == null ? null : wallTileLabel.GetComponent<Text>();
             if (label != null)
             {
-                label.text = "벽 타일";
+                label.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
                 label.font = MapEditorFontProvider.Default;
             }
 
@@ -268,6 +346,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         }
 
         pngPaletteView.CacheExistingReferences(transform);
+        RefreshLocalizedText();
     }
 
     private void SetExistingText(string objectName, string value)
@@ -304,10 +383,11 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
         rect.anchoredPosition = new Vector2(0f, -8f);
-        rect.sizeDelta = new Vector2(-16f, 24f);
+        rect.sizeDelta = new Vector2(-68f, 24f);
 
         Text text = titleObject.GetComponent<Text>();
-        text.text = "색상";
+        titleText = text;
+        text.text = MapEditorLocalization.Choose("색상", "Color");
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 15;
         text.alignment = TextAnchor.MiddleLeft;
@@ -323,8 +403,8 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMin = new Vector2(1f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(1f, 1f);
-        rect.anchoredPosition = new Vector2(-16f, -38f);
-        rect.sizeDelta = new Vector2(76f, 28f);
+        rect.anchoredPosition = new Vector2(-8f, -8f);
+        rect.sizeDelta = new Vector2(44f, 24f);
 
         previewImage = previewObject.GetComponent<Image>();
         previewImage.raycastTarget = false;
@@ -332,46 +412,248 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     private void CreateWheel()
     {
-        GameObject wheelObject = new GameObject("HueWheel", typeof(RectTransform), typeof(RawImage), typeof(ColorWheelInput));
+        GameObject wheelObject = new GameObject("HueBar", typeof(RectTransform), typeof(RawImage), typeof(ColorWheelInput), typeof(Outline));
         wheelObject.transform.SetParent(transform, false);
 
         RectTransform rect = wheelObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, -142f);
-        rect.sizeDelta = new Vector2(WheelSize, WheelSize);
+        rect.anchoredPosition = new Vector2(0f, -210f);
+        rect.sizeDelta = new Vector2(HueBarWidth, HueBarHeight);
 
         wheelImage = wheelObject.GetComponent<RawImage>();
         wheelImage.texture = CreateWheelTexture();
+        wheelImage.raycastTarget = true;
+
+        Outline outline = wheelObject.GetComponent<Outline>();
+        outline.effectColor = new Color(0f, 0f, 0f, 0.75f);
+        outline.effectDistance = new Vector2(1f, -1f);
 
         ColorWheelInput input = wheelObject.GetComponent<ColorWheelInput>();
         input.Initialize(this, rect);
 
-        wheelHandle = CreateHandle("HueHandle", wheelObject.transform, 13f);
+        wheelHandle = CreateHueHandle(wheelObject.transform);
+    }
+
+    private void EnsureHexColorInput()
+    {
+        Transform existing = transform.Find(HexColorInputObjectName);
+        if (existing == null)
+        {
+            CreateHexColorInput();
+            return;
+        }
+
+        hexInputField = existing.GetComponentInChildren<InputField>(true);
+        ConfigureHexInputEvents();
+        RefreshHexInputLabels(existing);
+    }
+
+    private void CreateHexColorInput()
+    {
+        if (transform.Find(HexColorInputObjectName) != null)
+        {
+            EnsureHexColorInput();
+            return;
+        }
+
+        GameObject rowObject = new GameObject(HexColorInputObjectName, typeof(RectTransform), typeof(Image));
+        rowObject.transform.SetParent(transform, false);
+        RectTransform rowRect = rowObject.GetComponent<RectTransform>();
+        rowRect.anchorMin = new Vector2(0f, 1f);
+        rowRect.anchorMax = new Vector2(1f, 1f);
+        rowRect.pivot = new Vector2(0.5f, 1f);
+        rowRect.anchoredPosition = new Vector2(0f, -228f);
+        rowRect.sizeDelta = new Vector2(-16f, 28f);
+        rowObject.GetComponent<Image>().color = new Color(0.11f, 0.11f, 0.11f, 0.92f);
+
+        GameObject labelObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
+        labelObject.transform.SetParent(rowObject.transform, false);
+        RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = new Vector2(0f, 1f);
+        labelRect.pivot = new Vector2(0f, 0.5f);
+        labelRect.anchoredPosition = new Vector2(8f, 0f);
+        labelRect.sizeDelta = new Vector2(34f, 0f);
+        Text label = labelObject.GetComponent<Text>();
+        label.text = "HEX";
+        label.font = MapEditorFontProvider.Default;
+        label.fontSize = 10;
+        label.alignment = TextAnchor.MiddleLeft;
+        label.color = Color.white;
+
+        GameObject inputObject = new GameObject("Input", typeof(RectTransform), typeof(Image), typeof(InputField));
+        inputObject.transform.SetParent(rowObject.transform, false);
+        RectTransform inputRect = inputObject.GetComponent<RectTransform>();
+        inputRect.anchorMin = new Vector2(0f, 0.5f);
+        inputRect.anchorMax = new Vector2(0f, 0.5f);
+        inputRect.pivot = new Vector2(0f, 0.5f);
+        inputRect.anchoredPosition = new Vector2(42f, 0f);
+        inputRect.sizeDelta = new Vector2(122f, 20f);
+        Image inputBackground = inputObject.GetComponent<Image>();
+        inputBackground.color = new Color(0.06f, 0.06f, 0.06f, 1f);
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(inputObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(5f, 1f);
+        textRect.offsetMax = new Vector2(-5f, -1f);
+        Text inputText = textObject.GetComponent<Text>();
+        inputText.font = MapEditorFontProvider.Default;
+        inputText.fontSize = 10;
+        inputText.alignment = TextAnchor.MiddleLeft;
+        inputText.color = Color.white;
+        inputText.supportRichText = false;
+
+        GameObject placeholderObject = new GameObject("Placeholder", typeof(RectTransform), typeof(Text));
+        placeholderObject.transform.SetParent(inputObject.transform, false);
+        RectTransform placeholderRect = placeholderObject.GetComponent<RectTransform>();
+        placeholderRect.anchorMin = Vector2.zero;
+        placeholderRect.anchorMax = Vector2.one;
+        placeholderRect.offsetMin = new Vector2(5f, 1f);
+        placeholderRect.offsetMax = new Vector2(-5f, -1f);
+        Text placeholder = placeholderObject.GetComponent<Text>();
+        placeholder.font = MapEditorFontProvider.Default;
+        placeholder.fontSize = 9;
+        placeholder.fontStyle = FontStyle.Italic;
+        placeholder.alignment = TextAnchor.MiddleLeft;
+        placeholder.color = new Color(1f, 1f, 1f, 0.42f);
+
+        hexInputField = inputObject.GetComponent<InputField>();
+        hexInputField.targetGraphic = inputBackground;
+        hexInputField.textComponent = inputText;
+        hexInputField.placeholder = placeholder;
+        hexInputField.lineType = InputField.LineType.SingleLine;
+        hexInputField.characterLimit = 7;
+        ConfigureHexInputEvents();
+
+        GameObject applyObject = new GameObject("ApplyButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        applyObject.transform.SetParent(rowObject.transform, false);
+        RectTransform applyRect = applyObject.GetComponent<RectTransform>();
+        applyRect.anchorMin = new Vector2(1f, 0.5f);
+        applyRect.anchorMax = new Vector2(1f, 0.5f);
+        applyRect.pivot = new Vector2(1f, 0.5f);
+        applyRect.anchoredPosition = new Vector2(-5f, 0f);
+        applyRect.sizeDelta = new Vector2(48f, 20f);
+        Image applyImage = applyObject.GetComponent<Image>();
+        applyImage.color = new Color(0.18f, 0.48f, 0.95f, 1f);
+        Button applyButton = applyObject.GetComponent<Button>();
+        applyButton.targetGraphic = applyImage;
+        applyButton.onClick.AddListener(() => ApplyHexColor(hexInputField == null ? string.Empty : hexInputField.text));
+
+        GameObject applyTextObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        applyTextObject.transform.SetParent(applyObject.transform, false);
+        RectTransform applyTextRect = applyTextObject.GetComponent<RectTransform>();
+        applyTextRect.anchorMin = Vector2.zero;
+        applyTextRect.anchorMax = Vector2.one;
+        applyTextRect.offsetMin = Vector2.zero;
+        applyTextRect.offsetMax = Vector2.zero;
+        Text applyText = applyTextObject.GetComponent<Text>();
+        applyText.font = MapEditorFontProvider.Default;
+        applyText.fontSize = 9;
+        applyText.alignment = TextAnchor.MiddleCenter;
+        applyText.color = Color.white;
+
+        RefreshHexInputLabels(rowObject.transform);
+        UpdateColorDetails();
+    }
+
+    private void ConfigureHexInputEvents()
+    {
+        if (hexInputField == null)
+        {
+            return;
+        }
+
+        hexInputField.onEndEdit.RemoveAllListeners();
+        hexInputField.onEndEdit.AddListener(ApplyHexColor);
+    }
+
+    private void ApplyHexColor(string value)
+    {
+        string normalized = string.IsNullOrWhiteSpace(value) ? string.Empty : value.Trim();
+        if (!normalized.StartsWith("#"))
+        {
+            normalized = "#" + normalized;
+        }
+
+        if (normalized.Length == 7 && ColorUtility.TryParseHtmlString(normalized, out Color color))
+        {
+            color.a = 1f;
+            SetColor(color, true);
+            return;
+        }
+
+        UpdateColorDetails();
+    }
+
+    private void RefreshHexInputLabels(Transform root)
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Text placeholder = root.Find("Input/Placeholder")?.GetComponent<Text>();
+        if (placeholder != null)
+        {
+            placeholder.text = MapEditorLocalization.Choose("예: #46F1F1", "e.g. #46F1F1");
+        }
+
+        Text applyText = root.Find("ApplyButton/Text")?.GetComponent<Text>();
+        if (applyText != null)
+        {
+            applyText.text = MapEditorLocalization.Choose("적용", "Apply");
+        }
     }
 
     private void CreateSquare()
     {
-        GameObject squareObject = new GameObject("SaturationValueSquare", typeof(RectTransform), typeof(RawImage), typeof(ColorSquareInput));
+        GameObject squareObject = new GameObject("SaturationValueSquare", typeof(RectTransform), typeof(RawImage), typeof(ColorSquareInput), typeof(Outline));
         squareObject.transform.SetParent(transform, false);
 
         RectTransform rect = squareObject.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, -142f);
-        rect.sizeDelta = new Vector2(SquareSize, SquareSize);
+        rect.anchoredPosition = new Vector2(0f, -122f);
+        rect.sizeDelta = new Vector2(SquareWidth, SquareHeight);
 
-        squareTexture = new Texture2D(SquareSize, SquareSize, TextureFormat.RGBA32, false);
+        squareTexture = new Texture2D(SquareWidth, SquareHeight, TextureFormat.RGBA32, false);
         squareTexture.wrapMode = TextureWrapMode.Clamp;
+        squareTexture.filterMode = FilterMode.Bilinear;
         squareImage = squareObject.GetComponent<RawImage>();
         squareImage.texture = squareTexture;
+
+        Outline squareOutline = squareObject.GetComponent<Outline>();
+        squareOutline.effectColor = new Color(0f, 0f, 0f, 0.75f);
+        squareOutline.effectDistance = new Vector2(1f, -1f);
 
         ColorSquareInput input = squareObject.GetComponent<ColorSquareInput>();
         input.Initialize(this, rect);
 
         squareHandle = CreateHandle("SquareHandle", squareObject.transform, 10f);
+    }
+
+    private RectTransform CreateHueHandle(Transform parent)
+    {
+        GameObject handleObject = new GameObject("HueHandle", typeof(RectTransform), typeof(Image), typeof(Outline));
+        handleObject.transform.SetParent(parent, false);
+
+        RectTransform rect = handleObject.GetComponent<RectTransform>();
+        rect.sizeDelta = new Vector2(4f, HueBarHeight + 6f);
+
+        Image image = handleObject.GetComponent<Image>();
+        image.color = Color.white;
+        image.raycastTarget = false;
+
+        Outline outline = handleObject.GetComponent<Outline>();
+        outline.effectColor = Color.black;
+        outline.effectDistance = new Vector2(1f, -1f);
+        return rect;
     }
 
     private void CreateWallTileSelector()
@@ -407,7 +689,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         labelRect.offsetMax = new Vector2(-56f, 0f);
 
         Text label = labelObject.GetComponent<Text>();
-        label.text = "벽 타일";
+        label.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
         label.font = MapEditorFontProvider.Default;
         label.fontSize = 13;
         label.alignment = TextAnchor.MiddleLeft;
@@ -499,7 +781,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         labelObject.GetComponent<RectTransform>().sizeDelta = new Vector2(48f, 0f);
 
         Text label = labelObject.GetComponent<Text>();
-        label.text = "그리기 크기";
+        label.text = MapEditorLocalization.Choose("그리기 크기", "Paint Size");
         label.font = MapEditorFontProvider.Default;
         label.fontSize = 11;
         label.alignment = TextAnchor.MiddleLeft;
@@ -574,11 +856,26 @@ public class ColorWheelPickerWindow : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
 
         Text text = textObject.GetComponent<Text>();
-        text.text = size + "px";
+        text.text = GetBrushSizeLabel(size);
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 8;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
+    }
+
+    private static string GetBrushSizeLabel(int size)
+    {
+        switch (size)
+        {
+            case 4:
+                return "2x2";
+            case 8:
+                return "4x4";
+            case 16:
+                return "8x8";
+            default:
+                return "1x1";
+        }
     }
 
     public void SetPngPalette(Texture2D sourceTexture, string sourcePath)
@@ -652,28 +949,15 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     private Texture2D CreateWheelTexture()
     {
-        Texture2D texture = new Texture2D(WheelSize, WheelSize, TextureFormat.RGBA32, false);
+        Texture2D texture = new Texture2D(HueBarWidth, HueBarHeight, TextureFormat.RGBA32, false);
         texture.wrapMode = TextureWrapMode.Clamp;
+        texture.filterMode = FilterMode.Bilinear;
 
-        float center = (WheelSize - 1) * 0.5f;
-        float outerRadius = WheelSize * 0.5f;
-        float innerRadius = outerRadius - WheelThickness;
-
-        for (int y = 0; y < WheelSize; y++)
+        for (int y = 0; y < HueBarHeight; y++)
         {
-            for (int x = 0; x < WheelSize; x++)
+            for (int x = 0; x < HueBarWidth; x++)
             {
-                float dx = x - center;
-                float dy = y - center;
-                float radius = Mathf.Sqrt(dx * dx + dy * dy);
-
-                if (radius < innerRadius || radius > outerRadius)
-                {
-                    texture.SetPixel(x, y, Color.clear);
-                    continue;
-                }
-
-                float pixelHue = Mathf.Repeat(Mathf.Atan2(dy, dx) / (Mathf.PI * 2f), 1f);
+                float pixelHue = x / (float)(HueBarWidth - 1);
                 texture.SetPixel(x, y, Color.HSVToRGB(pixelHue, 1f, 1f));
             }
         }
@@ -689,13 +973,13 @@ public class ColorWheelPickerWindow : MonoBehaviour
             return;
         }
 
-        for (int y = 0; y < SquareSize; y++)
+        for (int y = 0; y < SquareHeight; y++)
         {
-            float v = y / (float)(SquareSize - 1);
+            float v = y / (float)(SquareHeight - 1);
 
-            for (int x = 0; x < SquareSize; x++)
+            for (int x = 0; x < SquareWidth; x++)
             {
-                float s = x / (float)(SquareSize - 1);
+                float s = x / (float)(SquareWidth - 1);
                 squareTexture.SetPixel(x, y, Color.HSVToRGB(hue, s, v));
             }
         }
@@ -721,22 +1005,45 @@ public class ColorWheelPickerWindow : MonoBehaviour
         {
             manager.SelectColor(color);
         }
+
+        UpdateColorDetails();
+    }
+
+    private void UpdateColorDetails()
+    {
+        Color color = Color.HSVToRGB(hue, saturation, value);
+        Color32 color32 = color;
+
+        if (titleText != null)
+        {
+            titleText.text = MapEditorLocalization.Choose("색상", "Color");
+        }
+
+        if (hexInputField != null)
+        {
+            hexInputField.SetTextWithoutNotify(string.Format(
+                "#{0:X2}{1:X2}{2:X2}",
+                color32.r,
+                color32.g,
+                color32.b));
+        }
+
     }
 
     private void UpdateHandles()
     {
         if (wheelHandle != null)
         {
-            float radius = (WheelSize * 0.5f) - (WheelThickness * 0.5f);
-            float angle = hue * Mathf.PI * 2f;
-            wheelHandle.anchoredPosition = new Vector2(Mathf.Cos(angle), Mathf.Sin(angle)) * radius;
+            wheelHandle.anchoredPosition = new Vector2(
+                Mathf.Lerp(-HueBarWidth * 0.5f, HueBarWidth * 0.5f, hue),
+                0f);
         }
 
         if (squareHandle != null)
         {
             squareHandle.anchoredPosition = new Vector2(
-                Mathf.Lerp(-SquareSize * 0.5f, SquareSize * 0.5f, saturation),
-                Mathf.Lerp(-SquareSize * 0.5f, SquareSize * 0.5f, value)
+                Mathf.Lerp(-SquareWidth * 0.5f, SquareWidth * 0.5f, saturation),
+                Mathf.Lerp(-SquareHeight * 0.5f, SquareHeight * 0.5f, value)
             );
         }
     }

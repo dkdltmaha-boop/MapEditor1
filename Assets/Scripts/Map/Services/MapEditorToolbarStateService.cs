@@ -118,11 +118,11 @@ public sealed class MapEditorToolbarStateService
         }
 
         validationStatusText.text =
-            "맵 검사: " + (report.isValid ? "통과" : "수정 필요") +
-            "\n오류 " + report.errors.Count + " / 경고 " + report.warnings.Count;
+            (report.isValid ? "검사 합격" : "검사 불합격") +
+            "\n실패 " + report.errors.Count + " / 경고 " + report.warnings.Count;
         validationStatusText.color = report.isValid
             ? new Color(0.5f, 1f, 0.5f, 1f)
-            : new Color(1f, 0.74f, 0.32f, 1f);
+            : new Color(1f, 0.35f, 0.3f, 1f);
     }
 
     private static void ResetPreviewTransform(Image image)

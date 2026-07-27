@@ -13,6 +13,14 @@ public static class MapEditorExportSmokeTest
         Run();
     }
 
+    public static void RunBatchMode()
+    {
+        if (!Run())
+        {
+            throw new InvalidOperationException("MapEditor export smoke test failed.");
+        }
+    }
+
     public static bool Run()
     {
         string root = Path.Combine(Path.GetTempPath(), "MapEditorExportSmokeTest_" + DateTime.Now.ToString("yyyyMMdd_HHmmss"));
@@ -34,6 +42,9 @@ public static class MapEditorExportSmokeTest
             Debug.LogError("MapEditor export smoke test failed during validation.");
             return false;
         }
+
+        ValidateValidationReport(validation);
+        ValidateLayerRoundTrip(mapData);
 
         string mapPath = Path.Combine(root, "map.json");
         MapEditorPixelChromaExportService mapExport = new MapEditorPixelChromaExportService();
@@ -94,15 +105,11 @@ public static class MapEditorExportSmokeTest
             sprite = Sprite.Create(texture, new Rect(0, 0, 16, 16), new Vector2(0.5f, 0.5f), 16f);
             cellObject = new GameObject("PngOverwriteSmokeCell", typeof(RectTransform), typeof(Image));
             GridCell cell = cellObject.AddComponent<GridCell>();
-            cell.Init(0, 0);
 
             MapData mapData = new MapData(1, 1);
             mapData.SetTileOnLayer(0, 0, MapEditorLayerType.Ground, MapEditorManager.CustomImageTileId, Color.white, "smoke.png", 0, 0, false, false);
 
-            Dictionary<Vector2Int, GridCell> cells = new Dictionary<Vector2Int, GridCell>
-            {
-                [Vector2Int.zero] = cell
-            };
+            Dictionary<Vector2Int, GridCell> cells = new Dictionary<Vector2Int, GridCell>();
             MapEditorMapEditingService editing = new MapEditorMapEditingService(
                 () => mapData,
                 () => MapEditorLayerType.Ground,
@@ -219,7 +226,8 @@ public static class MapEditorExportSmokeTest
             && map.tilesets != null
             && map.tilesets.Count == 0
             && HasBakedPngTile(map)
-            && HasPixelTile(map);
+            && HasPixelTile(map)
+            && HasWallCollisionTile(map);
 
         if (!contractValid)
         {
@@ -278,6 +286,58 @@ public static class MapEditorExportSmokeTest
         return false;
     }
 
+    private static bool HasWallCollisionTile(PixelChromaMapExportData map)
+    {
+        foreach (PixelChromaMapLayerExportData layer in map.layers)
+        {
+            if (layer.kind != "collision")
+            {
+                continue;
+            }
+
+            foreach (PixelChromaTileExportData tile in layer.tiles)
+            {
+                if (tile.x == 0 && tile.y == 0)
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    private static void ValidateValidationReport(PixelChromaMapValidationReport validation)
+    {
+        Require(validation.passedChecks.Count > 0, "Validation did not include passed checks.");
+        Require(
+            validation.passedChecks.Exists(message => message.StartsWith("맵 크기:")),
+            "Validation result did not contain readable Korean text.");
+        Require(validation.wallTileCount == 1, "Validation did not count the Wall collision layer.");
+        Require(validation.spawnPointCount == 2, "Validation did not count all spawn points.");
+    }
+
+    private static void ValidateLayerRoundTrip(MapData source)
+    {
+        MapSaveData saveData = source.ToSaveData();
+        MapData loaded = MapData.FromSaveData(saveData);
+
+        Require(
+            loaded.GetTile(0, 0, MapEditorLayerType.Ground) == MapEditorManager.CustomColorTileId,
+            "Loading removed the visual Ground tile below a Wall property.");
+        Require(
+            loaded.GetTile(0, 0, MapEditorLayerType.WallCollision) == MapEditorManager.WallTileId,
+            "Loading removed the Wall collision property.");
+        Require(
+            loaded.GetTile(3, 3, MapEditorLayerType.Object) == MapEditorManager.CustomColorTileId,
+            "Loading removed the Object layer.");
+
+        MapTilePixelData loadedPixels = loaded.GetPixelData(3, 3, MapEditorLayerType.Object);
+        Require(
+            loadedPixels != null && loadedPixels.resolution == 4 && loadedPixels.GetPixel(0, 0) == Color.red,
+            "Loading changed layered pixel data.");
+    }
+
     private static bool ValidateWorkshopPackage(string packagePath)
     {
         string manifestPath = Path.Combine(packagePath, "manifest.json");
@@ -299,6 +359,17 @@ public static class MapEditorExportSmokeTest
         if (!valid)
         {
             return false;
+        }
+
+        Texture2D preview = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+        try
+        {
+            Require(preview.LoadImage(File.ReadAllBytes(previewPath)), "Workshop preview PNG could not be decoded.");
+            Require(preview.width == 64 && preview.height == 64, "Workshop preview size does not match the 4x4 map at 16 pixels per tile.");
+        }
+        finally
+        {
+            MapEditorObjectUtility.DestroyObject(preview);
         }
 
         string reportJson = File.ReadAllText(reportPath);

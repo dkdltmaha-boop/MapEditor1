@@ -7,7 +7,6 @@ public sealed class MapEditorCellRenderService
     private static readonly MapEditorLayerType[] LayerPriority =
     {
         MapEditorLayerType.Zone,
-        MapEditorLayerType.WallCollision,
         MapEditorLayerType.WallVisual,
         MapEditorLayerType.Object,
         MapEditorLayerType.Ground
@@ -43,13 +42,16 @@ public sealed class MapEditorCellRenderService
 
         ApplyUnderlay(cell, mapData, layerType);
 
-        if (tileId == MapEditorManager.WallTileId)
+        if (tileId == MapEditorManager.WallTileId && layerType != MapEditorLayerType.WallCollision)
         {
             ApplyWallTileToCell(cell, mapData, layerType, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
-            return;
+        }
+        else
+        {
+            ApplyTileToCell(cell, mapData, layerType, tileId, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
         }
 
-        ApplyTileToCell(cell, mapData, layerType, tileId, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
+        ApplyWallCollisionOutline(cell, mapData);
     }
 
     public void RefreshAllCells(Dictionary<Vector2Int, GridCell> cells, MapData mapData)
@@ -192,6 +194,26 @@ public sealed class MapEditorCellRenderService
             && Mathf.Abs(otherColor.g - color.g) < 0.001f
             && Mathf.Abs(otherColor.b - color.b) < 0.001f
             && Mathf.Abs(otherColor.a - color.a) < 0.001f;
+    }
+
+    private void ApplyWallCollisionOutline(GridCell cell, MapData mapData)
+    {
+        bool visible = isLayerVisible == null || isLayerVisible(MapEditorLayerType.WallCollision);
+        bool hasWall = visible && IsWallCollision(mapData, cell.X, cell.Y);
+
+        cell.SetWallCollisionOutline(
+            hasWall,
+            hasWall && !IsWallCollision(mapData, cell.X, cell.Y - 1),
+            hasWall && !IsWallCollision(mapData, cell.X + 1, cell.Y),
+            hasWall && !IsWallCollision(mapData, cell.X, cell.Y + 1),
+            hasWall && !IsWallCollision(mapData, cell.X - 1, cell.Y));
+    }
+
+    private static bool IsWallCollision(MapData mapData, int x, int y)
+    {
+        return mapData != null
+            && mapData.IsInside(x, y)
+            && mapData.GetTile(x, y, MapEditorLayerType.WallCollision) == MapEditorManager.WallTileId;
     }
 
     private MapEditorLayerType GetTopVisibleLayer(MapData mapData, int x, int y)

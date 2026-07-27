@@ -84,6 +84,8 @@ public class GridGenerator : MonoBehaviour
             return;
         }
 
+        EnsureGridContentMask();
+
         GridLayoutGroup gridLayout = gridParent.GetComponent<GridLayoutGroup>();
 
         if (gridLayout != null)
@@ -109,6 +111,19 @@ public class GridGenerator : MonoBehaviour
         }
 
         EnsureGridLineOverlay();
+    }
+
+    public void EnsureGridContentMask()
+    {
+        RectMask2D mask = gridParent.GetComponent<RectMask2D>();
+
+        if (mask == null)
+        {
+            mask = gridParent.gameObject.AddComponent<RectMask2D>();
+        }
+
+        mask.padding = Vector4.zero;
+        mask.softness = Vector2Int.zero;
     }
 
     private void ConfigureCellRect(RectTransform rect, int x, int y)

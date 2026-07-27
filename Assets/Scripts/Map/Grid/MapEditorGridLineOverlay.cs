@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 
-public sealed class MapEditorGridLineOverlay : Graphic
+public sealed class MapEditorGridLineOverlay : MaskableGraphic
 {
     public GridGenerator gridGenerator;
     public Color lineColor = new Color(0f, 0f, 0f, 0.24f);
@@ -18,6 +18,7 @@ public sealed class MapEditorGridLineOverlay : Graphic
         gridGenerator = generator;
         color = lineColor;
         raycastTarget = false;
+        maskable = true;
         SetVerticesDirty();
     }
 

@@ -4,9 +4,6 @@ using System.IO;
 using System.Security.Cryptography;
 using System.Text;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public sealed class MapEditorWorkshopExportService
 {
@@ -20,10 +17,16 @@ public sealed class MapEditorWorkshopExportService
 
     private readonly MapEditorPixelChromaExportService mapExportService = new MapEditorPixelChromaExportService();
     private readonly MapEditorMapExportService previewExportService;
+    private RectInt? previewRegion;
 
     public MapEditorWorkshopExportService(Func<string, int, Sprite> getPngTileSprite)
     {
         previewExportService = new MapEditorMapExportService(getPngTileSprite);
+    }
+
+    public void SetPreviewRegion(RectInt? region)
+    {
+        previewRegion = region;
     }
 
     public bool ExportToPixelChromaProject(
@@ -105,19 +108,15 @@ public sealed class MapEditorWorkshopExportService
         int cellSize,
         bool emptyCellsTransparent)
     {
-#if UNITY_EDITOR
         string defaultFolder = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "workshop_map" : mapId);
-        string projectPath = MapEditorPixelChromaProjectLocator.FindProjectPath();
-        string initialFolder = string.IsNullOrEmpty(projectPath)
-            ? string.Empty
-            : MapEditorPixelChromaProjectLocator.GetWorkshopRoot(projectPath);
-        string folderPath = EditorUtility.SaveFolderPanel("PixelChroma 창작마당 패키지 내보내기", initialFolder, defaultFolder);
+        string folderPath = MapEditorFileDialog.SelectFolder("PixelChroma 창작마당 패키지 내보내기", defaultFolder);
 
         if (string.IsNullOrEmpty(folderPath))
         {
             return false;
         }
 
+        MapEditorFileDialog.RememberDirectory(folderPath);
         return Export(
             mapData,
             folderPath,
@@ -134,10 +133,6 @@ public sealed class MapEditorWorkshopExportService
             cellSize,
             emptyCellsTransparent
         );
-#else
-        Debug.LogWarning("창작마당 패키지 내보내기 폴더 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
-        return false;
-#endif
     }
 
     public bool Export(
@@ -182,7 +177,7 @@ public sealed class MapEditorWorkshopExportService
 
         Directory.CreateDirectory(paths.TilesetFolder);
         report.tilesetCount = 0;
-        previewExportService.ExportPng(mapData, paths.Preview, cellSize, emptyCellsTransparent);
+        previewExportService.ExportPng(mapData, paths.Preview, cellSize, emptyCellsTransparent, previewRegion);
         WriteManifest(paths.Manifest, normalizedMapId, title, author, description, requiredGameVersion);
         WriteSteamUploadConfig(paths.SteamUpload, normalizedMapId, title, description, steamVisibility, steamTags);
         WriteReadme(paths.Readme, normalizedMapId);

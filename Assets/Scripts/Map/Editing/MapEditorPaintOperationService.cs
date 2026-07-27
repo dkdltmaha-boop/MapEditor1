@@ -26,8 +26,7 @@ public sealed class MapEditorPaintOperationService
 
         if (selection.useWallTileBrush)
         {
-            Color wallColor = selection.selectedImageBrush == null ? selection.selectedColor : Color.white;
-            PaintBrushArea(cell.X, cell.Y, MapEditorManager.WallTileId, wallColor, selection.selectedImageBrush, selection.selectedImagePath, selection.selectedImageIndex, selection.selectedImageRotation, selection.selectedImageFlipX, selection.selectedImageFlipY, selection.brushSize, true);
+            PaintBrushArea(cell.X, cell.Y, MapEditorManager.WallTileId, Color.clear, null, string.Empty, -1, 0, false, false, selection.brushSize, true);
             return;
         }
 
@@ -123,8 +122,7 @@ public sealed class MapEditorPaintOperationService
             {
                 if (selection.useWallTileBrush)
                 {
-                    Color wallColor = selection.selectedImageBrush == null ? selection.selectedColor : Color.white;
-                    setCellTile(x, y, MapEditorManager.WallTileId, wallColor, selection.selectedImageBrush, selection.selectedImagePath, selection.selectedImageIndex, selection.selectedImageRotation, selection.selectedImageFlipX, selection.selectedImageFlipY, true);
+                    setCellTile(x, y, MapEditorManager.WallTileId, Color.clear, null, string.Empty, -1, 0, false, false, true);
                 }
                 else if (selection.selectedImageBrush != null)
                 {

@@ -2,9 +2,6 @@ using System.Collections.Generic;
 using System.IO;
 using System.Text;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public sealed class MapEditorPixelChromaExportService
 {
@@ -31,20 +28,16 @@ public sealed class MapEditorPixelChromaExportService
 
     public bool ExportWithDialog(MapData mapData, string mapId, int cellSize, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
     {
-#if UNITY_EDITOR
         string defaultName = string.IsNullOrWhiteSpace(mapId) ? "pixelchroma_map.json" : SanitizeId(mapId) + ".json";
-        string path = EditorUtility.SaveFilePanel("PixelChroma용 맵 내보내기", "", defaultName, "json");
+        string path = MapEditorFileDialog.SaveFile("PixelChroma용 맵 내보내기", defaultName, "json");
 
         if (string.IsNullOrEmpty(path))
         {
             return false;
         }
 
+        MapEditorFileDialog.RememberDirectory(path);
         return Export(mapData, path, mapId, cellSize, spawnX, spawnY, spawnPoints);
-#else
-        Debug.LogWarning("PixelChroma 내보내기 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
-        return false;
-#endif
     }
 
     public bool Export(MapData mapData, string path, string mapId, int cellSize)

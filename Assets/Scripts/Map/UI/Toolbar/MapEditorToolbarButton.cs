@@ -15,6 +15,7 @@ public enum MapEditorToolbarAction
     Cut,
     Paste,
     SetSpawn,
+    PreviewRegion = 13,
     Eyedropper,
     Undo,
     Redo,
@@ -28,6 +29,8 @@ public enum MapEditorToolbarAction
     ValidateMap,
     ExportPixelChroma,
     ExportWorkshop,
+    PackageGuide,
+    OpenSteamWorkshop,
     LoadRecentPng,
     MapPresetSquare,
     ExportCellPixels,
@@ -117,6 +120,9 @@ public class MapEditorToolbarButton : MonoBehaviour
             case MapEditorToolbarAction.SetSpawn:
                 target.SetSpawnTool();
                 break;
+            case MapEditorToolbarAction.PreviewRegion:
+                target.SetPreviewRegionTool();
+                break;
             case MapEditorToolbarAction.Eyedropper:
                 target.PickColorUnderMouse();
                 break;
@@ -155,6 +161,12 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.ExportWorkshop:
                 target.ExportWorkshopPackage();
+                break;
+            case MapEditorToolbarAction.PackageGuide:
+                target.ShowPackageSaveGuide();
+                break;
+            case MapEditorToolbarAction.OpenSteamWorkshop:
+                target.OpenSteamWorkshopPage();
                 break;
             case MapEditorToolbarAction.LoadRecentPng:
                 target.LoadRecentPngPalette(stringArgument);

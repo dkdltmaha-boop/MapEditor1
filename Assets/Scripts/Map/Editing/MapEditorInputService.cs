@@ -17,7 +17,7 @@ public class MapEditorInputService
     {
         if (Input.GetMouseButtonUp(0))
         {
-            manager.EndSelectionDrag(null);
+            manager.EndPointerDrag(null);
             manager.CommitEditTransaction();
         }
 
@@ -27,6 +27,11 @@ public class MapEditorInputService
         if (Input.GetKeyDown(manager.eyedropperKey) || Input.GetKeyDown(KeyCode.I))
         {
             manager.PickColorUnderMouse();
+        }
+
+        if (Input.GetKeyDown(KeyCode.F1))
+        {
+            manager.ShowPackageSaveGuide();
         }
 
         if (!manager.enableKeyboardShortcuts)
@@ -68,6 +73,10 @@ public class MapEditorInputService
             else if (Input.GetKeyDown(KeyCode.S))
             {
                 manager.SetSelectionTool();
+            }
+            else if (Input.GetKeyDown(KeyCode.P))
+            {
+                manager.SetPreviewRegionTool();
             }
             else if (Input.GetKeyDown(KeyCode.LeftBracket))
             {

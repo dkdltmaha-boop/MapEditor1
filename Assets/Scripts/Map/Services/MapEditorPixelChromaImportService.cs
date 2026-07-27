@@ -2,9 +2,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public sealed class MapEditorPixelChromaImportService
 {
@@ -13,19 +10,15 @@ public sealed class MapEditorPixelChromaImportService
         saveData = null;
         path = string.Empty;
 
-#if UNITY_EDITOR
-        path = EditorUtility.OpenFilePanel("PixelChroma 맵 가져오기", "", "json");
+        path = MapEditorFileDialog.OpenFile("PixelChroma 맵 가져오기", "json");
 
         if (string.IsNullOrEmpty(path))
         {
             return false;
         }
 
+        MapEditorFileDialog.RememberDirectory(path);
         return TryImport(path, out saveData);
-#else
-        Debug.LogWarning("PixelChroma 맵 파일 선택창은 Unity 에디터에서만 사용할 수 있습니다.");
-        return false;
-#endif
     }
 
     public bool TryImport(string path, out MapSaveData saveData)

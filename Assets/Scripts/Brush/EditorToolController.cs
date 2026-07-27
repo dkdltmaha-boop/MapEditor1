@@ -7,7 +7,8 @@ public enum EditorToolType
     Eraser,
     Selection,
     Wall,
-    Spawn
+    Spawn,
+    PreviewRegion = 6
 }
 
 [ExecuteAlways]
@@ -51,6 +52,11 @@ public class EditorToolController : MonoBehaviour
     public void SetSpawnTool()
     {
         SetTool(EditorToolType.Spawn);
+    }
+
+    public void SetPreviewRegionTool()
+    {
+        SetTool(EditorToolType.PreviewRegion);
     }
 
     public void SetTool(EditorToolType tool)

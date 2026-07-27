@@ -147,6 +147,7 @@ public sealed class PixelChromaMapValidationReport
     public bool isValid;
     public int paintedTileCount;
     public int groundTileCount;
+    public int objectTileCount;
     public int wallTileCount;
     public int colorTileCount;
     public int imageTileCount;
@@ -154,6 +155,7 @@ public sealed class PixelChromaMapValidationReport
     public int missingTilesetCount;
     public int spawnPointCount;
     public int zoneCount;
+    public List<string> passedChecks = new List<string>();
     public List<string> errors = new List<string>();
     public List<string> warnings = new List<string>();
 }

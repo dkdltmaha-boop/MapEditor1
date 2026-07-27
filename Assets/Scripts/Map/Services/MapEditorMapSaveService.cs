@@ -1,9 +1,6 @@
 using System.IO;
 using System.Collections.Generic;
 using UnityEngine;
-#if UNITY_EDITOR
-using UnityEditor;
-#endif
 
 public class MapEditorMapSaveService
 {
@@ -12,6 +9,7 @@ public class MapEditorMapSaveService
     private readonly int maxMapSize;
     private string currentMapFilePath = string.Empty;
     private MapEditorTilesetDefinition[] importedTilesets = System.Array.Empty<MapEditorTilesetDefinition>();
+    private RectInt? previewRegion;
 
     public MapEditorMapSaveService(int maxMapSize)
     {
@@ -21,6 +19,11 @@ public class MapEditorMapSaveService
     public void SetImportedTilesets(MapEditorTilesetDefinition[] definitions)
     {
         importedTilesets = definitions ?? System.Array.Empty<MapEditorTilesetDefinition>();
+    }
+
+    public void SetPreviewRegion(RectInt? region)
+    {
+        previewRegion = region;
     }
 
     public bool Save(MapData mapData, string currentPngPalettePath)
@@ -35,10 +38,9 @@ public class MapEditorMapSaveService
 
     public bool Save(MapData mapData, string currentPngPalettePath, int spawnX, int spawnY, MapEditorSpawnPointData[] spawnPoints)
     {
-#if UNITY_EDITOR
         if (string.IsNullOrEmpty(currentMapFilePath))
         {
-            string path = EditorUtility.SaveFilePanel("편집용 맵 저장", "", DefaultSaveFileName, "json");
+            string path = MapEditorFileDialog.SaveFile("편집용 맵 저장", DefaultSaveFileName, "json");
 
             if (string.IsNullOrEmpty(path))
             {
@@ -46,12 +48,10 @@ public class MapEditorMapSaveService
             }
 
             currentMapFilePath = path;
+            MapEditorFileDialog.RememberDirectory(path);
         }
 
         return SaveToPath(mapData, currentPngPalettePath, spawnX, spawnY, spawnPoints, currentMapFilePath);
-#else
-        return Save(mapData, currentPngPalettePath, spawnX, spawnY, DefaultSaveFileName);
-#endif
     }
 
     public bool Save(MapData mapData, string currentPngPalettePath, string fileName)
@@ -71,8 +71,7 @@ public class MapEditorMapSaveService
 
     public bool Load(out MapSaveData saveData, out string path)
     {
-#if UNITY_EDITOR
-        path = EditorUtility.OpenFilePanel("편집용 맵 불러오기", "", "json");
+        path = MapEditorFileDialog.OpenFile("편집용 맵 불러오기", "json");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -80,10 +79,8 @@ public class MapEditorMapSaveService
             return false;
         }
 
+        MapEditorFileDialog.RememberDirectory(path);
         return TryLoadFromPath(path, out saveData);
-#else
-        return Load(DefaultSaveFileName, out saveData, out path);
-#endif
     }
 
     public bool Load(string fileName, out MapSaveData saveData, out string path)
@@ -107,6 +104,14 @@ public class MapEditorMapSaveService
         saveData.spawnPoints = spawnPoints == null || spawnPoints.Length == 0
             ? new[] { new MapEditorSpawnPointData("SpawnPoint_1", saveData.spawnX, saveData.spawnY, "Any") }
             : spawnPoints;
+        if (previewRegion.HasValue)
+        {
+            RectInt region = previewRegion.Value;
+            saveData.previewX = region.x;
+            saveData.previewY = region.y;
+            saveData.previewWidth = region.width;
+            saveData.previewHeight = region.height;
+        }
         EmbedUsedPngAssets(saveData);
         string json = JsonUtility.ToJson(saveData, true);
         string directory = Path.GetDirectoryName(path);

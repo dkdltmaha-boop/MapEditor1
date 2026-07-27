@@ -71,6 +71,38 @@ public class MapEditorMapEditingService
         SetCellSubPixel(cell.X, cell.Y, pixelX, pixelY, resolution, color, true);
     }
 
+    public void PaintSubPixelArea(GridCell cell, int pixelX, int pixelY, int resolution, int brushSide, Color color)
+    {
+        if (cell == null)
+        {
+            return;
+        }
+
+        resolution = Mathf.Max(1, resolution);
+        brushSide = Mathf.Clamp(brushSide, 1, resolution);
+        int globalStartX = cell.X * resolution + pixelX;
+        int globalStartY = cell.Y * resolution + pixelY;
+
+        for (int offsetY = 0; offsetY < brushSide; offsetY++)
+        {
+            for (int offsetX = 0; offsetX < brushSide; offsetX++)
+            {
+                int globalX = globalStartX + offsetX;
+                int globalY = globalStartY + offsetY;
+                int mapX = Mathf.FloorToInt(globalX / (float)resolution);
+                int mapY = Mathf.FloorToInt(globalY / (float)resolution);
+                SetCellSubPixel(
+                    mapX,
+                    mapY,
+                    Mod(globalX, resolution),
+                    Mod(globalY, resolution),
+                    resolution,
+                    color,
+                    true);
+            }
+        }
+    }
+
     public void PaintSpriteAtSubPixel(GridCell cell, int pixelX, int pixelY, int pointerResolution, Sprite sprite)
     {
         if (cell == null || sprite == null || sprite.texture == null)

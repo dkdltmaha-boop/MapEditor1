@@ -84,6 +84,7 @@ public class MapEditorManager : MonoBehaviour
     public string requiredPixelChromaVersion = "1.0.0";
     public string steamWorkshopVisibility = "Public";
     public string steamWorkshopTags = "Map";
+    public uint steamAppId;
     public int pixelChromaSpawnX;
     public int pixelChromaSpawnY;
     public List<MapEditorSpawnPointData> pixelChromaSpawnPoints = new List<MapEditorSpawnPointData>();
@@ -124,6 +125,8 @@ public class MapEditorManager : MonoBehaviour
     private int selectedRegionStartYFromTop;
     private int selectedRegionWidth = 1;
     private int selectedRegionHeight = 1;
+    private Vector2Int? previewDragStart;
+    private RectInt? previewRegion;
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
@@ -269,6 +272,12 @@ public class MapEditorManager : MonoBehaviour
         }
 
         workshopExportService = new MapEditorWorkshopExportService(GetPngTileSprite);
+    }
+
+    private void ConfigureWorkshopPreview()
+    {
+        EnsureWorkshopExportService();
+        workshopExportService.SetPreviewRegion(previewRegion);
     }
 
     private void SubscribeToolControllerChange()
@@ -459,6 +468,20 @@ public class MapEditorManager : MonoBehaviour
         UpdateBrushCursorPreview();
     }
 
+    public void SetPreviewRegionTool()
+    {
+        CancelTransientToolState();
+        useWallTileBrush = false;
+
+        if (EditorToolController.Instance != null)
+        {
+            EditorToolController.Instance.SetPreviewRegionTool();
+        }
+
+        RefreshToolToolbarSelection();
+        UpdateBrushCursorPreview();
+    }
+
     public void SetActiveLayer(MapEditorLayerType layerType)
     {
         activeLayer = layerType;
@@ -551,6 +574,7 @@ public class MapEditorManager : MonoBehaviour
     {
         mapEditing?.ClearPendingPaintGesture();
         selectionClipboard?.CancelActiveDrag();
+        previewDragStart = null;
     }
 
     public void SelectColor(Color color)
@@ -709,7 +733,8 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        if (EditorToolController.Instance.CurrentTool == EditorToolType.Selection)
+        if (EditorToolController.Instance.CurrentTool == EditorToolType.Selection
+            || EditorToolController.Instance.CurrentTool == EditorToolType.PreviewRegion)
         {
             return;
         }
@@ -741,13 +766,19 @@ public class MapEditorManager : MonoBehaviour
 
                 if (!useWallTileBrush && selectedImageBrush == null && useSelectedColor && subPixelX >= 0 && subPixelY >= 0)
                 {
-                    mapEditing.PaintSubPixel(cell, subPixelX, subPixelY, GetExportCellPixels(), selectedColor);
+                    mapEditing.PaintSubPixelArea(
+                        cell,
+                        subPixelX,
+                        subPixelY,
+                        MaxExportCellPixels,
+                        GetSubPixelBrushSide(),
+                        selectedColor);
                     break;
                 }
 
                 if (!useWallTileBrush && selectedImageBrush != null && subPixelX >= 0 && subPixelY >= 0)
                 {
-                    mapEditing.PaintSpriteAtSubPixel(cell, subPixelX, subPixelY, GetExportCellPixels(), selectedImageBrush);
+                    mapEditing.PaintSpriteAtSubPixel(cell, subPixelX, subPixelY, MaxExportCellPixels, selectedImageBrush);
                     break;
                 }
 
@@ -854,6 +885,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void CreateNewMap(int width, int height)
     {
+        previewRegion = null;
         CurrentMapData = mapSizeService.CreateNewMap(this, width, height, ClearSelection, mapEditing.ClearHistory, RegenerateGrid);
     }
 
@@ -880,6 +912,7 @@ public class MapEditorManager : MonoBehaviour
         }
 
         CurrentMapData = resizedMapData;
+        ClampPreviewRegionToMap();
 
         if (refreshToolbar && createToolToolbar)
         {
@@ -913,6 +946,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
+        mapSaveService.SetPreviewRegion(previewRegion);
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
 
@@ -920,6 +954,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
+        mapSaveService.SetPreviewRegion(previewRegion);
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave(), fileName);
     }
 
@@ -969,6 +1004,10 @@ public class MapEditorManager : MonoBehaviour
 
         pixelChromaSpawnX = Mathf.Clamp(saveData.spawnX, 0, mapWidth - 1);
         pixelChromaSpawnY = Mathf.Clamp(saveData.spawnY, 0, mapHeight - 1);
+        previewRegion = saveData.previewWidth > 0 && saveData.previewHeight > 0
+            ? new RectInt(saveData.previewX, saveData.previewY, saveData.previewWidth, saveData.previewHeight)
+            : (RectInt?)null;
+        ClampPreviewRegionToMap();
         LoadSpawnPoints(saveData);
         RefreshSpawnMarker();
     }
@@ -976,6 +1015,16 @@ public class MapEditorManager : MonoBehaviour
     public bool IsSelectionToolActive()
     {
         return EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.Selection;
+    }
+
+    public bool IsPreviewRegionToolActive()
+    {
+        return EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.PreviewRegion;
+    }
+
+    public bool IsPointerDragToolActive()
+    {
+        return IsSelectionToolActive() || IsPreviewRegionToolActive();
     }
 
     public void CopySelection()
@@ -1158,14 +1207,108 @@ public class MapEditorManager : MonoBehaviour
         selectionClipboard.BeginSelectionDrag(cell);
     }
 
+    public void BeginPointerDrag(GridCell cell)
+    {
+        if (IsPreviewRegionToolActive())
+        {
+            BeginPreviewRegionDrag(cell);
+            return;
+        }
+
+        BeginSelectionDrag(cell);
+    }
+
     public void UpdateSelectionDrag(GridCell cell)
     {
         selectionClipboard.UpdateSelectionDrag(cell);
     }
 
+    public void UpdatePointerDrag(GridCell cell)
+    {
+        if (IsPreviewRegionToolActive())
+        {
+            UpdatePreviewRegionDrag(cell);
+            return;
+        }
+
+        UpdateSelectionDrag(cell);
+    }
+
     public void EndSelectionDrag(GridCell cell)
     {
         selectionClipboard.EndSelectionDrag(cell);
+    }
+
+    public void EndPointerDrag(GridCell cell)
+    {
+        if (previewDragStart.HasValue)
+        {
+            EndPreviewRegionDrag(cell);
+            return;
+        }
+
+        EndSelectionDrag(cell);
+    }
+
+    private void BeginPreviewRegionDrag(GridCell cell)
+    {
+        if (cell == null)
+        {
+            return;
+        }
+
+        previewDragStart = new Vector2Int(cell.X, cell.Y);
+        previewRegion = new RectInt(cell.X, cell.Y, 1, 1);
+        UpdateBrushCursorPreview();
+    }
+
+    private void UpdatePreviewRegionDrag(GridCell cell)
+    {
+        if (!previewDragStart.HasValue || cell == null || CurrentMapData == null)
+        {
+            return;
+        }
+
+        Vector2Int start = previewDragStart.Value;
+        int minX = Mathf.Clamp(Mathf.Min(start.x, cell.X), 0, CurrentMapData.width - 1);
+        int minY = Mathf.Clamp(Mathf.Min(start.y, cell.Y), 0, CurrentMapData.height - 1);
+        int maxX = Mathf.Clamp(Mathf.Max(start.x, cell.X), 0, CurrentMapData.width - 1);
+        int maxY = Mathf.Clamp(Mathf.Max(start.y, cell.Y), 0, CurrentMapData.height - 1);
+        previewRegion = new RectInt(minX, minY, maxX - minX + 1, maxY - minY + 1);
+        UpdateBrushCursorPreview();
+    }
+
+    private void EndPreviewRegionDrag(GridCell cell)
+    {
+        if (!previewDragStart.HasValue)
+        {
+            return;
+        }
+
+        UpdatePreviewRegionDrag(cell);
+        previewDragStart = null;
+        UpdateBrushCursorPreview();
+
+        if (previewRegion.HasValue)
+        {
+            RectInt region = previewRegion.Value;
+            Debug.Log("맵 프리뷰 영역을 지정했습니다: " + region.width + "x" + region.height);
+        }
+    }
+
+    private void ClampPreviewRegionToMap()
+    {
+        if (!previewRegion.HasValue || CurrentMapData == null)
+        {
+            return;
+        }
+
+        RectInt region = previewRegion.Value;
+        int x = Mathf.Clamp(region.x, 0, CurrentMapData.width - 1);
+        int y = Mathf.Clamp(region.y, 0, CurrentMapData.height - 1);
+        int width = Mathf.Clamp(region.width, 1, CurrentMapData.width - x);
+        int height = Mathf.Clamp(region.height, 1, CurrentMapData.height - y);
+        previewRegion = new RectInt(x, y, width, height);
     }
 
     public void RegisterCell(GridCell cell)
@@ -1182,6 +1325,12 @@ public class MapEditorManager : MonoBehaviour
     public void ClearRegisteredCells()
     {
         cells.Clear();
+    }
+
+    private GridCell GetRegisteredCell(int x, int y)
+    {
+        cells.TryGetValue(new Vector2Int(x, y), out GridCell cell);
+        return cell;
     }
 
     public void SetHoveredCell(GridCell cell)
@@ -1267,6 +1416,11 @@ public class MapEditorManager : MonoBehaviour
 
     private RectInt? GetSelectionPreviewRect()
     {
+        if (IsPreviewRegionToolActive() && previewRegion.HasValue)
+        {
+            return previewRegion;
+        }
+
         return selectionClipboard == null ? null : selectionClipboard.SelectionPreviewRect;
     }
 
@@ -1275,6 +1429,16 @@ public class MapEditorManager : MonoBehaviour
         toolbarState.EnsureToolbar(this, toolToolbarOffset, pngFiles.GetRecentPaths());
         RefreshToolToolbarSelection();
         UpdateBrushPreview();
+    }
+
+    public void RefreshLocalizedUi()
+    {
+        CreateToolToolbar();
+
+        if (colorWheelWindow != null)
+        {
+            colorWheelWindow.RefreshLocalizedText();
+        }
     }
 
     private void ConfigureMapViewportVisual()
@@ -1321,7 +1485,8 @@ public class MapEditorManager : MonoBehaviour
             paintWholeTile,
             HasSelectedTileRegion() ? selectedRegionWidth : 1,
             HasSelectedTileRegion() ? selectedRegionHeight : 1,
-            GetExportCellPixels(),
+            MaxExportCellPixels,
+            GetSubPixelBrushSide(),
             hoveredSubPixelX,
             hoveredSubPixelY,
             EditorToolController.Instance != null
@@ -1345,11 +1510,38 @@ public class MapEditorManager : MonoBehaviour
 
     public void OpenTilesetLibrary()
     {
+        ImportPixelChromaDefaultTilesets();
 #if UNITY_EDITOR
         MapEditorTilesetImporterWindow.Open(this);
 #else
-        Debug.LogWarning("타일셋 가져오기는 Unity 에디터에서만 사용할 수 있습니다.");
+        string sourcePath = MapEditorFileDialog.OpenFile("16x16 타일셋 PNG 가져오기", "png");
+        if (string.IsNullOrEmpty(sourcePath))
+        {
+            return;
+        }
+
+        MapEditorFileDialog.RememberDirectory(sourcePath);
+        ImportTileset(
+            sourcePath,
+            System.IO.Path.GetFileNameWithoutExtension(sourcePath),
+            MaxExportCellPixels,
+            MaxExportCellPixels,
+            0,
+            0,
+            MapEditorLayerType.Ground,
+            false);
 #endif
+    }
+
+    public void ImportPixelChromaDefaultTilesets()
+    {
+        int imported = MapEditorDefaultTilesetService.ImportPixelChromaTilesets(EnsureTilesetLibrary());
+
+        if (imported > 0)
+        {
+            Debug.Log("타일셋 버튼에서 새 기본 타일셋을 선택할 수 있습니다.");
+        }
+
     }
 
     public bool ImportTileset(
@@ -1477,6 +1669,7 @@ public class MapEditorManager : MonoBehaviour
 
         MapEditorPixelChromaValidationService.Log(report);
         toolbarState.UpdateValidationStatus(report);
+        MapEditorModalPanel.ShowValidation(this, report);
 
         string summary =
             "PixelChroma 맵 검사: " + (report.isValid ? "통과" : "수정 필요") +
@@ -1514,9 +1707,9 @@ public class MapEditorManager : MonoBehaviour
 
     public void ExportWorkshopPackage()
     {
-        EnsureWorkshopExportService();
+        ConfigureWorkshopPreview();
         EnsureSpawnPointList();
-        workshopExportService.ExportToPixelChromaProject(
+        workshopExportService.ExportWithDialog(
             CurrentMapData,
             pixelChromaMapId,
             workshopTitle,
@@ -1533,9 +1726,22 @@ public class MapEditorManager : MonoBehaviour
         );
     }
 
+    public void ShowPackageSaveGuide()
+    {
+        MapEditorModalPanel.ShowPackageGuide(this);
+    }
+
+    public void OpenSteamWorkshopPage()
+    {
+        string url = steamAppId == 0
+            ? "https://steamcommunity.com/workshop/"
+            : "https://steamcommunity.com/app/" + steamAppId + "/workshop/";
+        Application.OpenURL(url);
+    }
+
     public void ExportWorkshopPackage(string folderPath)
     {
-        EnsureWorkshopExportService();
+        ConfigureWorkshopPreview();
         EnsureSpawnPointList();
         workshopExportService.Export(
             CurrentMapData,
@@ -1574,7 +1780,7 @@ public class MapEditorManager : MonoBehaviour
     // 성공 시 true, folderPath 에 그 폴더 경로가 담긴다.
     public bool ExportWorkshopPackageForUpload(out string folderPath)
     {
-        EnsureWorkshopExportService();
+        ConfigureWorkshopPreview();
         EnsureSpawnPointList();
 
         // mapId 를 폴더 이름으로 쓰므로 파일명에 못 쓰는 문자를 '_' 로 치환한다.
@@ -1644,6 +1850,21 @@ public class MapEditorManager : MonoBehaviour
     {
         exportCellPixels = NormalizeExportCellPixels(exportCellPixels);
         return exportCellPixels;
+    }
+
+    public int GetSubPixelBrushSide()
+    {
+        switch (GetExportCellPixels())
+        {
+            case 4:
+                return 2;
+            case 8:
+                return 4;
+            case 16:
+                return 8;
+            default:
+                return 1;
+        }
     }
 
     public static int NormalizeExportCellPixels(int pixels)

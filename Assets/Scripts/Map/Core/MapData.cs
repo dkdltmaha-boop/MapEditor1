@@ -364,7 +364,9 @@ public class MapData
 
         if (pixelData == null || pixelData.resolution != resolution)
         {
-            Color baseColor = GetTile(x, y, layerType) == -1 ? Color.white : GetColor(x, y, layerType);
+            Color baseColor = GetTile(x, y, layerType) == -1
+                ? (layerType == MapEditorLayerType.Ground ? Color.white : Color.clear)
+                : GetColor(x, y, layerType);
             pixelData = pixelData == null
                 ? MapTilePixelData.CreateFilled(resolution, baseColor)
                 : pixelData.Resample(resolution);
@@ -1026,12 +1028,16 @@ public class MapTilePixelData
 [System.Serializable]
 public class MapSaveData
 {
-    public int formatVersion = 3;
+    public int formatVersion = 4;
     public int width;
     public int height;
     public string currentPngPalettePath;
     public int spawnX;
     public int spawnY;
+    public int previewX;
+    public int previewY;
+    public int previewWidth;
+    public int previewHeight;
     public MapEditorSpawnPointData[] spawnPoints;
     public int[] tiles;
     public Color[] colors;
@@ -1052,7 +1058,7 @@ public class MapSaveData
 
     public MapSaveData(int width, int height)
     {
-        formatVersion = 3;
+        formatVersion = 4;
         this.width = width;
         this.height = height;
         tiles = new int[width * height];

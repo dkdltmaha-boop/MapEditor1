@@ -34,6 +34,8 @@ public static class MapEditorSceneSetupService
             return;
         }
 
+        gridGenerator.EnsureGridContentMask();
+
         Image viewportImage = gridGenerator.gridParent.parent.GetComponent<Image>();
 
         if (viewportImage == null)

@@ -158,6 +158,17 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         SetWallBorders(showTopBorder, showRightBorder, showBottomBorder, showLeftBorder);
     }
 
+    public void SetWallCollisionOutline(bool visible, bool showTopBorder, bool showRightBorder, bool showBottomBorder, bool showLeftBorder)
+    {
+        if (!visible)
+        {
+            SetWallBorders(false, false, false, false);
+            return;
+        }
+
+        SetWallBorders(showTopBorder, showRightBorder, showBottomBorder, showLeftBorder);
+    }
+
     public void SetCustomSprite(Sprite sprite, string imagePath, int imageIndex)
     {
         SetCustomSprite(sprite, imagePath, imageIndex, 0, false, false);
@@ -421,7 +432,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             }
         }
 
-        border.color = Color.black;
+        border.color = new Color(0.08f, 0.08f, 0.08f, 0.95f);
         border.raycastTarget = false;
         return border;
     }
@@ -588,14 +599,14 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             return;
         }
 
-        if (MapEditorManager.Instance.IsSelectionToolActive())
+        if (MapEditorManager.Instance.IsPointerDragToolActive())
         {
-            MapEditorManager.Instance.BeginSelectionDrag(this);
+            MapEditorManager.Instance.BeginPointerDrag(this);
             return;
         }
 
         MapEditorManager.Instance.BeginEditTransaction();
-        if (TryGetPointerSubPixel(eventData, MapEditorManager.Instance.GetExportCellPixels(), out Vector2Int subPixel))
+        if (TryGetPointerSubPixel(eventData, MapEditorManager.MaxExportCellPixels, out Vector2Int subPixel))
         {
             MapEditorManager.Instance.UseCurrentTool(this, subPixel.x, subPixel.y);
         }
@@ -605,7 +616,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
     {
         if (MapEditorManager.Instance != null)
         {
-            if (TryGetPointerSubPixel(eventData, MapEditorManager.Instance.GetExportCellPixels(), out Vector2Int subPixel))
+            if (TryGetPointerSubPixel(eventData, MapEditorManager.MaxExportCellPixels, out Vector2Int subPixel))
             {
                 MapEditorManager.Instance.SetHoveredCell(this, subPixel.x, subPixel.y);
             }
@@ -616,11 +627,11 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             return;
         }
 
-        if (MapEditorManager.Instance != null && MapEditorManager.Instance.IsSelectionToolActive())
+        if (MapEditorManager.Instance != null && MapEditorManager.Instance.IsPointerDragToolActive())
         {
             if (Input.GetMouseButton(0))
             {
-                MapEditorManager.Instance.UpdateSelectionDrag(this);
+                MapEditorManager.Instance.UpdatePointerDrag(this);
             }
 
             return;
@@ -628,7 +639,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
         if (Input.GetMouseButton(0) && MapEditorManager.Instance != null)
         {
-            if (TryGetPointerSubPixel(eventData, MapEditorManager.Instance.GetExportCellPixels(), out Vector2Int subPixel))
+            if (TryGetPointerSubPixel(eventData, MapEditorManager.MaxExportCellPixels, out Vector2Int subPixel))
             {
                 MapEditorManager.Instance.UseCurrentTool(this, subPixel.x, subPixel.y);
             }
@@ -647,7 +658,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
     {
         if (eventData.button == PointerEventData.InputButton.Left && MapEditorManager.Instance != null)
         {
-            MapEditorManager.Instance.EndSelectionDrag(this);
+            MapEditorManager.Instance.EndPointerDrag(this);
             MapEditorManager.Instance.CommitEditTransaction();
         }
     }
@@ -659,10 +670,10 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             return;
         }
 
-        if (MapEditorManager.Instance.IsSelectionToolActive())
+        if (MapEditorManager.Instance.IsPointerDragToolActive())
         {
             GridCell targetSelectionCell = GetCellUnderPointer(eventData);
-            MapEditorManager.Instance.UpdateSelectionDrag(targetSelectionCell == null ? this : targetSelectionCell);
+            MapEditorManager.Instance.UpdatePointerDrag(targetSelectionCell == null ? this : targetSelectionCell);
             return;
         }
 
@@ -673,7 +684,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             return;
         }
 
-        if (!targetCell.TryGetPointerSubPixel(eventData, MapEditorManager.Instance.GetExportCellPixels(), out Vector2Int subPixel))
+        if (!targetCell.TryGetPointerSubPixel(eventData, MapEditorManager.MaxExportCellPixels, out Vector2Int subPixel))
         {
             return;
         }
@@ -696,7 +707,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             return;
         }
 
-        if (targetCell.TryGetPointerSubPixel(eventData, MapEditorManager.Instance.GetExportCellPixels(), out Vector2Int subPixel))
+        if (targetCell.TryGetPointerSubPixel(eventData, MapEditorManager.MaxExportCellPixels, out Vector2Int subPixel))
         {
             MapEditorManager.Instance.SetHoveredCell(targetCell, subPixel.x, subPixel.y);
         }

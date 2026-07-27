@@ -198,38 +198,32 @@ public static class MapEditorToolbarBuilder
     private static void EnsureToolbarContents(Transform toolbar, MapEditorManager manager)
     {
         ClearToolbarContents(toolbar);
-        CreateToolbarLabel(toolbar, "도구");
-        EnsureToolbarToolButton(toolbar, manager, "브러시", "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
-        EnsureToolbarToolButton(toolbar, manager, "벽", "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
-        EnsureToolbarToolButton(toolbar, manager, "레이어 지우개", "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
-        EnsureToolbarToolButton(toolbar, manager, "선택", "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
-        EnsureToolbarActionButton(toolbar, manager, "회전", "R", MapEditorToolbarAction.Rotate, "RotateButton");
-        EnsureToolbarActionButton(toolbar, manager, "좌우 반전", "H", MapEditorToolbarAction.FlipH, "FlipHButton");
-        EnsureToolbarActionButton(toolbar, manager, "상하 반전", "V", MapEditorToolbarAction.FlipV, "FlipVButton");
-        EnsureToolbarShortcutHint(toolbar, "영역 채우기", "Shift+클릭");
-        EnsureToolbarActionButton(toolbar, manager, "복사", "Ctrl+C", MapEditorToolbarAction.Copy, "CopyButton");
-        EnsureToolbarActionButton(toolbar, manager, "잘라내기", "Ctrl+X", MapEditorToolbarAction.Cut, "CutButton");
-        EnsureToolbarActionButton(toolbar, manager, "붙여넣기", "Ctrl+V", MapEditorToolbarAction.Paste, "PasteButton");
-        EnsureToolbarActionButton(toolbar, manager, "시작 위치", "클릭", MapEditorToolbarAction.SetSpawn, "SpawnButton");
-        EnsureToolbarShortcutHint(toolbar, "선택 지우기", "Esc/Del");
-        EnsureToolbarActionButton(toolbar, manager, "스포이드", "I/Space", MapEditorToolbarAction.Eyedropper, "EyedropButton");
+        CreateToolbarLabel(toolbar, L("도구", "Tools"));
+        EnsureToolbarToolButton(toolbar, manager, L("브러시", "Brush"), "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("벽", "Wall"), "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("레이어 지우개", "Erase Layer"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("시작 위치", "Start Point"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
         EnsureToolbarDivider(toolbar);
-        EnsureToolbarActionButton(toolbar, manager, "실행 취소", "Ctrl+Z", MapEditorToolbarAction.Undo, "UndoButton");
-        EnsureToolbarActionButton(toolbar, manager, "다시 실행", "Ctrl+Y", MapEditorToolbarAction.Redo, "RedoButton");
-        EnsureToolbarActionButton(toolbar, manager, "편집 저장", "Ctrl+S", MapEditorToolbarAction.Save, "SaveEditButton");
-        EnsureToolbarActionButton(toolbar, manager, "편집 불러오기", "Ctrl+L", MapEditorToolbarAction.Load, "LoadEditButton");
-        EnsureToolbarActionButton(toolbar, manager, "게임 맵 가져오기", "클릭", MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
-        EnsureToolbarActionButton(toolbar, manager, "타일셋", "클릭", MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
-        EnsureToolbarActionButton(toolbar, manager, "PNG 불러오기", "클릭", MapEditorToolbarAction.PngLoad, "LoadPNGButton");
-        EnsureToolbarActionButton(toolbar, manager, "PNG 붙여넣기", "Ctrl+P", MapEditorToolbarAction.PastePng, "PastePNGButton");
-        EnsureToolbarActionButton(toolbar, manager, "PNG 내보내기", "클릭", MapEditorToolbarAction.ExportPng, "PNGOutButton");
-        EnsureToolbarActionButton(toolbar, manager, "맵 검사", "클릭", MapEditorToolbarAction.ValidateMap, "ValidateButton");
-        EnsureToolbarActionButton(toolbar, manager, "게임용 내보내기", "클릭", MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
-        EnsureToolbarActionButton(toolbar, manager, "창작마당 내보내기", "클릭", MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
-        EnsureToolbarActionButton(toolbar, manager, "전체 지우기", "클릭", MapEditorToolbarAction.Clear, "ClearButton");
+        CreateToolbarLabel(toolbar, L("파일과 검사", "Files & Validation"));
+        EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
+        EnsureToolbarActionButton(toolbar, manager, L("타일셋", "Tilesets"), L("클릭", "Click"), MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
+        EnsureToolbarActionButton(toolbar, manager, L("PNG 불러오기", "Load PNG"), L("클릭", "Click"), MapEditorToolbarAction.PngLoad, "LoadPNGButton");
+        EnsureToolbarActionButton(toolbar, manager, L("PNG 내보내기", "Export PNG"), L("클릭", "Click"), MapEditorToolbarAction.ExportPng, "PNGOutButton");
+        EnsureToolbarActionButton(toolbar, manager, L("맵 검사", "Validate Map"), L("클릭", "Click"), MapEditorToolbarAction.ValidateMap, "ValidateButton");
+        EnsureToolbarActionButton(toolbar, manager, L("게임용 내보내기", "Export Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
+        EnsureToolbarActionButton(toolbar, manager, L("창작마당 내보내기", "Export Workshop"), L("클릭", "Click"), MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
+        EnsureToolbarActionButton(toolbar, manager, L("도움말", "Help"), "F1", MapEditorToolbarAction.PackageGuide, "HelpButton");
+        EnsureToolbarActionButton(toolbar, manager, L("전체 지우기", "Clear All"), L("클릭", "Click"), MapEditorToolbarAction.Clear, "ClearButton");
         EnsureBrushPreview(toolbar);
         EnsureValidationStatus(toolbar);
         EnsureRecentPngList(toolbar);
+    }
+
+    private static string L(string korean, string english)
+    {
+        return MapEditorLocalization.Choose(korean, english);
     }
 
     private static void ClearToolbarContents(Transform toolbar)
@@ -257,6 +251,7 @@ public static class MapEditorToolbarBuilder
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SelectToolButton", EditorToolType.Selection);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SpawnButton", EditorToolType.Spawn);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SpawnToolButton", EditorToolType.Spawn);
+        MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "PreviewRegionToolButton", EditorToolType.PreviewRegion);
 
         Transform preview = MapEditorObjectUtility.FindAndRenameChild(toolbar, BrushPreviewObjectName, LegacyBrushPreviewObjectName);
 

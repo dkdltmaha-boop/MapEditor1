@@ -29,6 +29,7 @@ public class MapEditorBrushCursorPreview
         int tileRegionWidth,
         int tileRegionHeight,
         int pixelsPerTile,
+        int subPixelBrushSide,
         int hoveredSubPixelX,
         int hoveredSubPixelY,
         bool showSubPixelPreview,
@@ -82,7 +83,7 @@ public class MapEditorBrushCursorPreview
 
         if (showSubPixelPreview)
         {
-            UpdateSubPixelPreview(gridGenerator, mapData, hoveredCell, selectedColor, pixelsPerTile, hoveredSubPixelX, hoveredSubPixelY, alpha);
+            UpdateSubPixelPreview(gridGenerator, mapData, hoveredCell, selectedColor, pixelsPerTile, subPixelBrushSide, hoveredSubPixelX, hoveredSubPixelY, alpha);
             return;
         }
 
@@ -303,7 +304,7 @@ public class MapEditorBrushCursorPreview
         ConfigureOutline(image, BrushOutlineColor, 2f);
     }
 
-    private void UpdateSubPixelPreview(GridGenerator gridGenerator, MapData mapData, GridCell hoveredCell, Color selectedColor, int pixelsPerTile, int subPixelX, int subPixelY, float alpha)
+    private void UpdateSubPixelPreview(GridGenerator gridGenerator, MapData mapData, GridCell hoveredCell, Color selectedColor, int pixelsPerTile, int brushSide, int subPixelX, int subPixelY, float alpha)
     {
         while (images.Count < 1)
         {
@@ -321,7 +322,7 @@ public class MapEditorBrushCursorPreview
             return;
         }
 
-        ConfigureSubPixelPreviewImage(images[0], gridGenerator.cellSize, hoveredCell.X, hoveredCell.Y, selectedColor, pixelsPerTile, subPixelX, subPixelY, alpha);
+        ConfigureSubPixelPreviewImage(images[0], gridGenerator.cellSize, hoveredCell.X, hoveredCell.Y, selectedColor, pixelsPerTile, brushSide, subPixelX, subPixelY, alpha);
     }
 
     private void UpdateSpriteSubPixelPreview(GridGenerator gridGenerator, MapData mapData, GridCell hoveredCell, Sprite sprite, int pixelsPerTile, int subPixelX, int subPixelY, float alpha)
@@ -369,10 +370,11 @@ public class MapEditorBrushCursorPreview
         ConfigureOutline(image, BrushOutlineColor, 1.5f);
     }
 
-    private void ConfigureSubPixelPreviewImage(Image image, float cellSize, int mapX, int mapY, Color selectedColor, int pixelsPerTile, int subPixelX, int subPixelY, float alpha)
+    private void ConfigureSubPixelPreviewImage(Image image, float cellSize, int mapX, int mapY, Color selectedColor, int pixelsPerTile, int brushSide, int subPixelX, int subPixelY, float alpha)
     {
         int resolution = Mathf.Max(1, pixelsPerTile);
         float pixelSize = cellSize / resolution;
+        brushSide = Mathf.Clamp(brushSide, 1, resolution);
         subPixelX = Mathf.Clamp(subPixelX, 0, resolution - 1);
         subPixelY = Mathf.Clamp(subPixelY, 0, resolution - 1);
 
@@ -380,7 +382,7 @@ public class MapEditorBrushCursorPreview
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(0f, 1f);
         rect.pivot = new Vector2(0f, 1f);
-        rect.sizeDelta = new Vector2(pixelSize, pixelSize);
+        rect.sizeDelta = new Vector2(pixelSize * brushSide, pixelSize * brushSide);
         rect.anchoredPosition = new Vector2(mapX * cellSize + subPixelX * pixelSize, -(mapY * cellSize + subPixelY * pixelSize));
 
         image.sprite = null;

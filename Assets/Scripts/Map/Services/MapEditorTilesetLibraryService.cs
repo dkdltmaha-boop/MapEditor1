@@ -146,6 +146,20 @@ public sealed class MapEditorTilesetLibraryService
         return definitions.Find(item => item != null && item.id == id);
     }
 
+    public bool ContainsSourcePath(string sourcePath)
+    {
+        if (string.IsNullOrEmpty(sourcePath))
+        {
+            return false;
+        }
+
+        string normalized = NormalizePath(sourcePath);
+        return definitions.Exists(item =>
+            item != null
+            && !string.IsNullOrEmpty(item.sourcePath)
+            && string.Equals(NormalizePath(item.sourcePath), normalized, StringComparison.OrdinalIgnoreCase));
+    }
+
     public MapEditorTilesetDefinition[] GetDefinitionsForSave()
     {
         return definitions.ToArray();

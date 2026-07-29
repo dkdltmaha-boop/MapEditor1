@@ -176,6 +176,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         if (wallText != null)
         {
             wallText.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
+            ApplySectionHeadingStyle(wallText);
         }
 
         Transform sizeLabel = transform.Find(ExportCellSizeSelectorObjectName + "/DotSizeLabel");
@@ -183,6 +184,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         if (sizeText != null)
         {
             sizeText.text = MapEditorLocalization.Choose("그리기 크기", "Paint Size");
+            ApplySectionHeadingStyle(sizeText);
         }
 
         RefreshHexInputLabels(transform.Find(HexColorInputObjectName));
@@ -278,6 +280,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         }
 
         titleText = title == null ? null : title.GetComponent<Text>();
+        ApplySectionHeadingStyle(titleText);
         hexInputField = hexInput == null ? null : hexInput.GetComponentInChildren<InputField>(true);
         ConfigureHexInputEvents();
 
@@ -288,7 +291,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
             if (label != null)
             {
                 label.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
-                label.font = MapEditorFontProvider.Default;
+                ApplySectionHeadingStyle(label);
             }
 
             Transform wallTilePreview = wallTileSelector.Find(WallTilePreviewObjectName);
@@ -388,10 +391,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         Text text = titleObject.GetComponent<Text>();
         titleText = text;
         text.text = MapEditorLocalization.Choose("색상", "Color");
-        text.font = MapEditorFontProvider.Default;
-        text.fontSize = 15;
-        text.alignment = TextAnchor.MiddleLeft;
-        text.color = Color.white;
+        ApplySectionHeadingStyle(text);
     }
 
     private void CreatePreview()
@@ -690,10 +690,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text label = labelObject.GetComponent<Text>();
         label.text = MapEditorLocalization.Choose("벽 타일", "Wall Tile");
-        label.font = MapEditorFontProvider.Default;
-        label.fontSize = 13;
-        label.alignment = TextAnchor.MiddleLeft;
-        label.color = Color.white;
+        ApplySectionHeadingStyle(label);
 
         GameObject previewObject = new GameObject(WallTilePreviewObjectName, typeof(RectTransform), typeof(Image), typeof(Outline));
         previewObject.transform.SetParent(selectorObject.transform, false);
@@ -782,10 +779,21 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
         Text label = labelObject.GetComponent<Text>();
         label.text = MapEditorLocalization.Choose("그리기 크기", "Paint Size");
-        label.font = MapEditorFontProvider.Default;
-        label.fontSize = 11;
-        label.alignment = TextAnchor.MiddleLeft;
-        label.color = Color.white;
+        ApplySectionHeadingStyle(label);
+    }
+
+    private static void ApplySectionHeadingStyle(Text text)
+    {
+        if (text == null)
+        {
+            return;
+        }
+
+        text.font = MapEditorFontProvider.Default;
+        text.fontSize = 12;
+        text.fontStyle = FontStyle.Bold;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = Color.white;
     }
 
     private void CreateWholeTileButton(Transform parent)

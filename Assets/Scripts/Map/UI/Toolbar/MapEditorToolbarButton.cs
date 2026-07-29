@@ -38,7 +38,8 @@ public enum MapEditorToolbarAction
     PngPaletteGridSize,
     SetLayer,
     ToggleLayerVisible,
-    Clear
+    Clear,
+    UploadWorkshop
 }
 
 public enum MapEditorLayerType
@@ -191,6 +192,19 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.Clear:
                 target.ClearMap();
+                break;
+            case MapEditorToolbarAction.UploadWorkshop:
+                PixelChromaRuntimeWorkshopUploader uploader =
+                    Object.FindFirstObjectByType<PixelChromaRuntimeWorkshopUploader>();
+
+                if (uploader != null)
+                {
+                    uploader.ValidateAndUpload();
+                }
+                else
+                {
+                    Debug.LogWarning("창작마당 업로더를 찾을 수 없습니다.");
+                }
                 break;
         }
     }

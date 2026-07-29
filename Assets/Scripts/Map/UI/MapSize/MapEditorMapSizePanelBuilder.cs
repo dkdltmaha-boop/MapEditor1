@@ -39,7 +39,8 @@ public static class MapEditorMapSizePanelBuilder
         ConfigurePanel(panel, toolbarOffset);
         ClearChildren(panel);
 
-        CreateLabel(panel, "맵 크기", 13, 16f);
+        Text panelTitle = CreateLabel(panel, "맵 크기", 12, 16f);
+        panelTitle.fontStyle = FontStyle.Bold;
         Text currentSizeText = CreateCurrentSizeLabel(panel, manager);
         CreateValueControls(panel, manager, currentSizeText, true);
         CreateValueControls(panel, manager, currentSizeText, false);

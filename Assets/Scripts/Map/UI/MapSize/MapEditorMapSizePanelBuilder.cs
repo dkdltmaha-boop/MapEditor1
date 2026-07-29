@@ -5,8 +5,19 @@ public static class MapEditorMapSizePanelBuilder
 {
     private const string MapSizePanelObjectName = "MapEditor_MapSizePanel";
     private const float ToolbarWidth = 176f;
-    private const float PanelWidth = 184f;
-    private const float PanelHeight = 132f;
+    internal const float PanelWidth = 184f;
+    internal const float PanelHeight = 132f;
+    internal const float PanelGap = 12f;
+
+    internal static Vector2 GetPanelPosition(Vector2 toolbarOffset)
+    {
+        return toolbarOffset + new Vector2(-(ToolbarWidth + 10f), 0f);
+    }
+
+    internal static Vector2 GetLayerPanelPosition(Vector2 toolbarOffset)
+    {
+        return GetPanelPosition(toolbarOffset) + new Vector2(0f, -(PanelHeight + PanelGap));
+    }
 
     public static void Ensure(Transform canvas, MapEditorManager manager, Vector2 toolbarOffset)
     {
@@ -44,7 +55,7 @@ public static class MapEditorMapSizePanelBuilder
             rect.anchorMin = new Vector2(1f, 1f);
             rect.anchorMax = new Vector2(1f, 1f);
             rect.pivot = new Vector2(1f, 1f);
-            Vector2 position = toolbarOffset + new Vector2(-(ToolbarWidth + 10f), 0f);
+            Vector2 position = GetPanelPosition(toolbarOffset);
             Vector2 size = new Vector2(PanelWidth, PanelHeight);
             RectTransform parentRect = panel.parent as RectTransform;
 

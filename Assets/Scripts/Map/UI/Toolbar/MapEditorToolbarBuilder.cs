@@ -473,7 +473,7 @@ public static class MapEditorToolbarBuilder
 public static class MapEditorLayerPanelBuilder
 {
     private const string LayerPanelObjectName = "MapEditor_LayerPanel";
-    private const float PanelWidth = 176f;
+    private const float PanelWidth = MapEditorMapSizePanelBuilder.PanelWidth;
     private const float PanelHeight = 168f;
     private const int LabelFontSize = 12;
     private const int ButtonFontSize = 9;
@@ -536,7 +536,7 @@ public static class MapEditorLayerPanelBuilder
         rect.pivot = new Vector2(1f, 1f);
         rect.sizeDelta = new Vector2(PanelWidth, PanelHeight);
 
-        Vector2 position = toolbarOffset + new Vector2(-188f, -140f);
+        Vector2 position = MapEditorMapSizePanelBuilder.GetLayerPanelPosition(toolbarOffset);
         RectTransform parentRect = panel.parent as RectTransform;
 
         if (parentRect != null && parentRect.rect.width > PanelWidth * 2f)

@@ -9,6 +9,7 @@ public class MapEditorMapSaveService
     private readonly int maxMapSize;
     private string currentMapFilePath = string.Empty;
     private MapEditorTilesetDefinition[] importedTilesets = System.Array.Empty<MapEditorTilesetDefinition>();
+    private MapEditorLayerSetting[] layerSettings = System.Array.Empty<MapEditorLayerSetting>();
     private RectInt? previewRegion;
 
     public MapEditorMapSaveService(int maxMapSize)
@@ -24,6 +25,22 @@ public class MapEditorMapSaveService
     public void SetPreviewRegion(RectInt? region)
     {
         previewRegion = region;
+    }
+
+    public void SetLayerSettings(MapEditorLayerSetting[] settings)
+    {
+        if (settings == null)
+        {
+            layerSettings = System.Array.Empty<MapEditorLayerSetting>();
+            return;
+        }
+
+        layerSettings = new MapEditorLayerSetting[settings.Length];
+
+        for (int i = 0; i < settings.Length; i++)
+        {
+            layerSettings[i] = settings[i]?.Clone();
+        }
     }
 
     public bool Save(MapData mapData, string currentPngPalettePath)
@@ -99,6 +116,7 @@ public class MapEditorMapSaveService
         MapSaveData saveData = mapData.ToSaveData();
         saveData.currentPngPalettePath = currentPngPalettePath;
         saveData.importedTilesets = importedTilesets;
+        saveData.layerSettings = layerSettings;
         saveData.spawnX = Mathf.Clamp(spawnX, 0, mapData.width - 1);
         saveData.spawnY = Mathf.Clamp(spawnY, 0, mapData.height - 1);
         saveData.spawnPoints = spawnPoints == null || spawnPoints.Length == 0

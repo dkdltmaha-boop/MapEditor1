@@ -44,6 +44,7 @@ public class MapEditorManager : MonoBehaviour
     public bool showWallVisualLayer = true;
     public bool showWallCollisionLayer = true;
     public bool showZoneLayer = true;
+    public List<MapEditorLayerSetting> layerSettings = new List<MapEditorLayerSetting>();
 
     [Header("도구")]
     public BrushTool brushTool;
@@ -144,6 +145,7 @@ public class MapEditorManager : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        EnsureLayerSettings();
         EnsureTilesetLibrary();
         gridGenerator = GetComponent<GridGenerator>();
 
@@ -168,6 +170,7 @@ public class MapEditorManager : MonoBehaviour
     private void OnEnable()
     {
         Instance = this;
+        EnsureLayerSettings();
         EnsureTilesetLibrary();
         EnsureMapEditingService();
         EnsureSelectionClipboardService();
@@ -516,46 +519,29 @@ public class MapEditorManager : MonoBehaviour
 
     public bool IsLayerVisible(MapEditorLayerType layerType)
     {
-        switch (layerType)
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(layerType);
+
+        if (setting != null)
         {
-            case MapEditorLayerType.Object:
-                return showObjectLayer;
-            case MapEditorLayerType.WallVisual:
-                return showWallVisualLayer;
-            case MapEditorLayerType.WallCollision:
-                return showWallCollisionLayer;
-            case MapEditorLayerType.Spawn:
-                return true;
-            case MapEditorLayerType.Zone:
-                return showZoneLayer;
-            default:
-                return showGroundLayer;
+            return setting.visible;
         }
+
+        return true;
     }
 
     public void ToggleLayerVisible(MapEditorLayerType layerType)
     {
-        switch (layerType)
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(layerType);
+
+        if (setting == null)
         {
-            case MapEditorLayerType.Object:
-                showObjectLayer = !showObjectLayer;
-                break;
-            case MapEditorLayerType.WallVisual:
-                showWallVisualLayer = !showWallVisualLayer;
-                break;
-            case MapEditorLayerType.WallCollision:
-                showWallCollisionLayer = !showWallCollisionLayer;
-                break;
-            case MapEditorLayerType.Zone:
-                showZoneLayer = !showZoneLayer;
-                break;
-            case MapEditorLayerType.Ground:
-                showGroundLayer = !showGroundLayer;
-                break;
-            default:
-                break;
+            return;
         }
 
+        setting.visible = !setting.visible;
+        SyncLegacyLayerVisibility();
         RefreshAllCells();
 
         if (createToolToolbar)
@@ -568,6 +554,193 @@ public class MapEditorManager : MonoBehaviour
         }
 
         Debug.Log("레이어 표시 상태: " + layerType + " = " + IsLayerVisible(layerType));
+    }
+
+    public string GetLayerDisplayName(MapEditorLayerType layerType)
+    {
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(layerType);
+        return setting == null ? GetDefaultLayerName(layerType) : setting.displayName;
+    }
+
+    public void SetLayerDisplayName(MapEditorLayerType layerType, string displayName)
+    {
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(layerType);
+
+        if (setting == null)
+        {
+            return;
+        }
+
+        string trimmedName = string.IsNullOrWhiteSpace(displayName)
+            ? GetDefaultLayerName(layerType)
+            : displayName.Trim();
+        setting.displayName = trimmedName.Length > 18 ? trimmedName.Substring(0, 18) : trimmedName;
+
+        if (createToolToolbar)
+        {
+            CreateToolToolbar();
+        }
+    }
+
+    public MapEditorLayerSetting[] GetLayerSettingsForSave()
+    {
+        EnsureLayerSettings();
+        MapEditorLayerSetting[] result = new MapEditorLayerSetting[layerSettings.Count];
+
+        for (int i = 0; i < layerSettings.Count; i++)
+        {
+            result[i] = layerSettings[i].Clone();
+        }
+
+        return result;
+    }
+
+    private void ApplyLayerSettings(MapEditorLayerSetting[] savedSettings)
+    {
+        layerSettings.Clear();
+
+        if (savedSettings == null || savedSettings.Length == 0)
+        {
+            showGroundLayer = true;
+            showObjectLayer = true;
+            showWallVisualLayer = true;
+            showWallCollisionLayer = true;
+            showZoneLayer = true;
+        }
+        else
+        {
+            for (int i = 0; i < savedSettings.Length; i++)
+            {
+                MapEditorLayerSetting setting = savedSettings[i];
+
+                if (setting == null || !System.Enum.IsDefined(typeof(MapEditorLayerType), setting.layer))
+                {
+                    continue;
+                }
+
+                MapEditorLayerType layerType = (MapEditorLayerType)setting.layer;
+
+                if (FindLayerSetting(layerType) != null)
+                {
+                    continue;
+                }
+
+                string name = string.IsNullOrWhiteSpace(setting.displayName)
+                    ? GetDefaultLayerName(layerType)
+                    : setting.displayName.Trim();
+                layerSettings.Add(new MapEditorLayerSetting(layerType, name, setting.visible));
+            }
+        }
+
+        EnsureLayerSettings();
+        SyncLegacyLayerVisibility();
+    }
+
+    private void EnsureLayerSettings()
+    {
+        if (layerSettings == null)
+        {
+            layerSettings = new List<MapEditorLayerSetting>();
+        }
+
+        int expectedCount = System.Enum.GetValues(typeof(MapEditorLayerType)).Length;
+        bool hasEveryLayer = layerSettings.Count == expectedCount;
+
+        if (hasEveryLayer)
+        {
+            foreach (MapEditorLayerType layerType in System.Enum.GetValues(typeof(MapEditorLayerType)))
+            {
+                if (FindLayerSetting(layerType) == null)
+                {
+                    hasEveryLayer = false;
+                    break;
+                }
+            }
+        }
+
+        if (hasEveryLayer)
+        {
+            return;
+        }
+
+        foreach (MapEditorLayerType layerType in System.Enum.GetValues(typeof(MapEditorLayerType)))
+        {
+            if (FindLayerSetting(layerType) == null)
+            {
+                layerSettings.Add(new MapEditorLayerSetting(layerType, GetDefaultLayerName(layerType), GetLegacyLayerVisibility(layerType)));
+            }
+        }
+
+        layerSettings.Sort((left, right) => left.layer.CompareTo(right.layer));
+    }
+
+    private MapEditorLayerSetting FindLayerSetting(MapEditorLayerType layerType)
+    {
+        if (layerSettings == null)
+        {
+            return null;
+        }
+
+        int layerValue = (int)layerType;
+
+        for (int i = 0; i < layerSettings.Count; i++)
+        {
+            if (layerSettings[i] != null && layerSettings[i].layer == layerValue)
+            {
+                return layerSettings[i];
+            }
+        }
+
+        return null;
+    }
+
+    private bool GetLegacyLayerVisibility(MapEditorLayerType layerType)
+    {
+        switch (layerType)
+        {
+            case MapEditorLayerType.Object:
+                return showObjectLayer;
+            case MapEditorLayerType.WallVisual:
+                return showWallVisualLayer;
+            case MapEditorLayerType.WallCollision:
+                return showWallCollisionLayer;
+            case MapEditorLayerType.Zone:
+                return showZoneLayer;
+            default:
+                return showGroundLayer;
+        }
+    }
+
+    private void SyncLegacyLayerVisibility()
+    {
+        showGroundLayer = FindLayerSetting(MapEditorLayerType.Ground)?.visible ?? true;
+        showObjectLayer = FindLayerSetting(MapEditorLayerType.Object)?.visible ?? true;
+        showWallVisualLayer = FindLayerSetting(MapEditorLayerType.WallVisual)?.visible ?? true;
+        showWallCollisionLayer = FindLayerSetting(MapEditorLayerType.WallCollision)?.visible ?? true;
+        showZoneLayer = FindLayerSetting(MapEditorLayerType.Zone)?.visible ?? true;
+    }
+
+    private static string GetDefaultLayerName(MapEditorLayerType layerType)
+    {
+        switch (layerType)
+        {
+            case MapEditorLayerType.Ground:
+                return "Ground";
+            case MapEditorLayerType.Object:
+                return "Object";
+            case MapEditorLayerType.WallVisual:
+                return "Wall";
+            case MapEditorLayerType.WallCollision:
+                return "Collision";
+            case MapEditorLayerType.Spawn:
+                return "Spawn";
+            case MapEditorLayerType.Zone:
+                return "Zone";
+            default:
+                return layerType.ToString();
+        }
     }
 
     private void CancelTransientToolState()
@@ -946,6 +1119,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
+        mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
         mapSaveService.SetPreviewRegion(previewRegion);
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
@@ -954,6 +1128,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
+        mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
         mapSaveService.SetPreviewRegion(previewRegion);
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave(), fileName);
     }
@@ -984,6 +1159,8 @@ public class MapEditorManager : MonoBehaviour
 
     private void ApplyLoadedMap(MapSaveData saveData, string path)
     {
+        ApplyLayerSettings(saveData.layerSettings);
+
         if (saveData.importedTilesets != null && saveData.importedTilesets.Length > 0)
         {
             EnsureTilesetLibrary().ReplaceDefinitions(saveData.importedTilesets);
@@ -1531,6 +1708,11 @@ public class MapEditorManager : MonoBehaviour
             MapEditorLayerType.Ground,
             false);
 #endif
+    }
+
+    public void OpenTileCreator()
+    {
+        MapEditorTileCreatorWindow.Open(this);
     }
 
     public void ImportPixelChromaDefaultTilesets()

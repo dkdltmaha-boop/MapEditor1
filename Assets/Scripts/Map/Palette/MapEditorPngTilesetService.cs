@@ -4,6 +4,7 @@ using UnityEngine;
 
 public class MapEditorPngTilesetService
 {
+    public const int FullImageTileIndex = 1 << 28;
     private const string RecentPngPrefsKey = "MapEditor.RecentPngFiles";
     private const int TileGridSize = 16;
     private const int FlexibleTileMarker = 1 << 30;
@@ -78,14 +79,31 @@ public class MapEditorPngTilesetService
             return null;
         }
 
-        bool isFlexibleTile = TryDecodePaletteTileIndex(imageIndex, out int paletteGridSize, out int flexibleBaseIndex, out bool flexibleSubTile, out int flexibleResolution, out int flexibleSubX, out int flexibleSubY);
+        bool isFullImageTile = imageIndex == FullImageTileIndex;
+        int paletteGridSize = TileGridSize;
+        int flexibleBaseIndex = 0;
+        bool flexibleSubTile = false;
+        int flexibleResolution = TileGridSize;
+        int flexibleSubX = 0;
+        int flexibleSubY = 0;
+        bool isFlexibleTile = !isFullImageTile
+            && TryDecodePaletteTileIndex(
+                imageIndex,
+                out paletteGridSize,
+                out flexibleBaseIndex,
+                out flexibleSubTile,
+                out flexibleResolution,
+                out flexibleSubX,
+                out flexibleSubY);
         int legacyBaseIndex = imageIndex;
         int legacyResolution = TileGridSize;
         int legacySubX = 0;
         int legacySubY = 0;
-        bool isLegacySubTile = !isFlexibleTile && TryDecodeSubTileIndex(imageIndex, out legacyBaseIndex, out legacyResolution, out legacySubX, out legacySubY);
+        bool isLegacySubTile = !isFullImageTile
+            && !isFlexibleTile
+            && TryDecodeSubTileIndex(imageIndex, out legacyBaseIndex, out legacyResolution, out legacySubX, out legacySubY);
         bool isSubTile = isFlexibleTile ? flexibleSubTile : isLegacySubTile;
-        int sourceImageIndex = isFlexibleTile ? flexibleBaseIndex : isLegacySubTile ? legacyBaseIndex : imageIndex;
+        int sourceImageIndex = isFullImageTile ? 0 : isFlexibleTile ? flexibleBaseIndex : isLegacySubTile ? legacyBaseIndex : imageIndex;
         int subResolution = isFlexibleTile ? flexibleResolution : legacyResolution;
         int subX = isFlexibleTile ? flexibleSubX : legacySubX;
         int subY = isFlexibleTile ? flexibleSubY : legacySubY;
@@ -97,7 +115,14 @@ public class MapEditorPngTilesetService
         int pixelWidth;
         int pixelHeight;
 
-        if (isFlexibleTile)
+        if (isFullImageTile)
+        {
+            pixelX = 0;
+            pixelY = 0;
+            pixelWidth = texture.width;
+            pixelHeight = texture.height;
+        }
+        else if (isFlexibleTile)
         {
             RectInt contentRect = MapEditorTilesetLibraryService.IsNormalizedAtlasPath(imagePath)
                 ? new RectInt(0, 0, texture.width, texture.height)

@@ -28,7 +28,14 @@ public sealed class MapEditorCellRenderService
             return;
         }
 
-        MapEditorLayerType layerType = GetTopVisibleLayer(mapData, cell.X, cell.Y);
+        if (!TryGetTopVisibleLayer(mapData, cell.X, cell.Y, out MapEditorLayerType layerType))
+        {
+            cell.Clear();
+            cell.ClearUnderlay();
+            ApplyWallCollisionOutline(cell, mapData);
+            return;
+        }
+
         int tileId = mapData.GetTile(cell.X, cell.Y, layerType);
         Color color = mapData.GetColor(cell.X, cell.Y, layerType);
         string imagePath = mapData.GetImagePath(cell.X, cell.Y, layerType);
@@ -69,7 +76,11 @@ public sealed class MapEditorCellRenderService
             return Color.white;
         }
 
-        MapEditorLayerType layerType = GetTopVisibleLayer(mapData, x, y);
+        if (!TryGetTopVisibleLayer(mapData, x, y, out MapEditorLayerType layerType))
+        {
+            return Color.white;
+        }
+
         int tileId = mapData.GetTile(x, y, layerType);
 
         if (tileId == -1)
@@ -216,7 +227,7 @@ public sealed class MapEditorCellRenderService
             && mapData.GetTile(x, y, MapEditorLayerType.WallCollision) == MapEditorManager.WallTileId;
     }
 
-    private MapEditorLayerType GetTopVisibleLayer(MapData mapData, int x, int y)
+    private bool TryGetTopVisibleLayer(MapData mapData, int x, int y, out MapEditorLayerType result)
     {
         for (int i = 0; i < LayerPriority.Length; i++)
         {
@@ -229,11 +240,13 @@ public sealed class MapEditorCellRenderService
 
             if (mapData.GetTile(x, y, layerType) != -1)
             {
-                return layerType;
+                result = layerType;
+                return true;
             }
         }
 
-        return MapEditorLayerType.Ground;
+        result = MapEditorLayerType.Ground;
+        return false;
     }
 
     private void ApplyUnderlay(GridCell cell, MapData mapData, MapEditorLayerType topLayer)

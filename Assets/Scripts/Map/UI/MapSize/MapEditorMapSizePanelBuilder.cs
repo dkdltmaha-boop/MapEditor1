@@ -6,7 +6,7 @@ public static class MapEditorMapSizePanelBuilder
     private const string MapSizePanelObjectName = "MapEditor_MapSizePanel";
     private const float ToolbarWidth = 176f;
     internal const float PanelWidth = 184f;
-    internal const float PanelHeight = 132f;
+    internal const float PanelHeight = 172f;
     internal const float PanelGap = 12f;
 
     internal static Vector2 GetPanelPosition(Vector2 toolbarOffset)
@@ -44,7 +44,8 @@ public static class MapEditorMapSizePanelBuilder
         Text currentSizeText = CreateCurrentSizeLabel(panel, manager);
         CreateValueControls(panel, manager, currentSizeText, true);
         CreateValueControls(panel, manager, currentSizeText, false);
-        CreatePresetRow(panel, manager);
+        CreatePresetRow(panel, manager, "PresetRow", "64 x 64", 64, 64, "128 x 128", 128, 128);
+        CreatePresetRow(panel, manager, "LargePresetRow", "256 x 128", 256, 128, "256 x 256", 256, 256);
     }
 
     private static void ConfigurePanel(Transform panel, Vector2 toolbarOffset)
@@ -185,9 +186,18 @@ public static class MapEditorMapSizePanelBuilder
         slider.Configure(manager, widthControl, fillObject.GetComponent<RectTransform>(), handleObject.GetComponent<RectTransform>(), input, currentSizeText);
     }
 
-    private static void CreatePresetRow(Transform parent, MapEditorManager manager)
+    private static void CreatePresetRow(
+        Transform parent,
+        MapEditorManager manager,
+        string rowName,
+        string firstLabel,
+        int firstWidth,
+        int firstHeight,
+        string secondLabel,
+        int secondWidth,
+        int secondHeight)
     {
-        GameObject rowObject = new GameObject("PresetRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        GameObject rowObject = new GameObject(rowName, typeof(RectTransform), typeof(HorizontalLayoutGroup));
         rowObject.transform.SetParent(parent, false);
         rowObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 20f);
 
@@ -198,11 +208,11 @@ public static class MapEditorMapSizePanelBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = true;
 
-        CreatePresetButton(rowObject.transform, manager, "64 x 64", 64);
-        CreatePresetButton(rowObject.transform, manager, "128 x 128", 128);
+        CreatePresetButton(rowObject.transform, manager, firstLabel, firstWidth, firstHeight);
+        CreatePresetButton(rowObject.transform, manager, secondLabel, secondWidth, secondHeight);
     }
 
-    private static void CreatePresetButton(Transform parent, MapEditorManager manager, string label, int size)
+    private static void CreatePresetButton(Transform parent, MapEditorManager manager, string label, int width, int height)
     {
         GameObject buttonObject = new GameObject("Preset" + label + "Button", typeof(RectTransform), typeof(Image), typeof(Button), typeof(MapEditorToolbarButton));
         buttonObject.transform.SetParent(parent, false);
@@ -212,7 +222,8 @@ public static class MapEditorMapSizePanelBuilder
         MapEditorToolbarButton toolbarButton = buttonObject.GetComponent<MapEditorToolbarButton>();
         toolbarButton.manager = manager;
         toolbarButton.action = MapEditorToolbarAction.MapPresetSquare;
-        toolbarButton.intArgument = size;
+        toolbarButton.intArgument = width;
+        toolbarButton.intArgument2 = height;
 
         Text text = CreateLabel(buttonObject.transform, label, 10, 0f);
         text.alignment = TextAnchor.MiddleCenter;

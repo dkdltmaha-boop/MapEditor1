@@ -205,6 +205,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("시작 위치", "Start Point"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
+        EnsureToolbarActionButton(toolbar, manager, L("타일 만들기", "Create Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenTileCreator, "TileCreatorButton");
         EnsureToolbarDivider(toolbar);
         CreateToolbarLabel(toolbar, L("파일과 검사", "Files & Validation"));
         EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
@@ -474,7 +475,7 @@ public static class MapEditorLayerPanelBuilder
 {
     private const string LayerPanelObjectName = "MapEditor_LayerPanel";
     private const float PanelWidth = MapEditorMapSizePanelBuilder.PanelWidth;
-    private const float PanelHeight = 168f;
+    private const float PanelHeight = 184f;
     private const int LabelFontSize = 12;
     private const int ButtonFontSize = 9;
 
@@ -564,21 +565,21 @@ public static class MapEditorLayerPanelBuilder
         gridObject.transform.SetParent(panel, false);
 
         RectTransform gridRect = gridObject.GetComponent<RectTransform>();
-        gridRect.sizeDelta = new Vector2(0f, 142f);
+        gridRect.sizeDelta = new Vector2(0f, 158f);
 
         GridLayoutGroup grid = gridObject.GetComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(168f, 20f);
+        grid.cellSize = new Vector2(176f, 22f);
         grid.spacing = new Vector2(0f, 4f);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 1;
         grid.childAlignment = TextAnchor.UpperLeft;
 
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "바닥 그리기", MapEditorLayerType.Ground);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "오브젝트 그리기", MapEditorLayerType.Object);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "벽 모양 그리기", MapEditorLayerType.WallVisual);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "이동 막기", MapEditorLayerType.WallCollision);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "시작점 지정", MapEditorLayerType.Spawn);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, "구역 표시", MapEditorLayerType.Zone);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Ground);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Object);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallVisual);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallCollision);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Spawn);
+        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Zone);
     }
 
     private static void CreateLabel(Transform parent, string text)
@@ -599,7 +600,7 @@ public static class MapEditorLayerPanelBuilder
         label.raycastTarget = false;
     }
 
-    private static void CreateLayerButton(Transform parent, MapEditorManager manager, Dictionary<MapEditorLayerType, Image> buttonImages, string label, MapEditorLayerType layerType)
+    private static void CreateLayerButton(Transform parent, MapEditorManager manager, Dictionary<MapEditorLayerType, Image> buttonImages, MapEditorLayerType layerType)
     {
         GameObject rowObject = new GameObject("LayerRow_" + layerType, typeof(RectTransform), typeof(HorizontalLayoutGroup));
         rowObject.transform.SetParent(parent, false);
@@ -613,7 +614,7 @@ public static class MapEditorLayerPanelBuilder
 
         GameObject buttonObject = new GameObject("Layer_" + layerType, typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(rowObject.transform, false);
-        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(110f, 0f);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(22f, 0f);
 
         Image image = buttonObject.GetComponent<Image>();
         image.color = new Color(0.25f, 0.25f, 0.25f, 1f);
@@ -637,7 +638,7 @@ public static class MapEditorLayerPanelBuilder
         textRect.offsetMax = new Vector2(-4f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.text = label;
+        text.text = ">";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;
@@ -645,14 +646,52 @@ public static class MapEditorLayerPanelBuilder
         text.raycastTarget = false;
 
         buttonImages[layerType] = image;
+        CreateLayerNameInput(rowObject.transform, manager, layerType);
         CreateLayerVisibilityButton(rowObject.transform, manager, layerType);
+    }
+
+    private static void CreateLayerNameInput(Transform parent, MapEditorManager manager, MapEditorLayerType layerType)
+    {
+        GameObject inputObject = new GameObject("LayerName_" + layerType, typeof(RectTransform), typeof(Image), typeof(InputField));
+        inputObject.transform.SetParent(parent, false);
+        inputObject.GetComponent<RectTransform>().sizeDelta = new Vector2(103f, 0f);
+
+        Image background = inputObject.GetComponent<Image>();
+        background.color = new Color(0.09f, 0.09f, 0.09f, 1f);
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(inputObject.transform, false);
+
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(5f, 1f);
+        textRect.offsetMax = new Vector2(-5f, -1f);
+
+        Text text = textObject.GetComponent<Text>();
+        text.font = MapEditorFontProvider.Default;
+        text.fontSize = ButtonFontSize;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = Color.white;
+        text.supportRichText = false;
+
+        InputField input = inputObject.GetComponent<InputField>();
+        input.targetGraphic = background;
+        input.textComponent = text;
+        input.text = manager == null ? layerType.ToString() : manager.GetLayerDisplayName(layerType);
+        input.characterLimit = 18;
+        input.lineType = InputField.LineType.SingleLine;
+
+        MapEditorLayerNameInput nameInput = inputObject.AddComponent<MapEditorLayerNameInput>();
+        nameInput.manager = manager;
+        nameInput.layerType = layerType;
     }
 
     private static void CreateLayerVisibilityButton(Transform parent, MapEditorManager manager, MapEditorLayerType layerType)
     {
         GameObject buttonObject = new GameObject("LayerVisibility_" + layerType, typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(parent, false);
-        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(55f, 0f);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(45f, 0f);
 
         Image image = buttonObject.GetComponent<Image>();
         bool visible = manager == null || manager.IsLayerVisible(layerType);
@@ -677,7 +716,7 @@ public static class MapEditorLayerPanelBuilder
         textRect.offsetMax = new Vector2(-3f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.text = visible ? "표시" : "숨김";
+        text.text = visible ? "ON" : "OFF";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;

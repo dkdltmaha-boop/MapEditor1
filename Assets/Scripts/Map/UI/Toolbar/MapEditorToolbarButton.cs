@@ -39,7 +39,8 @@ public enum MapEditorToolbarAction
     SetLayer,
     ToggleLayerVisible,
     Clear,
-    UploadWorkshop
+    UploadWorkshop,
+    OpenTileCreator
 }
 
 public enum MapEditorLayerType
@@ -59,6 +60,7 @@ public class MapEditorToolbarButton : MonoBehaviour
     public MapEditorToolbarAction action;
     public string stringArgument;
     public int intArgument;
+    public int intArgument2;
 
     private Button button;
 
@@ -173,7 +175,7 @@ public class MapEditorToolbarButton : MonoBehaviour
                 target.LoadRecentPngPalette(stringArgument);
                 break;
             case MapEditorToolbarAction.MapPresetSquare:
-                target.ResizeMap(intArgument, intArgument);
+                target.ResizeMap(intArgument, intArgument2 > 0 ? intArgument2 : intArgument);
                 break;
             case MapEditorToolbarAction.ExportCellPixels:
                 target.SetExportCellPixels(intArgument);
@@ -206,6 +208,43 @@ public class MapEditorToolbarButton : MonoBehaviour
                     Debug.LogWarning("창작마당 업로더를 찾을 수 없습니다.");
                 }
                 break;
+            case MapEditorToolbarAction.OpenTileCreator:
+                target.OpenTileCreator();
+                break;
+        }
+    }
+}
+
+[RequireComponent(typeof(InputField))]
+public class MapEditorLayerNameInput : MonoBehaviour
+{
+    public MapEditorManager manager;
+    public MapEditorLayerType layerType;
+
+    private InputField input;
+
+    private void OnEnable()
+    {
+        input = GetComponent<InputField>();
+        input.onEndEdit.RemoveListener(ApplyName);
+        input.onEndEdit.AddListener(ApplyName);
+    }
+
+    private void OnDisable()
+    {
+        if (input != null)
+        {
+            input.onEndEdit.RemoveListener(ApplyName);
+        }
+    }
+
+    private void ApplyName(string value)
+    {
+        MapEditorManager target = manager != null ? manager : MapEditorManager.Instance;
+
+        if (target != null)
+        {
+            target.SetLayerDisplayName(layerType, value);
         }
     }
 }

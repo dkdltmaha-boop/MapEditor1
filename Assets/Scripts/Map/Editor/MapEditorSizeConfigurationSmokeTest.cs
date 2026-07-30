@@ -57,6 +57,8 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(panel != null, "Map size panel was not created.");
             Require(panel.Find("PresetRow/Preset64 x 64Button") != null, "64 x 64 preset is missing.");
             Require(panel.Find("PresetRow/Preset128 x 128Button") != null, "128 x 128 preset is missing.");
+            Require(panel.Find("LargePresetRow/Preset256 x 128Button") != null, "256 x 128 preset is missing.");
+            Require(panel.Find("LargePresetRow/Preset256 x 256Button") != null, "256 x 256 preset is missing.");
             Require(panel.Find("PresetRow/Preset16Button") == null && panel.Find("PresetRow/Preset32Button") == null, "Legacy map presets are still present.");
 
             foreach (int gridSize in MapEditorManager.PngPaletteGridSizeOptions)

@@ -1028,7 +1028,7 @@ public class MapTilePixelData
 [System.Serializable]
 public class MapSaveData
 {
-    public int formatVersion = 4;
+    public int formatVersion = 5;
     public int width;
     public int height;
     public string currentPngPalettePath;
@@ -1049,6 +1049,7 @@ public class MapSaveData
     public MapTilePixelData[] pixelData;
     public int[] layers;
     public MapLayerTileData[] layerTiles;
+    public MapEditorLayerSetting[] layerSettings;
     public EmbeddedPngAsset[] embeddedPngAssets;
     public MapEditorTilesetDefinition[] importedTilesets;
 
@@ -1058,7 +1059,7 @@ public class MapSaveData
 
     public MapSaveData(int width, int height)
     {
-        formatVersion = 4;
+        formatVersion = 5;
         this.width = width;
         this.height = height;
         tiles = new int[width * height];
@@ -1071,9 +1072,39 @@ public class MapSaveData
         pixelData = new MapTilePixelData[width * height];
         layers = new int[width * height];
         layerTiles = new MapLayerTileData[0];
+        layerSettings = new MapEditorLayerSetting[0];
         spawnPoints = new MapEditorSpawnPointData[0];
         embeddedPngAssets = new EmbeddedPngAsset[0];
         importedTilesets = new MapEditorTilesetDefinition[0];
+    }
+}
+
+[System.Serializable]
+public class MapEditorLayerSetting
+{
+    public int layer;
+    public string displayName;
+    public bool visible = true;
+
+    public MapEditorLayerSetting()
+    {
+    }
+
+    public MapEditorLayerSetting(MapEditorLayerType layerType, string name, bool isVisible = true)
+    {
+        layer = (int)layerType;
+        displayName = name;
+        visible = isVisible;
+    }
+
+    public MapEditorLayerSetting Clone()
+    {
+        return new MapEditorLayerSetting
+        {
+            layer = layer,
+            displayName = displayName,
+            visible = visible
+        };
     }
 }
 

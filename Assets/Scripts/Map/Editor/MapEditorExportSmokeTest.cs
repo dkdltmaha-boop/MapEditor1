@@ -45,6 +45,8 @@ public static class MapEditorExportSmokeTest
 
         ValidateValidationReport(validation);
         ValidateLayerRoundTrip(mapData);
+        ValidateLayerSettingsRoundTrip();
+        ValidateFullImageTile(root);
 
         string mapPath = Path.Combine(root, "map.json");
         MapEditorPixelChromaExportService mapExport = new MapEditorPixelChromaExportService();
@@ -336,6 +338,51 @@ public static class MapEditorExportSmokeTest
         Require(
             loadedPixels != null && loadedPixels.resolution == 4 && loadedPixels.GetPixel(0, 0) == Color.red,
             "Loading changed layered pixel data.");
+    }
+
+    private static void ValidateLayerSettingsRoundTrip()
+    {
+        MapSaveData source = new MapSaveData(2, 2)
+        {
+            layerSettings = new[]
+            {
+                new MapEditorLayerSetting(MapEditorLayerType.Ground, "Floor", true),
+                new MapEditorLayerSetting(MapEditorLayerType.Object, "Decoration", false),
+                new MapEditorLayerSetting(MapEditorLayerType.WallVisual, "Wall", true)
+            }
+        };
+
+        MapSaveData loaded = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(source));
+
+        Require(loaded.formatVersion == 5, "Layer settings did not use map format version 5.");
+        Require(loaded.layerSettings != null && loaded.layerSettings.Length == 3, "Layer settings were not serialized.");
+        Require(loaded.layerSettings[0].displayName == "Floor", "A custom layer name was not preserved.");
+        Require(!loaded.layerSettings[1].visible, "A hidden layer was restored as visible.");
+    }
+
+    private static void ValidateFullImageTile(string root)
+    {
+        string path = Path.Combine(root, "created_tile.png");
+        Texture2D texture = new Texture2D(16, 16, TextureFormat.RGBA32, false);
+
+        for (int y = 0; y < texture.height; y++)
+        {
+            for (int x = 0; x < texture.width; x++)
+            {
+                texture.SetPixel(x, y, x == 15 && y == 15 ? Color.red : Color.clear);
+            }
+        }
+
+        texture.Apply();
+        File.WriteAllBytes(path, texture.EncodeToPNG());
+        MapEditorObjectUtility.DestroyObject(texture);
+
+        MapEditorPngTilesetService service = new MapEditorPngTilesetService();
+        Sprite sprite = service.GetTileSprite(path, MapEditorPngTilesetService.FullImageTileIndex);
+
+        Require(sprite != null, "The created tile could not be loaded as a brush.");
+        Require(Mathf.RoundToInt(sprite.rect.width) == 16 && Mathf.RoundToInt(sprite.rect.height) == 16, "The created tile was sliced instead of using the full 16x16 image.");
+        Require(sprite.texture.GetPixel(15, 15) == Color.red, "The created tile changed pixel data while loading.");
     }
 
     private static bool ValidateWorkshopPackage(string packagePath)

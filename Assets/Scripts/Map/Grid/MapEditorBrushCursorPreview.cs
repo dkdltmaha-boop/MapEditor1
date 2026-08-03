@@ -36,7 +36,8 @@ public class MapEditorBrushCursorPreview
         float alpha,
         RectInt? areaFillPreviewRect,
         RectInt? selectionPreviewRect,
-        IReadOnlyCollection<Vector2Int> selectionPreviewCells)
+        IReadOnlyCollection<Vector2Int> selectionPreviewCells,
+        IReadOnlyCollection<Vector2Int> linePreviewCells)
     {
         if (!showPreview || gridGenerator == null || gridGenerator.gridParent == null || mapData == null)
         {
@@ -55,6 +56,21 @@ public class MapEditorBrushCursorPreview
         if (selectionPreviewCells != null && selectionPreviewCells.Count > 0)
         {
             UpdateCellSetPreview(gridGenerator, mapData, selectionPreviewCells, SelectionFillColor, SelectionOutlineColor);
+            return;
+        }
+
+        if (linePreviewCells != null && linePreviewCells.Count > 0)
+        {
+            UpdateLinePreview(
+                gridGenerator,
+                mapData,
+                linePreviewCells,
+                selectedColor,
+                selectedImageBrush,
+                selectedImageRotation,
+                selectedImageFlipX,
+                selectedImageFlipY,
+                alpha);
             return;
         }
 
@@ -146,6 +162,51 @@ public class MapEditorBrushCursorPreview
             if (image.gameObject.activeSelf)
             {
                 ConfigureRectPreviewImage(image, gridGenerator.cellSize, point.x, point.y, fillColor, outlineColor);
+            }
+        }
+
+        for (int i = imageIndex; i < images.Count; i++)
+        {
+            images[i].gameObject.SetActive(false);
+        }
+    }
+
+    private void UpdateLinePreview(
+        GridGenerator gridGenerator,
+        MapData mapData,
+        IReadOnlyCollection<Vector2Int> points,
+        Color selectedColor,
+        Sprite selectedImageBrush,
+        int selectedImageRotation,
+        bool selectedImageFlipX,
+        bool selectedImageFlipY,
+        float alpha)
+    {
+        while (images.Count < points.Count)
+        {
+            images.Add(CreateCursorImage());
+        }
+
+        int imageIndex = 0;
+
+        foreach (Vector2Int point in points)
+        {
+            Image image = images[imageIndex++];
+            image.gameObject.SetActive(mapData.IsInside(point.x, point.y));
+
+            if (image.gameObject.activeSelf)
+            {
+                ConfigureCursorImage(
+                    image,
+                    gridGenerator.cellSize,
+                    point.x,
+                    point.y,
+                    selectedColor,
+                    selectedImageBrush,
+                    selectedImageRotation,
+                    selectedImageFlipX,
+                    selectedImageFlipY,
+                    Mathf.Max(alpha, 0.5f));
             }
         }
 

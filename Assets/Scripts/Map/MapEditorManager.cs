@@ -103,6 +103,7 @@ public class MapEditorManager : MonoBehaviour
     private readonly MapEditorPngFileService pngFiles = new MapEditorPngFileService();
     private MapEditorTilesetLibraryService tilesetLibrary;
     private readonly MapEditorBrushCursorPreview brushCursorPreview = new MapEditorBrushCursorPreview();
+    private readonly List<Vector2Int> linePreviewCells = new List<Vector2Int>();
     private readonly MapEditorPlayerScaleGuide playerScaleGuide = new MapEditorPlayerScaleGuide();
     private readonly MapEditorMapSaveService mapSaveService = new MapEditorMapSaveService(MaxMapSize);
     private readonly MapEditorPixelChromaImportService pixelChromaImportService = new MapEditorPixelChromaImportService();
@@ -136,6 +137,7 @@ public class MapEditorManager : MonoBehaviour
     private EditorToolType lastPaintStrokeTool;
     private Vector2Int? previewDragStart;
     private Vector2Int? lineDragStart;
+    private Vector2Int? lineDragEnd;
     private RectInt? previewRegion;
     private MapEditorLayerType lastPaintLayer = MapEditorLayerType.Ground;
 
@@ -939,6 +941,8 @@ public class MapEditorManager : MonoBehaviour
         selectionClipboard?.CancelActiveDrag();
         previewDragStart = null;
         lineDragStart = null;
+        lineDragEnd = null;
+        linePreviewCells.Clear();
     }
 
     public void SelectColor(Color color)
@@ -1822,6 +1826,8 @@ public class MapEditorManager : MonoBehaviour
 
         BeginEditTransaction();
         lineDragStart = new Vector2Int(cell.X, cell.Y);
+        lineDragEnd = lineDragStart;
+        RefreshLinePreview();
         SetHoveredCell(cell, -1, -1);
     }
 
@@ -1832,6 +1838,8 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
+        lineDragEnd = new Vector2Int(cell.X, cell.Y);
+        RefreshLinePreview();
         SetHoveredCell(cell, -1, -1);
     }
 
@@ -1843,8 +1851,10 @@ public class MapEditorManager : MonoBehaviour
         }
 
         Vector2Int start = lineDragStart.Value;
-        Vector2Int end = cell == null ? start : new Vector2Int(cell.X, cell.Y);
+        Vector2Int end = lineDragEnd ?? start;
         lineDragStart = null;
+        lineDragEnd = null;
+        linePreviewCells.Clear();
         MapEditorBrushGeometry.RasterizeLine(start, end, point =>
         {
             if (cells.TryGetValue(point, out GridCell targetCell))
@@ -1854,6 +1864,18 @@ public class MapEditorManager : MonoBehaviour
         });
         RefreshAllCells();
         UpdateBrushCursorPreview();
+    }
+
+    private void RefreshLinePreview()
+    {
+        linePreviewCells.Clear();
+
+        if (!lineDragStart.HasValue || !lineDragEnd.HasValue)
+        {
+            return;
+        }
+
+        MapEditorBrushGeometry.RasterizeLine(lineDragStart.Value, lineDragEnd.Value, linePreviewCells.Add);
     }
 
     private void BeginPreviewRegionDrag(GridCell cell)
@@ -2159,7 +2181,8 @@ public class MapEditorManager : MonoBehaviour
             brushCursorAlpha,
             areaFillPreviewRect,
             GetSelectionPreviewRect(),
-            selectionClipboard == null ? null : selectionClipboard.SelectionPreviewCells
+            selectionClipboard == null ? null : selectionClipboard.SelectionPreviewCells,
+            linePreviewCells
         );
     }
 

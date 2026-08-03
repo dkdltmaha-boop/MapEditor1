@@ -35,7 +35,8 @@ public class MapEditorBrushCursorPreview
         bool showSubPixelPreview,
         float alpha,
         RectInt? areaFillPreviewRect,
-        RectInt? selectionPreviewRect)
+        RectInt? selectionPreviewRect,
+        IReadOnlyCollection<Vector2Int> selectionPreviewCells)
     {
         if (!showPreview || gridGenerator == null || gridGenerator.gridParent == null || mapData == null)
         {
@@ -48,6 +49,12 @@ public class MapEditorBrushCursorPreview
 
         if (overlay == null)
         {
+            return;
+        }
+
+        if (selectionPreviewCells != null && selectionPreviewCells.Count > 0)
+        {
+            UpdateCellSetPreview(gridGenerator, mapData, selectionPreviewCells, SelectionFillColor, SelectionOutlineColor);
             return;
         }
 
@@ -119,6 +126,32 @@ public class MapEditorBrushCursorPreview
 
                 ConfigureCursorImage(image, gridGenerator.cellSize, mapX, mapY, selectedColor, selectedImageBrush, selectedImageRotation, selectedImageFlipX, selectedImageFlipY, alpha);
             }
+        }
+    }
+
+    private void UpdateCellSetPreview(GridGenerator gridGenerator, MapData mapData, IReadOnlyCollection<Vector2Int> points, Color fillColor, Color outlineColor)
+    {
+        while (images.Count < points.Count)
+        {
+            images.Add(CreateCursorImage());
+        }
+
+        int imageIndex = 0;
+
+        foreach (Vector2Int point in points)
+        {
+            Image image = images[imageIndex++];
+            image.gameObject.SetActive(mapData.IsInside(point.x, point.y));
+
+            if (image.gameObject.activeSelf)
+            {
+                ConfigureRectPreviewImage(image, gridGenerator.cellSize, point.x, point.y, fillColor, outlineColor);
+            }
+        }
+
+        for (int i = imageIndex; i < images.Count; i++)
+        {
+            images[i].gameObject.SetActive(false);
         }
     }
 

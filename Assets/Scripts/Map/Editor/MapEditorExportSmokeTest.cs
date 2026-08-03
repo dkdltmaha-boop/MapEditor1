@@ -48,6 +48,8 @@ public static class MapEditorExportSmokeTest
         ValidateLayerIsolation();
         ValidateLayerSettingsRoundTrip();
         ValidateBrushGeometry();
+        ValidateOverlappingPixelPaint();
+        ValidateConnectedSelectionMove();
         ValidateFullImageTile(root);
 
         string mapPath = Path.Combine(root, "map.json");
@@ -169,6 +171,10 @@ public static class MapEditorExportSmokeTest
         MapTilePixelData pixels = MapTilePixelData.CreateFilled(4, Color.yellow);
         pixels.SetPixel(0, 0, Color.red);
         mapData.SetPixelDataOnLayer(3, 3, MapEditorLayerType.Object, pixels);
+        MapTilePixelData extraPixels = MapTilePixelData.CreateFilled(16, Color.clear);
+        extraPixels.SetPixel(1, 1, Color.blue);
+        mapData.SetTileOnLayer(3, 3, MapEditorLayerType.ObjectExtra, MapEditorManager.CustomColorTileId, Color.clear, string.Empty, -1, 0, false, false);
+        mapData.SetPixelDataOnLayer(3, 3, MapEditorLayerType.ObjectExtra, extraPixels);
         mapData.SetTileOnLayer(1, 2, MapEditorLayerType.Zone, MapEditorManager.CustomColorTileId, new Color(1f, 0.6f, 0.1f, 0.45f), string.Empty, -1, 0, false, false);
         mapData.SetTileOnLayer(2, 2, MapEditorLayerType.Zone, MapEditorManager.CustomColorTileId, new Color(1f, 0.6f, 0.1f, 0.45f), string.Empty, -1, 0, false, false);
 
@@ -243,7 +249,27 @@ public static class MapEditorExportSmokeTest
             && RequireJsonText(json, "map.json", "\"loaderStrategy\": \"RuntimeTilemapLoader\"")
             && RequireJsonText(json, "map.json", "\"layerBindings\"")
             && RequireJsonText(json, "map.json", "\"spawnPoints\"")
-            && RequireJsonText(json, "map.json", "\"zones\"");
+            && RequireJsonText(json, "map.json", "\"zones\"")
+            && HasNoDuplicateLayerCoordinates(map);
+    }
+
+    private static bool HasNoDuplicateLayerCoordinates(PixelChromaMapExportData map)
+    {
+        foreach (PixelChromaMapLayerExportData layer in map.layers)
+        {
+            HashSet<Vector2Int> coordinates = new HashSet<Vector2Int>();
+
+            foreach (PixelChromaTileExportData tile in layer.tiles)
+            {
+                if (!coordinates.Add(new Vector2Int(tile.x, tile.y)))
+                {
+                    Debug.LogError("Exported layer contains duplicate coordinates at (" + tile.x + ", " + tile.y + ").");
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     private static bool HasBakedPngTile(PixelChromaMapExportData map)
@@ -278,9 +304,9 @@ public static class MapEditorExportSmokeTest
                 if (tile.x == 3
                     && tile.y == 3
                     && tile.kind == PixelChromaExportContract.PixelTileKind
-                    && tile.pixelResolution == 4
+                    && tile.pixelResolution == PixelChromaExportContract.TilePixelSize
                     && tile.pixelHexes != null
-                    && tile.pixelHexes.Length == 16)
+                    && tile.pixelHexes.Length == 256)
                 {
                     return true;
                 }
@@ -340,6 +366,9 @@ public static class MapEditorExportSmokeTest
         Require(
             loadedPixels != null && loadedPixels.resolution == 4 && loadedPixels.GetPixel(0, 0) == Color.red,
             "Loading changed layered pixel data.");
+        Require(
+            loaded.GetPixelData(3, 3, MapEditorLayerType.ObjectExtra)?.GetPixel(1, 1) == Color.blue,
+            "Loading removed the optional Object layer.");
     }
 
     private static void ValidateLayerIsolation()
@@ -384,16 +413,18 @@ public static class MapEditorExportSmokeTest
             {
                 new MapEditorLayerSetting(MapEditorLayerType.Ground, "Floor", true),
                 new MapEditorLayerSetting(MapEditorLayerType.Object, "Decoration", false),
-                new MapEditorLayerSetting(MapEditorLayerType.WallVisual, "Wall", true)
+                new MapEditorLayerSetting(MapEditorLayerType.WallVisual, "Wall", true),
+                new MapEditorLayerSetting(MapEditorLayerType.ObjectExtra, "Props", true, true)
             }
         };
 
         MapSaveData loaded = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(source));
 
         Require(loaded.formatVersion == 5, "Layer settings did not use map format version 5.");
-        Require(loaded.layerSettings != null && loaded.layerSettings.Length == 3, "Layer settings were not serialized.");
+        Require(loaded.layerSettings != null && loaded.layerSettings.Length == 4, "Layer settings were not serialized.");
         Require(loaded.layerSettings[0].displayName == "Floor", "A custom layer name was not preserved.");
         Require(!loaded.layerSettings[1].visible, "A hidden layer was restored as visible.");
+        Require(loaded.layerSettings[3].enabled, "An enabled optional layer was restored as disabled.");
     }
 
     private static void ValidateBrushGeometry()
@@ -433,6 +464,92 @@ public static class MapEditorExportSmokeTest
 
         Require(visitedSourceTiles.Count == sourceWidth * sourceHeight,
             "A rotated multi-tile brush duplicated or omitted source tiles.");
+    }
+
+    private static void ValidateOverlappingPixelPaint()
+    {
+        GameObject cellObject = new GameObject("OverlappingPixelPaintCell", typeof(RectTransform), typeof(Image));
+
+        try
+        {
+            GridCell cell = cellObject.AddComponent<GridCell>();
+            MapData mapData = new MapData(1, 1);
+            MapEditorMapEditingService editing = new MapEditorMapEditingService(
+                () => mapData,
+                () => MapEditorLayerType.Ground,
+                _ => true,
+                new Dictionary<Vector2Int, GridCell>(),
+                (_, _, _, _, _) => null,
+                () => { });
+
+            editing.PaintSubPixelArea(cell, 3, 5, 16, 2, Color.red);
+            editing.PaintSubPixelArea(cell, 3, 5, 16, 2, Color.blue);
+
+            MapTilePixelData pixels = mapData.GetPixelData(0, 0, MapEditorLayerType.Ground);
+            Require(pixels != null && pixels.GetPixel(3, 5) == Color.blue && pixels.GetPixel(4, 6) == Color.blue,
+                "A later pixel brush stroke did not overwrite an earlier stroke.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(cellObject);
+        }
+    }
+
+    private static void ValidateConnectedSelectionMove()
+    {
+        MapData mapData = new MapData(6, 5);
+        MapEditorLayerType layer = MapEditorLayerType.Object;
+        mapData.SetTileOnLayer(1, 1, layer, MapEditorManager.CustomColorTileId, Color.red, string.Empty, -1, 0, false, false);
+        mapData.SetTileOnLayer(2, 1, layer, MapEditorManager.CustomColorTileId, Color.green, string.Empty, -1, 0, false, false);
+        mapData.SetTileOnLayer(1, 2, layer, MapEditorManager.CustomColorTileId, Color.blue, string.Empty, -1, 0, false, false);
+        mapData.SetTileOnLayer(5, 4, layer, MapEditorManager.CustomColorTileId, Color.yellow, string.Empty, -1, 0, false, false);
+        mapData.SetTileOnLayer(1, 1, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId, Color.gray, string.Empty, -1, 0, false, false);
+
+        MapTilePixelData pixels = MapTilePixelData.CreateFilled(16, Color.blue);
+        pixels.SetPixel(3, 4, Color.magenta);
+        mapData.SetPixelDataOnLayer(1, 2, layer, pixels);
+
+        MapEditorMapEditingService editing = new MapEditorMapEditingService(
+            () => mapData,
+            () => layer,
+            _ => true,
+            new Dictionary<Vector2Int, GridCell>(),
+            (_, _, _, _, _) => null,
+            () => { });
+
+        HashSet<Vector2Int> connected = new HashSet<Vector2Int>
+        {
+            new Vector2Int(1, 1),
+            new Vector2Int(2, 1),
+            new Vector2Int(1, 2)
+        };
+
+        MapEditorSelectionClipboardService selection = new MapEditorSelectionClipboardService(
+            editing,
+            () => mapData,
+            () => null,
+            () => layer,
+            (_, _, _) => { },
+            () => { },
+            () => { },
+            () => { },
+            () => { });
+        selection.SelectConnectedAt(new Vector2Int(1, 1));
+        Require(selection.SelectionPreviewCells.Count == connected.Count, "Connected selection included a disconnected tile or missed a neighbor.");
+        Require(selection.MoveSelection(Vector2Int.right), "Connected selection could not move into empty cells.");
+        Require(mapData.GetTile(1, 1, layer) == -1 && mapData.GetTile(1, 2, layer) == -1, "Moving left source tiles behind.");
+        Require(mapData.GetColor(2, 1, layer) == Color.red && mapData.GetColor(3, 1, layer) == Color.green, "Overlapping move changed tile order or colors.");
+        Require(mapData.GetPixelData(2, 2, layer)?.GetPixel(3, 4) == Color.magenta, "Moving lost custom pixel data.");
+        Require(mapData.GetTile(5, 4, layer) != -1, "Moving changed a disconnected tile.");
+        Require(mapData.GetTile(1, 1, MapEditorLayerType.Ground) != -1, "Moving Object tiles changed the Ground layer.");
+
+        editing.Undo();
+        Require(mapData.GetColor(1, 1, layer) == Color.red && mapData.GetColor(2, 1, layer) == Color.green, "Undo did not restore connected tiles.");
+        Require(mapData.GetPixelData(1, 2, layer)?.GetPixel(3, 4) == Color.magenta, "Undo did not restore moved pixel data.");
+
+        mapData.SetTileOnLayer(3, 1, layer, MapEditorManager.CustomColorTileId, Color.black, string.Empty, -1, 0, false, false);
+        Require(!editing.MoveConnectedCells(connected, layer, Vector2Int.right), "Connected selection overwrote an occupied destination.");
+        Require(mapData.GetColor(3, 1, layer) == Color.black, "Blocked move changed the destination tile.");
     }
 
     private static void ValidateFullImageTile(string root)

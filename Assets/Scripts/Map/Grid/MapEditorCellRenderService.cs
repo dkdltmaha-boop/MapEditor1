@@ -4,13 +4,7 @@ using UnityEngine;
 
 public sealed class MapEditorCellRenderService
 {
-    private static readonly MapEditorLayerType[] LayerPriority =
-    {
-        MapEditorLayerType.Zone,
-        MapEditorLayerType.WallVisual,
-        MapEditorLayerType.Object,
-        MapEditorLayerType.Ground
-    };
+    private static readonly MapEditorLayerType[] LayerPriority = MapEditorLayerUtility.RenderPriority;
 
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
     private readonly Func<MapEditorLayerType, bool> isLayerVisible;
@@ -46,16 +40,17 @@ public sealed class MapEditorCellRenderService
         Sprite sprite = tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId
             ? getPngTileSprite(imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY)
             : null;
+        Sprite[] animationFrames = GetAnimationFrames(imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY, out MapEditorTilesetAnimationDefinition animation);
 
         ApplyUnderlay(cell, mapData, layerType);
 
         if (tileId == MapEditorManager.WallTileId && layerType != MapEditorLayerType.WallCollision)
         {
-            ApplyWallTileToCell(cell, mapData, layerType, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
+            ApplyWallTileToCell(cell, mapData, layerType, color, sprite, animationFrames, animation, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
         }
         else
         {
-            ApplyTileToCell(cell, mapData, layerType, tileId, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
+            ApplyTileToCell(cell, mapData, layerType, tileId, color, sprite, animationFrames, animation, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
         }
 
         ApplyWallCollisionOutline(cell, mapData);
@@ -117,7 +112,7 @@ public sealed class MapEditorCellRenderService
         return Color.white;
     }
 
-    public void ApplyTileToCell(GridCell cell, MapData mapData, MapEditorLayerType layerType, int tileId, Color color, Sprite sprite, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)
+    public void ApplyTileToCell(GridCell cell, MapData mapData, MapEditorLayerType layerType, int tileId, Color color, Sprite sprite, Sprite[] animationFrames, MapEditorTilesetAnimationDefinition animation, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)
     {
         if (tileId == MapEditorManager.CustomImageTileId)
         {
@@ -127,7 +122,14 @@ public sealed class MapEditorCellRenderService
                 return;
             }
 
-            cell.SetCustomSprite(sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
+            if (animation != null && animationFrames != null && animationFrames.Length > 1)
+            {
+                cell.SetCustomAnimatedSprite(animationFrames, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY, animation.framesPerSecond, animation.loop);
+            }
+            else
+            {
+                cell.SetCustomSprite(sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
+            }
             return;
         }
 
@@ -148,7 +150,7 @@ public sealed class MapEditorCellRenderService
         cell.Clear();
     }
 
-    private static void ApplyWallTileToCell(GridCell cell, MapData mapData, MapEditorLayerType layerType, Color color, Sprite sprite, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)
+    private static void ApplyWallTileToCell(GridCell cell, MapData mapData, MapEditorLayerType layerType, Color color, Sprite sprite, Sprite[] animationFrames, MapEditorTilesetAnimationDefinition animation, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)
     {
         bool hasTopNeighbor = IsSameWallTile(mapData, layerType, cell.X, cell.Y - 1, color, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
         bool hasRightNeighbor = IsSameWallTile(mapData, layerType, cell.X + 1, cell.Y, color, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY);
@@ -169,19 +171,53 @@ public sealed class MapEditorCellRenderService
             return;
         }
 
-        cell.SetWallTile(
-            color,
-            sprite,
-            imagePath,
-            imageIndex,
-            imageRotation,
-            imageFlipX,
-            imageFlipY,
-            !hasTopNeighbor,
-            !hasRightNeighbor,
-            !hasBottomNeighbor,
-            !hasLeftNeighbor
-        );
+        if (animation != null && animationFrames != null && animationFrames.Length > 1)
+        {
+            cell.SetWallAnimatedTile(animationFrames, color, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY,
+                animation.framesPerSecond, animation.loop, !hasTopNeighbor, !hasRightNeighbor, !hasBottomNeighbor, !hasLeftNeighbor);
+        }
+        else
+        {
+            cell.SetWallTile(
+                color,
+                sprite,
+                imagePath,
+                imageIndex,
+                imageRotation,
+                imageFlipX,
+                imageFlipY,
+                !hasTopNeighbor,
+                !hasRightNeighbor,
+                !hasBottomNeighbor,
+                !hasLeftNeighbor
+            );
+        }
+    }
+
+    private Sprite[] GetAnimationFrames(string imagePath, int imageIndex, int rotation, bool flipX, bool flipY, out MapEditorTilesetAnimationDefinition animation)
+    {
+        animation = null;
+
+        if (!MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out MapEditorTilesetDefinition tileset, out animation))
+        {
+            return null;
+        }
+
+        int frameCount = Mathf.Max(1, animation.frameCount);
+        Sprite[] frames = new Sprite[frameCount];
+
+        for (int i = 0; i < frameCount; i++)
+        {
+            int frameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(tileset.atlasGridSize, animation.GetFrameTileId(i));
+            frames[i] = getPngTileSprite(imagePath, frameIndex, rotation, flipX, flipY);
+
+            if (frames[i] == null)
+            {
+                return null;
+            }
+        }
+
+        return frames;
     }
 
     private static bool IsSameWallTile(MapData mapData, MapEditorLayerType layerType, int x, int y, Color color, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)

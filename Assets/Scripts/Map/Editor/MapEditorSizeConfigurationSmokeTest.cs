@@ -12,6 +12,7 @@ public static class MapEditorSizeConfigurationSmokeTest
     {
         string texturePath = Path.Combine(Path.GetTempPath(), "MapEditorPaletteGridSmoke.png");
         Texture2D texture = null;
+        GameObject testCellObject = null;
 
         try
         {
@@ -40,14 +41,36 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(canvas.pixelPerfect,
                 "Canvas pixel snapping is disabled, which can blur text at fractional positions.");
             RawImage background = canvas.transform.Find("MapEditor_Background")?.GetComponent<RawImage>();
+            RawImage titleGround = canvas.transform.Find("MapEditor_TitleGround")?.GetComponent<RawImage>();
+            RawImage titleClouds = canvas.transform.Find("MapEditor_TitleClouds")?.GetComponent<RawImage>();
+            RawImage titleCharacters = canvas.transform.Find("MapEditor_TitleCharacters")?.GetComponent<RawImage>();
             RawImage logo = canvas.transform.Find("MapEditor_Logo")?.GetComponent<RawImage>();
             Require(background != null && background.texture != null
-                && background.texture.name == "MapEditor_Title_20260727",
-                "The new PixelChroma title background was not applied.");
-            Require(background.GetComponent<AspectRatioFitter>()?.aspectMode == AspectRatioFitter.AspectMode.EnvelopeParent,
-                "The title background is not preserving its aspect ratio.");
-            Require(logo != null && logo.texture != null && logo.gameObject.activeSelf,
-                "The PixelChroma logo was not created.");
+                && background.texture.name == "PixelChroma_TitleSky_20260803",
+                "The latest PixelChroma title sky was not applied.");
+            Require(background.GetComponent<AspectRatioFitter>() == null,
+                "The title layers still use independent aspect fitters and can drift out of alignment.");
+            Require(canvas.GetComponent<MapEditorTitleBackdropLayout>() != null,
+                "The PixelChroma title layer layout controller was not created.");
+            Require(titleGround != null && titleGround.texture != null
+                && titleGround.GetComponent<MapEditorBackgroundRotator>() != null,
+                "The rotating PixelChroma BG_2 layer was not created.");
+            Require(titleClouds != null && titleClouds.texture != null,
+                "The PixelChroma cloud layer was not created.");
+            Require(titleCharacters != null && titleCharacters.texture != null,
+                "The PixelChroma character layer was not created.");
+            Require(titleClouds.transform.GetSiblingIndex() < titleGround.transform.GetSiblingIndex()
+                && titleGround.transform.GetSiblingIndex() < titleCharacters.transform.GetSiblingIndex(),
+                "The rotating ground is not layered between the clouds and characters.");
+            Require(titleGround.rectTransform.anchorMin == new Vector2(0.5f, 0f)
+                && titleGround.rectTransform.anchoredPosition.y < 0f,
+                "The rotating ground is not positioned below the screen like PixelChroma.");
+            Require(titleCharacters.rectTransform.anchorMin == Vector2.zero
+                && titleCharacters.rectTransform.anchorMax == Vector2.one,
+                "The PixelChroma character layer is not stretched with the title canvas.");
+            Require(logo != null && logo.texture != null && logo.gameObject.activeSelf
+                && logo.texture.name == "PixelChroma_TitleLogo_20260803",
+                "The latest PixelChroma logo was not created.");
             Button quitButton = canvas.transform.Find("MapEditor_QuitButton")?.GetComponent<Button>();
             Require(quitButton != null && quitButton.interactable,
                 "The top-right application quit button was not created.");
@@ -63,10 +86,56 @@ public static class MapEditorSizeConfigurationSmokeTest
             RequireToolbarButton(toolbar, "BrushToolButton", "브러시", MapEditorToolbarAction.Brush);
             RequireToolbarButton(toolbar, "WallToolButton", "벽", MapEditorToolbarAction.Wall);
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
-            RequireToolbarButton(toolbar, "ValidateButton", "맵 검사", MapEditorToolbarAction.ValidateMap);
-            RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
+            Require(toolbar.Find("ValidateButton") == null,
+                "Standalone Validate Map button is still visible.");
+            RequireToolbarButton(toolbar, "WorkshopButton", "검사 후 창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
             RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
             Require(toolbar.Find("CharacterTestToolButton") == null, "Removed character test tool is still visible.");
+
+            MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
+            Transform layerPanel = canvas.transform.Find("MapEditor_LayerPanel");
+            Require(layerPanel != null, "Layer panel was not created.");
+            Require(layerPanel.Find("LayerGrid/LayerRow_Ground/Layer_Ground")?.GetComponent<MapEditorToolbarButton>()?.action
+                    == MapEditorToolbarAction.SetLayer,
+                "Ground layer does not have an explicit selection button.");
+            Require(layerPanel.Find("LayerManagement/LayerAction_AddLayer_Object") != null,
+                "Object-layer add button is missing.");
+            Require(layerPanel.Find("LayerManagement/LayerAction_DeleteLayer_Ground") != null,
+                "Optional-layer delete button is missing.");
+
+            manager.SetActiveLayer(MapEditorLayerType.Object);
+            manager.SetWallTileTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.WallCollision,
+                "Wall tool did not activate the collision layer.");
+            manager.SetBrushTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+                "Brush tool did not restore the last normal paint layer after Wall.");
+            manager.SetSpawnTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.Spawn,
+                "Start Point tool did not activate the Spawn layer.");
+            manager.SetBrushTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+                "Brush tool did not restore the last normal paint layer after Start Point.");
+
+            manager.AddUserLayer(MapEditorLayerType.Object);
+            Require(manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra), "Object user layer was not enabled.");
+            Require(manager.ActiveLayer == MapEditorLayerType.ObjectExtra, "New Object user layer was not selected.");
+            manager.CurrentMapData.SetTileOnLayer(
+                0, 0, MapEditorLayerType.ObjectExtra, MapEditorManager.CustomColorTileId,
+                Color.magenta, string.Empty, -1, 0, false, false);
+            manager.AddUserLayer(MapEditorLayerType.Object);
+            Require(manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra2), "Second Object user layer was not enabled.");
+            Require(manager.ActiveLayer == MapEditorLayerType.ObjectExtra2, "Second Object user layer was not selected.");
+            manager.DeleteActiveUserLayer();
+            Require(!manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra2), "Deleted second Object user layer is still enabled.");
+            Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == MapEditorManager.CustomColorTileId,
+                "Deleting one user layer damaged another user layer.");
+            manager.SetActiveLayer(MapEditorLayerType.ObjectExtra);
+            manager.DeleteActiveUserLayer();
+            Require(!manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra), "Deleted Object user layer is still enabled.");
+            Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == -1,
+                "Deleting a user layer left its tile data behind.");
+            Require(manager.ActiveLayer == MapEditorLayerType.Object, "Deleting a user layer did not select its protected base layer.");
 
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, manager.toolToolbarOffset);
             Transform panel = canvas.transform.Find("MapEditor_MapSizePanel");
@@ -76,6 +145,78 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(panel.Find("LargePresetRow/Preset256 x 128Button") != null, "256 x 128 preset is missing.");
             Require(panel.Find("LargePresetRow/Preset256 x 256Button") != null, "256 x 256 preset is missing.");
             Require(panel.Find("PresetRow/Preset16Button") == null && panel.Find("PresetRow/Preset32Button") == null, "Legacy map presets are still present.");
+            InputField widthInput = panel.Find("WidthControl/WidthInputRow/ValueInput")?.GetComponent<InputField>();
+            InputField heightInput = panel.Find("HeightControl/HeightInputRow/ValueInput")?.GetComponent<InputField>();
+            MapEditorTabNavigation widthTab = widthInput?.GetComponent<MapEditorTabNavigation>();
+            MapEditorTabNavigation heightTab = heightInput?.GetComponent<MapEditorTabNavigation>();
+            Require(widthTab != null && widthTab.next == heightInput,
+                "Width input does not move to Height input with Tab.");
+            Require(heightTab != null && heightTab.next == widthInput,
+                "Height input does not cycle back to Width input with Tab.");
+            Require(panel.Find("PlayerScaleGuideButton")?.GetComponent<Button>() != null,
+                "Player scale comparison button is missing.");
+
+            manager.showPlayerScaleGuide = false;
+            manager.TogglePlayerScaleGuide();
+            RectTransform playerGuide = gridGenerator.gridParent.Find("MapEditor_PlayerScaleGuide") as RectTransform;
+            Require(playerGuide != null && playerGuide.gameObject.activeSelf,
+                "Player 1 x 1 tile scale guide was not created.");
+            Require(Mathf.Abs(playerGuide.rect.width - gridGenerator.cellSize) < 0.1f
+                && Mathf.Abs(playerGuide.rect.height - gridGenerator.cellSize) < 0.1f,
+                "Player scale guide is not one map tile.");
+            RawImage playerGuideImage = playerGuide.Find("PlayerSprite")?.GetComponent<RawImage>();
+            Require(playerGuideImage != null && playerGuideImage.texture != null,
+                "Player scale guide does not use the PixelChroma player sprite.");
+            Require(playerGuide.GetComponent<MapEditorPlayerScaleGuideDragHandle>() != null,
+                "Player scale guide cannot be dragged across the map.");
+            manager.SetPlayerScaleGuidePosition(2, 3);
+            Require(Vector2.Distance(
+                    playerGuide.anchoredPosition,
+                    new Vector2(2f * gridGenerator.cellSize, -3f * gridGenerator.cellSize)) < 0.1f,
+                "Player scale guide did not move to the requested tile.");
+            manager.TogglePlayerScaleGuide();
+
+            testCellObject = new GameObject("Phase4WallOverlayTestCell", typeof(RectTransform), typeof(Image), typeof(GridCell));
+            GridCell firstCell = testCellObject.GetComponent<GridCell>();
+            testCellObject.SendMessage("Awake");
+            firstCell.Init(0, 0);
+            manager.CurrentMapData.SetTileOnLayer(
+                0, 0, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId,
+                Color.black, string.Empty, -1, 0, false, false);
+            manager.RefreshCell(firstCell);
+            Image wallOverlay = firstCell.transform.Find("WallCollisionOverlay")?.GetComponent<Image>();
+            Require(wallOverlay != null && wallOverlay.gameObject.activeSelf && wallOverlay.color.a >= 0.35f,
+                "Wall collision overlay is not clearly visible over painted tiles.");
+
+            manager.pixelChromaSpawnPoints.Clear();
+            manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"));
+            manager.SetActiveLayer(MapEditorLayerType.Spawn);
+            manager.ClearActiveLayer();
+            Require(manager.pixelChromaSpawnPoints.Count == 0,
+                "Clearing the Spawn layer did not remove start points.");
+            PixelChromaMapValidationReport missingSpawnReport = MapEditorPixelChromaValidationService.Validate(
+                manager.CurrentMapData, manager.pixelChromaSpawnX, manager.pixelChromaSpawnY, manager.pixelChromaSpawnPoints);
+            Require(!missingSpawnReport.isValid,
+                "Map validation accepted a map without a start point.");
+            manager.ExportWorkshopPackage();
+            Transform failedValidationModal = canvas.transform.Find("MapEditor_ModalPanel");
+            Require(failedValidationModal != null,
+                "Workshop export did not show validation before opening a save dialog.");
+            Require(failedValidationModal.Find("Panel/FooterActionButton") == null,
+                "Failed validation incorrectly allows Workshop export to continue.");
+
+            PixelChromaMapValidationReport passedValidationReport = new PixelChromaMapValidationReport
+            {
+                isValid = true,
+                paintedTileCount = 1,
+                groundTileCount = 1,
+                spawnPointCount = 1
+            };
+            passedValidationReport.passedChecks.Add("Smoke validation passed.");
+            MapEditorModalPanel.ShowValidation(manager, passedValidationReport, () => { });
+            Transform passedValidationModal = canvas.transform.Find("MapEditor_ModalPanel");
+            Require(passedValidationModal?.Find("Panel/FooterActionButton")?.GetComponent<Button>() != null,
+                "Passed validation does not provide a save-location action.");
 
             foreach (int gridSize in MapEditorManager.PngPaletteGridSizeOptions)
             {
@@ -151,6 +292,11 @@ public static class MapEditorSizeConfigurationSmokeTest
             if (texture != null)
             {
                 UnityEngine.Object.DestroyImmediate(texture);
+            }
+
+            if (testCellObject != null)
+            {
+                UnityEngine.Object.DestroyImmediate(testCellObject);
             }
 
             if (File.Exists(texturePath))

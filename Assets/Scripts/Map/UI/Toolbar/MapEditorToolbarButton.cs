@@ -38,19 +38,46 @@ public enum MapEditorToolbarAction
     PngPaletteGridSize,
     SetLayer,
     ToggleLayerVisible,
+    AddLayer,
+    DeleteLayer,
     Clear,
     UploadWorkshop,
-    OpenTileCreator
+    OpenTileCreator,
+    Line
 }
 
 public enum MapEditorLayerType
 {
-    Ground,
-    Object,
-    WallVisual,
-    WallCollision,
-    Spawn,
-    Zone
+    Ground = 0,
+    Object = 1,
+    WallVisual = 2,
+    WallCollision = 3,
+    Spawn = 4,
+    Zone = 5,
+    GroundExtra = 6,
+    ObjectExtra = 7,
+    WallVisualExtra = 8,
+    GroundExtra2 = 9,
+    GroundExtra3 = 10,
+    GroundExtra4 = 11,
+    GroundExtra5 = 12,
+    GroundExtra6 = 13,
+    GroundExtra7 = 14,
+    GroundExtra8 = 15,
+    ObjectExtra2 = 16,
+    ObjectExtra3 = 17,
+    ObjectExtra4 = 18,
+    ObjectExtra5 = 19,
+    ObjectExtra6 = 20,
+    ObjectExtra7 = 21,
+    ObjectExtra8 = 22,
+    WallVisualExtra2 = 23,
+    WallVisualExtra3 = 24,
+    WallVisualExtra4 = 25,
+    WallVisualExtra5 = 26,
+    WallVisualExtra6 = 27,
+    WallVisualExtra7 = 28,
+    WallVisualExtra8 = 29
 }
 
 [RequireComponent(typeof(Button))]
@@ -192,6 +219,12 @@ public class MapEditorToolbarButton : MonoBehaviour
             case MapEditorToolbarAction.ToggleLayerVisible:
                 target.ToggleLayerVisible((MapEditorLayerType)intArgument);
                 break;
+            case MapEditorToolbarAction.AddLayer:
+                target.AddUserLayer((MapEditorLayerType)intArgument);
+                break;
+            case MapEditorToolbarAction.DeleteLayer:
+                target.DeleteActiveUserLayer();
+                break;
             case MapEditorToolbarAction.Clear:
                 target.ClearActiveLayer();
                 break;
@@ -210,6 +243,9 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.OpenTileCreator:
                 target.OpenTileCreator();
+                break;
+            case MapEditorToolbarAction.Line:
+                target.SetLineTool();
                 break;
         }
     }

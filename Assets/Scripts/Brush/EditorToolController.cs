@@ -8,6 +8,7 @@ public enum EditorToolType
     Selection,
     Wall,
     Spawn,
+    Line,
     PreviewRegion = 6
 }
 
@@ -52,6 +53,11 @@ public class EditorToolController : MonoBehaviour
     public void SetSpawnTool()
     {
         SetTool(EditorToolType.Spawn);
+    }
+
+    public void SetLineTool()
+    {
+        SetTool(EditorToolType.Line);
     }
 
     public void SetPreviewRegionTool()

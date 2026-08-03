@@ -27,6 +27,22 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
         ImagePath = imagePath;
         ImageIndex = imageIndex;
         this.manager = manager;
+
+        if (manager != null
+            && MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out _, out MapEditorTilesetAnimationDefinition animation))
+        {
+            Sprite[] frames = manager.GetAnimationFrames(imagePath, imageIndex);
+            if (frames != null && frames.Length > 1)
+            {
+                MapEditorAnimatedTilePlayer player = GetComponent<MapEditorAnimatedTilePlayer>();
+                if (player == null)
+                {
+                    player = gameObject.AddComponent<MapEditorAnimatedTilePlayer>();
+                }
+
+                player.Configure(GetComponent<Image>(), frames, animation.framesPerSecond, animation.loop);
+            }
+        }
     }
 
     public bool TryPickColor(Vector2 screenPosition, Camera eventCamera, out Color color)
@@ -92,6 +108,19 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
         }
 
         bool wholeTile = manager.IsWholeTilePaintMode();
+        bool animated = MapEditorTilesetLibraryService.TryGetAnimation(ImagePath, ImageIndex, out MapEditorTilesetDefinition animationTileset, out MapEditorTilesetAnimationDefinition animation);
+        if (animated)
+        {
+            manager.SetWholeTilePaintMode();
+            wholeTile = true;
+            ImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(animationTileset.atlasGridSize, animation.GetFrameTileId(0));
+            Sprite[] frames = manager.GetAnimationFrames(ImagePath, ImageIndex);
+            if (frames != null && frames.Length > 0)
+            {
+                Sprite = frames[0];
+            }
+        }
+
         Sprite selectedSprite = wholeTile ? Sprite : CreateSubSprite(resolution, subX, subY);
 
         if (selectedSprite == null)

@@ -1,0 +1,675 @@
+[Licensing::Module] Trying to connect to existing licensing client channel...
+Built from '6000.3/staging' branch; Version is '6000.3.11f1 (3000ef702840) revision 3145967'; Using compiler version '194234433'; Build Type 'Release'
+OS: 'Windows 10  (10.0.19045) 64bit Professional' Language: 'ko' Physical Memory: 16252 MB
+BatchMode: 1, IsHumanControllingUs: 0, StartBugReporterOnCrash: 0, Is64bit: 1
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-user" at "2026-08-03T01:29:29.457159Z"
+System  architecture: x64
+Process architecture: x64
+Date: 2026-08-03T01:29:29Z
+
+COMMAND LINE ARGUMENTS:
+C:\Program Files\Unity\Hub\Editor\6000.3.11f1\Editor\Unity.exe
+-batchmode
+-nographics
+-projectPath
+C:\Unity\MapEditor
+-executeMethod
+MapEditorSizeConfigurationSmokeTest.Run
+-logFile
+C:\Unity\MapEditor\TestResults\final_integration_ui.log
+-quit
+Successfully changed project path to: C:\Unity\MapEditor
+C:/Unity/MapEditor
+[UnityMemory] Configuration Parameters - Can be set up in boot.config
+    "memorysetup-temp-allocator-size-nav-mesh-worker=65536"
+    "memorysetup-temp-allocator-size-audio-worker=65536"
+    "memorysetup-temp-allocator-size-gfx=262144"
+    "memorysetup-allocator-temp-initial-block-size-main=262144"
+    "memorysetup-allocator-temp-initial-block-size-worker=262144"
+    "memorysetup-temp-allocator-size-background-worker=32768"
+    "memorysetup-temp-allocator-size-job-worker=262144"
+    "memorysetup-temp-allocator-size-preload-manager=33554432"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-temp-allocator-size-gi-baking-worker=262144"
+    "memorysetup-bucket-allocator-granularity=16"
+    "memorysetup-bucket-allocator-bucket-count=8"
+    "memorysetup-bucket-allocator-block-size=33554432"
+    "memorysetup-bucket-allocator-block-count=8"
+    "memorysetup-main-allocator-block-size=16777216"
+    "memorysetup-thread-allocator-block-size=16777216"
+    "memorysetup-gfx-main-allocator-block-size=16777216"
+    "memorysetup-gfx-thread-allocator-block-size=16777216"
+    "memorysetup-cache-allocator-block-size=4194304"
+    "memorysetup-typetree-allocator-block-size=2097152"
+    "memorysetup-profiler-bucket-allocator-granularity=16"
+    "memorysetup-profiler-bucket-allocator-bucket-count=8"
+    "memorysetup-profiler-bucket-allocator-block-size=33554432"
+    "memorysetup-profiler-bucket-allocator-block-count=8"
+    "memorysetup-profiler-allocator-block-size=16777216"
+    "memorysetup-profiler-editor-allocator-block-size=1048576"
+    "memorysetup-temp-allocator-size-main=16777216"
+    "memorysetup-job-temp-allocator-block-size=2097152"
+    "memorysetup-job-temp-allocator-block-size-background=1048576"
+    "memorysetup-job-temp-allocator-reduction-small-platforms=262144"
+    "memorysetup-temp-allocator-size-cloud-worker=32768"
+Player connection [28516]  Target information:
+
+Player connection [28516]  * "[IP] 192.168.0.182 [Port] 55504 [Flags] 2 [Guid] 3073544336 [EditorId] 3073544336 [Version] 1048832 [Id] WindowsEditor(7,DESKTOP-6KJKF3R) [Debug] 1 [PackageName] WindowsEditor [ProjectName] Editor" 
+
+Player connection [28516] Host joined multi-casting on [225.0.0.222:54997]...
+Player connection [28516] Host joined alternative multi-casting on [225.0.0.222:34997]...
+Input System module state changed to: Initialized.
+[Physics::Module] Initialized fallback backend.
+[Physics::Module] Id: 0xdecafbad
+[Package Manager] Connected to IPC stream "Upm-14616" after 0.3 seconds.
+[Licensing::Module] Licensing is not yet initialized.
+[Licensing::Client] Error: HandshakeResponse reported an error:
+	ResponseCode: 505
+	ResponseStatus: Unsupported protocol version '1.18.0'.
+[Licensing::Module] Error: Failed to handshake to channel: "LicenseClient-user"
+[Licensing::IpcConnector] LicenseClient-user channel disconnected successfully.
+[Licensing::IpcConnector] Channel LicenseClient-user-6000.3.11 doesn't exist
+[Licensing::Module] Successfully launched the LicensingClient (PId: 5780)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-user-6000.3.11" at "2026-08-03T01:29:30.7558519Z"
+[Licensing::Client] Handshaking with LicensingClient:
+  Version:                 1.18.0+23225a6
+  Session Id:              f5cb469f6ee34b2f808a46cc9ddbfe7a
+  Correlation Id:          82c97972a38483731d63df3f7735ed0e
+  External correlation Id: 4532122394852532048
+  Machine Id:              A37P6EmjDi92ASqQVBaaB+wkdyw=
+[Licensing::Module] Successfully connected to LicensingClient on channel: "LicenseClient-user-6000.3.11" (connect: 0.57s, validation: 0.03s, handshake: 0.09s)
+[Licensing::IpcConnector] Successfully connected to: "LicenseClient-user-6000.3.11-notifications" at "2026-08-03T01:29:30.8843723Z"
+[Licensing::Module] Connected to LicensingClient (PId: 5780, launch time: 0.00, total connection time: 0.69s)
+[Licensing::Module] Error: Access token is unavailable; failed to update
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] License group:
+  Id: 14569719853573-UnityPersXXXX
+  Product: Unity Personal
+  Type: Assigned
+  Expiration: Unlimited
+[Licensing::Client] Successfully updated license, isAsync: True, time: 0.01
+[Licensing::Client] Successfully resolved entitlement details
+[Licensing::Module] Licensing Background thread has ended after 1.45s
+[Licensing::Module] Licensing is initialized (took 1.04s).
+[Licensing::Client] Successfully resolved entitlement details
+Library Redirect Path: Library/
+[Physics::Module] Selected backend.
+[Physics::Module] Name: PhysX
+[Physics::Module] Id: 0xf2b8ea05
+[Physics::Module] SDK Version: 4.1.2
+[Physics::Module] Integration Version: 1.0.0
+[Physics::Module] Threading Mode: Multi-Threaded
+Refreshing native plugins compatible for Editor in 0.79 ms, found 0 plugins.
+Preloading 0 native plugins for Editor in 0.00 ms.
+Initialize engine version: 6000.3.11f1 (3000ef702840)
+[Subsystems] Discovering subsystems at path C:/Program Files/Unity/Hub/Editor/6000.3.11f1/Editor/Data/Resources/UnitySubsystems
+[Subsystems] Discovering subsystems at path C:/Unity/MapEditor/Assets
+Forcing GfxDevice: Null
+GfxDevice: creating device client; kGfxThreadingModeNonThreaded
+NullGfxDevice:
+    Version:  NULL 1.0 [1.0]
+    Renderer: Null Device
+    Vendor:   Unity Technologies
+Initialize mono
+Mono path[0] = 'C:/Program Files/Unity/Hub/Editor/6000.3.11f1/Editor/Data/Managed'
+Mono path[1] = 'C:/Program Files/Unity/Hub/Editor/6000.3.11f1/Editor/Data/MonoBleedingEdge/lib/mono/unityjit-win32'
+Mono config path = 'C:/Program Files/Unity/Hub/Editor/6000.3.11f1/Editor/Data/MonoBleedingEdge/etc'
+Using monoOptions --debugger-agent=transport=dt_socket,embedding=1,server=y,suspend=n,address=127.0.0.1:56616
+Using cacheserver namespaces - metadata:defaultmetadata, artifacts:defaultartifacts
+Using cacheserver namespaces - metadata:defaultmetadata, artifacts:defaultartifacts
+ImportWorker Server TCP listen port: 0
+AcceleratorClientConnectionCallback - disconnected - :0
+Begin MonoManager ReloadAssembly
+Registering precompiled unity dll's ...
+Register platform support module: C:/Program Files/Unity/Hub/Editor/6000.3.11f1/Editor/Data/PlaybackEngines/WindowsStandaloneSupport/UnityEditor.WindowsStandalone.Extensions.dll
+Registered in 0.001776 seconds.
+- Loaded All Assemblies, in  0.397 seconds
+Native extension for WindowsStandalone target not found
+Package Manager log level set to [2]
+ScheduleIndexationOnStartup MainProcess:False IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  0.377 seconds
+Domain Reload Profiling: 772ms
+	BeginReloadAssembly (133ms)
+		ExecutionOrderSort (0ms)
+		DisableScriptedObjects (0ms)
+		BackupInstance (0ms)
+		ReleaseScriptingObjects (0ms)
+		CreateAndSetChildDomain (11ms)
+	RebuildCommonClasses (35ms)
+	RebuildNativeTypeToScriptingClass (12ms)
+	initialDomainReloadingComplete (46ms)
+	LoadAllAssembliesAndSetupDomain (169ms)
+		LoadAssemblies (120ms)
+		RebuildTransferFunctionScriptingTraits (0ms)
+		AnalyzeDomain (166ms)
+			TypeCache.Refresh (163ms)
+				TypeCache.ScanAssembly (151ms)
+			BuildScriptInfoCaches (0ms)
+			ResolveRequiredComponents (1ms)
+	FinalizeReload (378ms)
+		ReleaseScriptCaches (0ms)
+		RebuildScriptCaches (0ms)
+		SetupLoadedEditorAssemblies (333ms)
+			LogAssemblyErrors (0ms)
+			InitializePlatformSupportModulesInManaged (44ms)
+			SetLoadedEditorAssemblies (3ms)
+			BeforeProcessingInitializeOnLoad (76ms)
+			ProcessInitializeOnLoadAttributes (127ms)
+			ProcessInitializeOnLoadMethodAttributes (82ms)
+			AfterProcessingInitializeOnLoad (0ms)
+			EditorAssembliesLoaded (0ms)
+		ExecutionOrderSort2 (0ms)
+		AwakeInstancesAfterBackupRestoration (0ms)
+[Licensing::Client] Successfully resolved entitlement details
+Application.AssetDatabase Initial Refresh Start
+[Package Manager] Restoring resolved packages state from cache
+[Licensing::Client] Successfully resolved entitlement details
+[Package Manager] Registered 66 packages:
+  Packages from [https://packages.unity.com]:
+    com.unity.2d.animation@13.0.4 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.animation@7396d8477ca9)
+    com.unity.2d.aseprite@3.0.1 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.aseprite@809e3a168ff7)
+    com.unity.2d.psdimporter@12.0.1 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.psdimporter@9abe0f7cac7e)
+    com.unity.2d.spriteshape@13.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.spriteshape@0738bab11647)
+    com.unity.2d.tilemap.extras@6.0.1 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.tilemap.extras@3dde84bf3867)
+    com.unity.2d.tooling@1.0.2 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.tooling@249995156768)
+    com.unity.collab-proxy@2.11.4 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.collab-proxy@a5329f833fa8)
+    com.unity.ide.rider@3.0.39 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.ide.rider@4504839d03f7)
+    com.unity.ide.visualstudio@2.0.26 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.ide.visualstudio@a99d56dec63f)
+    com.unity.inputsystem@1.19.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.inputsystem@21a28c3a6c83)
+    com.unity.timeline@1.8.11 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.timeline@bfd27f8016ff)
+    com.unity.visualscripting@1.9.10 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.visualscripting@eb6004dcc707)
+    com.unity.2d.common@12.0.2 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.common@800085e896ad)
+    com.unity.mathematics@1.3.3 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.mathematics@19a9377c4ffa)
+    com.unity.collections@2.6.2 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.collections@aea9d3bd5e19)
+    com.unity.searcher@4.9.4 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.searcher@d45a78918735)
+    com.unity.burst@1.8.28 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.burst@07790c2d06d9)
+    com.unity.nuget.mono-cecil@1.11.6 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.nuget.mono-cecil@ecb9724e46ff)
+    com.unity.test-framework.performance@3.2.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.test-framework.performance@0840f58e4562)
+  Built-in packages:
+    com.unity.2d.sprite@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.sprite@d14b9d497a24)
+    com.unity.2d.tilemap@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.2d.tilemap@f011712243ad)
+    com.unity.multiplayer.center@1.0.1 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.multiplayer.center@f01f4ba8d00a)
+    com.unity.render-pipelines.universal@17.3.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.render-pipelines.universal@e9f15c489688)
+    com.unity.test-framework@1.6.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.test-framework@0b7a23ab2e1d)
+    com.unity.ugui@2.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.ugui@f17df9b1ab21)
+    com.unity.modules.accessibility@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.accessibility)
+    com.unity.modules.adaptiveperformance@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.adaptiveperformance)
+    com.unity.modules.ai@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.ai)
+    com.unity.modules.androidjni@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.androidjni)
+    com.unity.modules.animation@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.animation)
+    com.unity.modules.assetbundle@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.assetbundle)
+    com.unity.modules.audio@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.audio)
+    com.unity.modules.cloth@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.cloth)
+    com.unity.modules.director@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.director)
+    com.unity.modules.imageconversion@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.imageconversion)
+    com.unity.modules.imgui@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.imgui)
+    com.unity.modules.jsonserialize@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.jsonserialize)
+    com.unity.modules.particlesystem@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.particlesystem)
+    com.unity.modules.physics@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.physics)
+    com.unity.modules.physics2d@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.physics2d)
+    com.unity.modules.screencapture@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.screencapture)
+    com.unity.modules.terrain@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.terrain)
+    com.unity.modules.terrainphysics@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.terrainphysics)
+    com.unity.modules.tilemap@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.tilemap)
+    com.unity.modules.ui@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.ui)
+    com.unity.modules.uielements@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.uielements)
+    com.unity.modules.umbra@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.umbra)
+    com.unity.modules.unityanalytics@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unityanalytics)
+    com.unity.modules.unitywebrequest@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unitywebrequest)
+    com.unity.modules.unitywebrequestassetbundle@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unitywebrequestassetbundle)
+    com.unity.modules.unitywebrequestaudio@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unitywebrequestaudio)
+    com.unity.modules.unitywebrequesttexture@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unitywebrequesttexture)
+    com.unity.modules.unitywebrequestwww@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.unitywebrequestwww)
+    com.unity.modules.vectorgraphics@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.vectorgraphics)
+    com.unity.modules.vehicles@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.vehicles)
+    com.unity.modules.video@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.video)
+    com.unity.modules.vr@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.vr)
+    com.unity.modules.wind@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.wind)
+    com.unity.modules.xr@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.xr)
+    com.unity.modules.subsystems@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.subsystems)
+    com.unity.modules.hierarchycore@1.0.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.modules.hierarchycore)
+    com.unity.ext.nunit@2.0.5 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.ext.nunit@d8c07649098d)
+    com.unity.render-pipelines.core@17.3.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.render-pipelines.core@84bf82d10e47)
+    com.unity.shadergraph@17.3.0 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.shadergraph@4eb612570652)
+    com.unity.render-pipelines.universal-config@17.0.3 (location: C:\Unity\MapEditor\Library\PackageCache\com.unity.render-pipelines.universal-config@8dc1aab4af1d)
+  Git packages:
+    com.rlabrecque.steamworks.net@https://github.com/rlabrecque/Steamworks.NET.git?path=/com.rlabrecque.steamworks.net (location: C:\Unity\MapEditor\Library\PackageCache\com.rlabrecque.steamworks.net@3ba2b1624485)
+[Subsystems] No new subsystems found in resolved package list.
+[Package Manager] Done registering packages in 0.02 seconds
+[ScriptCompilation] Requested script compilation because: Assetdatabase observed changes in script compilation related files
+Starting: C:\Program Files\Unity\Hub\Editor\6000.3.11f1\Editor\Data\Tools\BuildPipeline\bee_backend.exe --ipc --defer-dag-verification --dagfile="Library/Bee/1900b0aE.dag" --continue-on-failure --profile="Library/Bee/backend1.traceevents" ScriptAssemblies
+WorkingDir: C:/Unity/MapEditor
+DisplayProgressbar: Compiling Scripts
+ExitCode: 0 Duration: 2s774ms
+[ 822/1062  0s] ILPP-Configuration Library/ilpp-configuration.nevergeneratedoutput
+[1054/1062  1s] Csc Library/Bee/artifacts/1900b0aE.dag/Assembly-CSharp.dll (+2 others)
+[1055/1062  0s] Csc Library/Bee/artifacts/1900b0aE.dag/Assembly-CSharp-Editor.dll (+2 others)
+[1056/1062  0s] ILPostProcess Library/Bee/artifacts/1900b0aE.dag/post-processed/Assembly-CSharp-Editor.dll (+pdb)
+Processing assembly Library/Bee/artifacts/1900b0aE.dag/Assembly-CSharp-Editor.dll, with 137 defines and 350 references
+
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1057/1062  0s] ILPostProcess Library/Bee/artifacts/1900b0aE.dag/post-processed/Assembly-CSharp.dll (+pdb)
+Processing assembly Library/Bee/artifacts/1900b0aE.dag/Assembly-CSharp.dll, with 139 defines and 331 references
+
+processors: Unity.Jobs.CodeGen.JobsILPostProcessor, zzzUnity.Burst.CodeGen.BurstILPostProcessor
+
+running Unity.Jobs.CodeGen.JobsILPostProcessor
+
+running zzzUnity.Burst.CodeGen.BurstILPostProcessor
+[1058/1062  0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp.pdb
+[1059/1062  0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp-Editor.pdb
+[1060/1062  0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp-Editor.dll
+[1061/1062  0s] CopyFiles Library/ScriptAssemblies/Assembly-CSharp.dll
+*** Tundra build success (2.74 seconds), 9 items updated, 1062 evaluated
+AssetDatabase: script compilation time: 3.154701s
+Begin MonoManager ReloadAssembly
+- Loaded All Assemblies, in  1.273 seconds
+Refreshing native plugins compatible for Editor in 2.43 ms, found 5 plugins.
+Native extension for WindowsStandalone target not found
+Refreshing native plugins compatible for Editor in 2.49 ms, found 5 plugins.
+ScheduleIndexationOnStartup MainProcess:True IndexOnStartup:True
+Mono: successfully reloaded assembly
+- Finished resetting the current domain, in  3.100 seconds
+Domain Reload Profiling: 4367ms
+	BeginReloadAssembly (315ms)
+		ExecutionOrderSort (0ms)
+		DisableScriptedObjects (16ms)
+		BackupInstance (0ms)
+		ReleaseScriptingObjects (0ms)
+		CreateAndSetChildDomain (142ms)
+	RebuildCommonClasses (49ms)
+	RebuildNativeTypeToScriptingClass (11ms)
+	initialDomainReloadingComplete (34ms)
+	LoadAllAssembliesAndSetupDomain (858ms)
+		LoadAssemblies (737ms)
+		RebuildTransferFunctionScriptingTraits (0ms)
+		AnalyzeDomain (235ms)
+			TypeCache.Refresh (165ms)
+				TypeCache.ScanAssembly (154ms)
+			BuildScriptInfoCaches (56ms)
+			ResolveRequiredComponents (10ms)
+	FinalizeReload (3100ms)
+		ReleaseScriptCaches (0ms)
+		RebuildScriptCaches (0ms)
+		SetupLoadedEditorAssemblies (2929ms)
+			LogAssemblyErrors (0ms)
+			InitializePlatformSupportModulesInManaged (20ms)
+			SetLoadedEditorAssemblies (3ms)
+			BeforeProcessingInitializeOnLoad (161ms)
+			ProcessInitializeOnLoadAttributes (2542ms)
+			ProcessInitializeOnLoadMethodAttributes (196ms)
+			AfterProcessingInitializeOnLoad (7ms)
+			EditorAssembliesLoaded (0ms)
+		ExecutionOrderSort2 (0ms)
+		AwakeInstancesAfterBackupRestoration (10ms)
+Refreshing native plugins compatible for Editor in 2.23 ms, found 5 plugins.
+Preloading 0 native plugins for Editor in 0.00 ms.
+Asset Pipeline Refresh (id=97eb4e0cd3e86d1449327db7863e37a0): Total: 8.352 seconds - Initiated by InitialRefreshV2(ForceSynchronousImport)
+	Summary:
+		Imports: total=0 (actual=0, local cache=0, cache server=0)
+		Asset DB Process Time: managed=0 ms, native=3578 ms
+		Asset DB Callback time: managed=247 ms, native=33 ms
+		Scripting: domain reloads=1, domain reload time=1274 ms, compile time=3157 ms, other=61 ms
+		Project Asset Count: scripts=1548, non-scripts=3251
+		Asset File Changes: new=0, changed=2, moved=0, deleted=0
+		Scan Filter Count: 0
+	InvokeCustomDependenciesCallbacks: 0.001ms
+	InvokePackagesCallback: 27.656ms
+	ApplyChangesToAssetFolders: 0.675ms
+	Scan: 102.881ms
+	OnSourceAssetsModified: 0.844ms
+	CategorizeAssetsWithTransientArtifact: 51.999ms
+	ProcessAssetsWithTransientArtifactChanges: 84.343ms
+	CategorizeAssets: 65.305ms
+	ImportOutOfDateAssets: 3114.463ms (-45.359ms without children)
+		CompileScripts: 3157.061ms
+		ReloadNativeAssets: 0.042ms
+		UnloadImportedAssets: 1.292ms
+		EnsureUptoDateAssetsAreRegisteredWithGuidPM: 1.059ms
+		InitializingProgressBar: 0.000ms
+		PostProcessAllAssetNotificationsAddChangedAssets: 0.001ms
+		OnDemandSchedulerStart: 0.368ms
+	PostProcessAllAssets: 249.818ms
+	Hotreload: 3.947ms
+	GatherAllCurrentPrimaryArtifactRevisions: 0.002ms
+	UnloadStreamsBegin: 3.057ms
+	PersistCurrentRevisions: 0.152ms
+	UnloadStreamsEnd: 0.002ms
+	GenerateScriptTypeHashes: 3.756ms
+	Untracked: 4646.880ms
+
+Application.AssetDatabase Initial Refresh End
+Scanning for USB devices : 8.553ms
+Initializing Unity extensions:
+[MODES] ModeService[none].Initialize
+[MODES] ModeService[none].LoadModes
+[MODES] Loading mode Default (0) for mode-current-id-MapEditor
+Unloading 19 Unused Serialized files (Serialized files now loaded: 0)
+Unloading 7160 unused Assets / (3.2 MB). Loaded Objects now: 8002.
+Memory consumption went from 207.8 MB to 204.6 MB.
+Total: 11.574800 ms (FindLiveObjects: 0.799400 ms CreateObjectMapping: 0.881100 ms MarkObjects: 7.582400 ms  DeleteObjects: 2.310500 ms)
+
+Opening scene 'Assets/Scenes/SampleScene.unity'
+Unloading 10 Unused Serialized files (Serialized files now loaded: 0)
+Loaded scene 'Assets/Scenes/SampleScene.unity'
+	Deserialize:            51.968 ms
+	Integration:            512.543 ms
+	Integration of assets:  4.103 ms
+	Thread Wait Time:       -2.433 ms
+	Total Operation Time:   566.181 ms
+Unloading 6 unused Assets / (6.2 KB). Loaded Objects now: 8980.
+Memory consumption went from 196.3 MB to 196.3 MB.
+Total: 8.986000 ms (FindLiveObjects: 0.825200 ms CreateObjectMapping: 0.324900 ms MarkObjects: 7.738000 ms  DeleteObjects: 0.096600 ms)
+
+선택한 레이어: Object
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SetActiveLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:561)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:84)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 561)
+
+선택한 도구: Wall
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+EditorToolController:SetTool (EditorToolType) (at Assets/Scripts/Brush/EditorToolController.cs:71)
+EditorToolController:SetWallTool () (at Assets/Scripts/Brush/EditorToolController.cs:39)
+MapEditorManager:SetWallTileTool () (at Assets/Scripts/Map/MapEditorManager.cs:462)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:85)
+
+(Filename: Assets/Scripts/Brush/EditorToolController.cs Line: 71)
+
+선택한 도구: Brush
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+EditorToolController:SetTool (EditorToolType) (at Assets/Scripts/Brush/EditorToolController.cs:71)
+EditorToolController:SetBrushTool () (at Assets/Scripts/Brush/EditorToolController.cs:34)
+MapEditorManager:SetBrushTool () (at Assets/Scripts/Map/MapEditorManager.cs:445)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:88)
+
+(Filename: Assets/Scripts/Brush/EditorToolController.cs Line: 71)
+
+선택한 도구: Spawn
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+EditorToolController:SetTool (EditorToolType) (at Assets/Scripts/Brush/EditorToolController.cs:71)
+EditorToolController:SetSpawnTool () (at Assets/Scripts/Brush/EditorToolController.cs:54)
+MapEditorManager:SetSpawnTool () (at Assets/Scripts/Map/MapEditorManager.cs:505)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:91)
+
+(Filename: Assets/Scripts/Brush/EditorToolController.cs Line: 71)
+
+선택한 도구: Brush
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+EditorToolController:SetTool (EditorToolType) (at Assets/Scripts/Brush/EditorToolController.cs:71)
+EditorToolController:SetBrushTool () (at Assets/Scripts/Brush/EditorToolController.cs:34)
+MapEditorManager:SetBrushTool () (at Assets/Scripts/Map/MapEditorManager.cs:445)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:94)
+
+(Filename: Assets/Scripts/Brush/EditorToolController.cs Line: 71)
+
+선택한 레이어: ObjectExtra
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SetActiveLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:561)
+MapEditorManager:AddUserLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:629)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:98)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 561)
+
+사용자 레이어 추가: Object 2
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:AddUserLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:631)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:98)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 631)
+
+사용자 레이어 삭제: ObjectExtra
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:DeleteActiveUserLayer () (at Assets/Scripts/Map/MapEditorManager.cs:657)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:104)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 657)
+
+Assertion failed on expression: 'ShouldRunBehaviour()'
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.GameObject:SendMessage (string,object,UnityEngine.SendMessageOptions)
+UnityEngine.GameObject:SendMessage (string)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:141)
+
+[Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs line 141]
+
+선택한 도구: Spawn
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+EditorToolController:SetTool (EditorToolType) (at Assets/Scripts/Brush/EditorToolController.cs:71)
+EditorToolController:SetSpawnTool () (at Assets/Scripts/Brush/EditorToolController.cs:54)
+MapEditorManager:SetSpawnTool () (at Assets/Scripts/Map/MapEditorManager.cs:505)
+MapEditorManager:SetActiveLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:541)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:153)
+
+(Filename: Assets/Scripts/Brush/EditorToolController.cs Line: 71)
+
+선택한 레이어: Spawn
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SetActiveLayer (MapEditorLayerType) (at Assets/Scripts/Map/MapEditorManager.cs:561)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:153)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 561)
+
+시작 위치를 모두 지웠습니다.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:ClearActiveLayer () (at Assets/Scripts/Map/MapEditorManager.cs:1269)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:154)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 1269)
+
+PixelChroma 맵 검사 실패: 플레이 가능한 바닥 타일이 없습니다.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogError (object)
+MapEditorPixelChromaValidationService:Log (PixelChromaMapValidationReport) (at Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs:348)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2172)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs Line: 348)
+
+PixelChroma 맵 검사 실패: 시작 위치가 없습니다. 시작 위치 도구로 최소 한 곳을 지정하세요.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogError (object)
+MapEditorPixelChromaValidationService:Log (PixelChromaMapValidationReport) (at Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs:348)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2172)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs Line: 348)
+
+PixelChroma 맵 검사 경고: 오브젝트 레이어가 비어 있습니다.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogWarning (object)
+MapEditorPixelChromaValidationService:Log (PixelChromaMapValidationReport) (at Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs:353)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2172)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs Line: 353)
+
+PixelChroma 맵 검사 경고: 구역 데이터가 없습니다.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogWarning (object)
+MapEditorPixelChromaValidationService:Log (PixelChromaMapValidationReport) (at Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs:353)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2172)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs Line: 353)
+
+PixelChroma 맵 검사 경고: 바닥 사용 면적이 전체 맵의 15%보다 작습니다.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogWarning (object)
+MapEditorPixelChromaValidationService:Log (PixelChromaMapValidationReport) (at Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs:353)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2172)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/Export/MapEditorPixelChromaValidationService.cs Line: 353)
+
+PixelChroma 맵 검사: 수정 필요 | 그린 타일=1 | 벽=1 | 색상=1 | 이미지=0 | 타일셋=0 | 시작 위치=0 | 구역=0 | 오류=2 | 경고=3
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:LogWarning (object)
+MapEditorManager:PublishValidationResult (PixelChromaMapValidationReport) (at Assets/Scripts/Map/MapEditorManager.cs:2193)
+MapEditorManager:ExportWorkshopPackage () (at Assets/Scripts/Map/MapEditorManager.cs:2212)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:161)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 2193)
+
+선택한 색상: FF0000FF
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SelectColor (UnityEngine.Color) (at Assets/Scripts/Map/MapEditorManager.cs:902)
+ColorWheelPickerWindow:UpdatePreview (bool) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:1014)
+ColorWheelPickerWindow:SetHueFromLocalPoint (UnityEngine.Vector2) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:197)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:218)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 902)
+
+선택한 색상: FF0000FF
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SelectColor (UnityEngine.Color) (at Assets/Scripts/Map/MapEditorManager.cs:902)
+ColorWheelPickerWindow:UpdatePreview (bool) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:1014)
+ColorWheelPickerWindow:SetSaturationValueFromLocalPoint (UnityEngine.Vector2) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:208)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:219)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 902)
+
+선택한 색상: 46F1F1FF
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorManager:SelectColor (UnityEngine.Color) (at Assets/Scripts/Map/MapEditorManager.cs:902)
+ColorWheelPickerWindow:UpdatePreview (bool) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:1014)
+ColorWheelPickerWindow:SetColor (UnityEngine.Color,bool) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:166)
+ColorWheelPickerWindow:ApplyHexColor (string) (at Assets/Scripts/Map/UI/ColorPicker/ColorWheelPickerWindow.cs:586)
+UnityEngine.Events.InvokableCall`1<string>:Invoke (string)
+UnityEngine.Events.UnityEvent`1<string>:Invoke (string)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:228)
+
+(Filename: Assets/Scripts/Map/MapEditorManager.cs Line: 902)
+
+MapEditor size configuration smoke test passed.
+UnityEngine.Debug:ExtractStackTraceNoAlloc (byte*,int,string)
+UnityEngine.StackTraceUtility:ExtractStackTrace ()
+UnityEngine.DebugLogHandler:Internal_Log (UnityEngine.LogType,UnityEngine.LogOption,string,UnityEngine.Object)
+UnityEngine.DebugLogHandler:LogFormat (UnityEngine.LogType,UnityEngine.Object,string,object[])
+UnityEngine.Logger:Log (UnityEngine.LogType,object)
+UnityEngine.Debug:Log (object)
+MapEditorSizeConfigurationSmokeTest:Run () (at Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs:248)
+
+(Filename: Assets/Scripts/Map/Editor/MapEditorSizeConfigurationSmokeTest.cs Line: 248)
+
+Batchmode quit successfully invoked - shutting down!
+[Physics::Module] Cleanup current backend.
+[Physics::Module] Id: 0xf2b8ea05
+Input System module state changed to: ShutdownInProgress.
+Input System polling thread exited.
+Input System module state changed to: Shutdown.
+[Licensing::IpcConnector] LicenseClient-user-6000.3.11-notifications channel disconnected successfully.
+[Licensing::IpcConnector] LicenseClient-user-6000.3.11 channel disconnected successfully.
+AcceleratorClientConnectionCallback - disconnected - :0
+Cleanup mono
+Exiting batchmode successfully now!
+Exiting without the bug reporter. Application will terminate with return code 0

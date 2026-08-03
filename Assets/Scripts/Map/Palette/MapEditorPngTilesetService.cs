@@ -351,6 +351,21 @@ public class MapEditorPngTilesetService
             | Mathf.Clamp(baseImageIndex, 0, FlexibleBaseIndexMask);
     }
 
+    public static int GetBaseImageIndex(int imageIndex)
+    {
+        if (TryDecodePaletteTileIndex(imageIndex, out _, out int baseImageIndex, out _, out _, out _, out _))
+        {
+            return baseImageIndex;
+        }
+
+        if (TryDecodeSubTileIndex(imageIndex, out baseImageIndex, out _, out _, out _))
+        {
+            return baseImageIndex;
+        }
+
+        return imageIndex;
+    }
+
     private static bool TryDecodePaletteTileIndex(int imageIndex, out int gridSize, out int baseImageIndex, out bool hasSubSelection, out int resolution, out int subX, out int subY)
     {
         gridSize = TileGridSize;

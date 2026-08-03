@@ -10,6 +10,7 @@ public struct MapEditorTileSnapshot
     public bool imageFlipX;
     public bool imageFlipY;
     public MapEditorLayerType layer;
+    public MapTilePixelData pixelData;
 
     public MapEditorTileSnapshot(int tileId, Color color, string imagePath, int imageIndex)
         : this(tileId, color, imagePath, imageIndex, 0, false, false, MapData.InferLayerFromTile(tileId))
@@ -22,6 +23,11 @@ public struct MapEditorTileSnapshot
     }
 
     public MapEditorTileSnapshot(int tileId, Color color, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY, MapEditorLayerType layer)
+        : this(tileId, color, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY, layer, null)
+    {
+    }
+
+    public MapEditorTileSnapshot(int tileId, Color color, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY, MapEditorLayerType layer, MapTilePixelData pixelData)
     {
         this.tileId = tileId;
         this.color = color;
@@ -31,6 +37,7 @@ public struct MapEditorTileSnapshot
         this.imageFlipX = imageFlipX;
         this.imageFlipY = imageFlipY;
         this.layer = layer;
+        this.pixelData = pixelData == null ? null : pixelData.Clone();
     }
 }
 

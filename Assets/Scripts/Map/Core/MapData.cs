@@ -301,7 +301,7 @@ public class MapData
 
         if (!IsInside(x, y)) return MapEditorLayerType.Ground;
 
-        return (MapEditorLayerType)Mathf.Clamp(layerMap[x, y], 0, (int)MapEditorLayerType.Zone);
+        return (MapEditorLayerType)Mathf.Clamp(layerMap[x, y], 0, (int)MapEditorLayerUtility.LastLayer);
     }
 
     public void SetLayer(int x, int y, MapEditorLayerType layerType)
@@ -562,14 +562,7 @@ public class MapData
 
     public static MapEditorLayerType[] GetSerializableLayers()
     {
-        return new[]
-        {
-            MapEditorLayerType.Ground,
-            MapEditorLayerType.Object,
-            MapEditorLayerType.WallVisual,
-            MapEditorLayerType.WallCollision,
-            MapEditorLayerType.Zone
-        };
+        return (MapEditorLayerType[])MapEditorLayerUtility.SerializableLayers.Clone();
     }
 
     private void InitializeMissingLayerMap()
@@ -592,7 +585,7 @@ public class MapData
     {
         if (saveData.layers != null && index >= 0 && index < saveData.layers.Length)
         {
-            return (MapEditorLayerType)Mathf.Clamp(saveData.layers[index], 0, (int)MapEditorLayerType.Zone);
+            return (MapEditorLayerType)Mathf.Clamp(saveData.layers[index], 0, (int)MapEditorLayerUtility.LastLayer);
         }
 
         return InferLayerFromTile(tileId);
@@ -610,7 +603,7 @@ public class MapData
             return;
         }
 
-        layerTiles = new MapLayerTileData[(int)MapEditorLayerType.Zone + 1];
+        layerTiles = new MapLayerTileData[(int)MapEditorLayerUtility.LastLayer + 1];
 
         for (int i = 0; i < layerTiles.Length; i++)
         {
@@ -625,7 +618,7 @@ public class MapData
 
     private bool AreLayerTilesValid()
     {
-        if (layerTiles == null || layerTiles.Length <= (int)MapEditorLayerType.Zone)
+        if (layerTiles == null || layerTiles.Length <= (int)MapEditorLayerUtility.LastLayer)
         {
             return false;
         }
@@ -659,7 +652,7 @@ public class MapData
                     continue;
                 }
 
-                MapEditorLayerType layerType = layerMap == null ? InferLayerFromTile(tileId) : (MapEditorLayerType)Mathf.Clamp(layerMap[x, y], 0, (int)MapEditorLayerType.Zone);
+                MapEditorLayerType layerType = layerMap == null ? InferLayerFromTile(tileId) : (MapEditorLayerType)Mathf.Clamp(layerMap[x, y], 0, (int)MapEditorLayerUtility.LastLayer);
                 MapLayerTileData layer = GetLayerData(layerType);
                 int index = ToIndex(x, y);
                 layer.tiles[index] = tileId;
@@ -686,7 +679,7 @@ public class MapData
 
     private MapLayerTileData GetLayerData(MapEditorLayerType layerType)
     {
-        int index = Mathf.Clamp((int)layerType, 0, (int)MapEditorLayerType.Zone);
+        int index = Mathf.Clamp((int)layerType, 0, (int)MapEditorLayerUtility.LastLayer);
 
         if (layerTiles == null || layerTiles.Length <= index || layerTiles[index] == null || !layerTiles[index].IsValid(width, height))
         {
@@ -720,14 +713,7 @@ public class MapData
 
     private MapEditorLayerType GetTopVisibleLayer(int x, int y)
     {
-        MapEditorLayerType[] priority =
-        {
-            MapEditorLayerType.Zone,
-            MapEditorLayerType.WallCollision,
-            MapEditorLayerType.WallVisual,
-            MapEditorLayerType.Object,
-            MapEditorLayerType.Ground
-        };
+        MapEditorLayerType[] priority = MapEditorLayerUtility.RenderPriority;
 
         for (int i = 0; i < priority.Length; i++)
         {
@@ -775,7 +761,7 @@ public class MapData
                 continue;
             }
 
-            int layerIndex = Mathf.Clamp(savedLayer.layer, 0, (int)MapEditorLayerType.Zone);
+            int layerIndex = Mathf.Clamp(savedLayer.layer, 0, (int)MapEditorLayerUtility.LastLayer);
             layerTiles[layerIndex] = savedLayer.Clone();
         }
 
@@ -1092,16 +1078,18 @@ public class MapEditorLayerSetting
     public int layer;
     public string displayName;
     public bool visible = true;
+    public bool enabled = true;
 
     public MapEditorLayerSetting()
     {
     }
 
-    public MapEditorLayerSetting(MapEditorLayerType layerType, string name, bool isVisible = true)
+    public MapEditorLayerSetting(MapEditorLayerType layerType, string name, bool isVisible = true, bool isEnabled = true)
     {
         layer = (int)layerType;
         displayName = name;
         visible = isVisible;
+        enabled = isEnabled;
     }
 
     public MapEditorLayerSetting Clone()
@@ -1110,7 +1098,8 @@ public class MapEditorLayerSetting
         {
             layer = layer,
             displayName = displayName,
-            visible = visible
+            visible = visible,
+            enabled = enabled
         };
     }
 }

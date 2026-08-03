@@ -8,6 +8,14 @@ public static class MapEditorModalPanel
 
     public static void ShowValidation(MapEditorManager manager, PixelChromaMapValidationReport report)
     {
+        ShowValidation(manager, report, null);
+    }
+
+    public static void ShowValidation(
+        MapEditorManager manager,
+        PixelChromaMapValidationReport report,
+        System.Action continueExport)
+    {
         if (report == null)
         {
             return;
@@ -25,21 +33,52 @@ public static class MapEditorModalPanel
             .Append("  |  Wall ").Append(report.wallTileCount)
             .Append("  |  스폰 ").Append(report.spawnPointCount);
 
-        Show(
-            manager,
-            report.isValid ? "맵 검사: 합격" : "맵 검사: 불합격",
-            body.ToString(),
-            report.isValid
-                ? new Color(0.22f, 0.72f, 0.38f, 1f)
-                : new Color(0.92f, 0.3f, 0.26f, 1f));
+        string title = MapEditorLocalization.Choose(
+            report.isValid ? "맵 검사 합격" : "맵 검사 불합격",
+            report.isValid ? "Map Validation Passed" : "Map Validation Failed");
+        Color accent = report.isValid
+            ? new Color(0.22f, 0.72f, 0.38f, 1f)
+            : new Color(0.92f, 0.3f, 0.26f, 1f);
+
+        if (report.isValid && continueExport != null)
+        {
+            Show(
+                manager,
+                title,
+                body.ToString(),
+                accent,
+                MapEditorLocalization.Choose("저장 위치 선택", "Choose Save Location"),
+                () =>
+                {
+                    CloseCurrent();
+                    continueExport();
+                },
+                string.Empty,
+                null);
+            return;
+        }
+
+        Show(manager, title, body.ToString(), accent);
+    }
+
+    private static void CloseCurrent()
+    {
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Transform existing = canvas == null ? null : canvas.transform.Find(ObjectName);
+
+        if (existing != null)
+        {
+            MapEditorObjectUtility.DestroyObject(existing.gameObject);
+        }
     }
 
     public static void ShowPackageGuide(MapEditorManager manager)
     {
         const string koreanGuide =
             "도구 선택\n" +
-            "B  브러시                 W  벽\n" +
-            "E  레이어 지우개          S  영역 선택\n" +
+            "B  브러시                 L  직선\n" +
+            "W  벽                     E  레이어 지우개\n" +
+            "S  영역 선택              P  프리뷰 영역\n" +
             "P  프리뷰 영역 지정\n\n" +
             "그리기와 이미지\n" +
             "Shift + 클릭  같은 영역 채우기\n" +
@@ -49,6 +88,8 @@ public static class MapEditorModalPanel
             "I 또는 Space   마우스 아래 색상 선택\n" +
             "Ctrl + P       불러온 PNG를 맵에 붙여넣기\n\n" +
             "선택과 편집\n" +
+            "S + 타일 클릭  같은 레이어의 연결된 타일 선택\n" +
+            "방향키          선택한 타일을 한 칸 이동\n" +
             "Ctrl + C       선택 영역 복사\n" +
             "Ctrl + X       선택 영역 잘라내기\n" +
             "Ctrl + V       마우스 위치에 붙여넣기\n" +
@@ -81,6 +122,8 @@ public static class MapEditorModalPanel
             "I or Space     Pick the color under the cursor\n" +
             "Ctrl + P       Paste the loaded PNG onto the map\n\n" +
             "Selection and editing\n" +
+            "S + tile click Select connected tiles on the active layer\n" +
+            "Arrow keys     Move the connected selection by one tile\n" +
             "Ctrl + C / X / V  Copy / cut / paste\n" +
             "Esc / Delete     Clear selection\n" +
             "Ctrl + Z / Y     Undo / redo\n\n" +
@@ -99,7 +142,15 @@ public static class MapEditorModalPanel
         Show(
             manager,
             MapEditorLocalization.Choose("맵 에디터 도움말", "Map Editor Help"),
-            MapEditorLocalization.Choose(koreanGuide, englishGuide),
+            MapEditorLocalization.Choose(
+                koreanGuide +
+                "\n\n특수 레이어\n" +
+                "시작 위치: 플레이어가 생성될 칸입니다. 시작 위치 도구로 다시 누르거나, 시작 위치 레이어에서 지우개를 사용하면 삭제됩니다.\n" +
+                "플레이어 크기: 맵 크기 패널에서 PixelChroma 충돌 크기(1 x 1 타일) 가이드를 켤 수 있습니다.",
+                englishGuide +
+                "\n\nSpecial layers\n" +
+                "Start Point: A player spawn cell. Click it again with the Start Point tool, or erase it on the Spawn layer.\n" +
+                "Player Size: Toggle the PixelChroma 1 x 1 tile collision guide in the Map Size panel."),
             new Color(0.18f, 0.48f, 0.95f, 1f),
             MapEditorLocalization.Choose("Steam 창작마당 열기", "Open Steam Workshop"),
             manager == null ? (System.Action)null : manager.OpenSteamWorkshopPage,

@@ -17,11 +17,17 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     private Image image;
     private Image raycastImage;
+    private MapEditorAnimatedTilePlayer animatedTilePlayer;
     private Outline visualOutline;
     private Image wallTopBorder;
     private Image wallRightBorder;
     private Image wallBottomBorder;
     private Image wallLeftBorder;
+    private Image wallCollisionFill;
+    private Image wallCollisionTopBorder;
+    private Image wallCollisionRightBorder;
+    private Image wallCollisionBottomBorder;
+    private Image wallCollisionLeftBorder;
     private Text spawnMarkerLabel;
     private Texture2D pixelTexture;
     private Sprite pixelSprite;
@@ -106,6 +112,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     public void SetCustomColor(Color color)
     {
+        StopAnimation();
         ClearPixelSprite();
         TileId = MapEditorManager.CustomColorTileId;
         CurrentColor = color;
@@ -134,6 +141,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     public void SetWallTile(Color color, Sprite sprite, string imagePath, int imageIndex, int rotation, bool flipX, bool flipY, bool showTopBorder, bool showRightBorder, bool showBottomBorder, bool showLeftBorder)
     {
+        StopAnimation();
         ClearPixelSprite();
         TileId = MapEditorManager.WallTileId;
         CurrentColor = color;
@@ -160,13 +168,16 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     public void SetWallCollisionOutline(bool visible, bool showTopBorder, bool showRightBorder, bool showBottomBorder, bool showLeftBorder)
     {
+        EnsureWallCollisionVisual();
+        wallCollisionFill.gameObject.SetActive(visible);
+
         if (!visible)
         {
-            SetWallBorders(false, false, false, false);
+            SetWallCollisionBorders(false, false, false, false);
             return;
         }
 
-        SetWallBorders(showTopBorder, showRightBorder, showBottomBorder, showLeftBorder);
+        SetWallCollisionBorders(showTopBorder, showRightBorder, showBottomBorder, showLeftBorder);
     }
 
     public void SetCustomSprite(Sprite sprite, string imagePath, int imageIndex)
@@ -176,6 +187,7 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     public void SetCustomSprite(Sprite sprite, string imagePath, int imageIndex, int rotation, bool flipX, bool flipY)
     {
+        StopAnimation();
         ClearPixelSprite();
         TileId = MapEditorManager.CustomImageTileId;
         CurrentColor = Color.white;
@@ -193,8 +205,21 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         ApplyImageTransform();
     }
 
+    public void SetCustomAnimatedSprite(Sprite[] frames, string imagePath, int imageIndex, int rotation, bool flipX, bool flipY, float framesPerSecond, bool loop)
+    {
+        SetCustomSprite(frames != null && frames.Length > 0 ? frames[0] : null, imagePath, imageIndex, rotation, flipX, flipY);
+        StartAnimation(frames, framesPerSecond, loop);
+    }
+
+    public void SetWallAnimatedTile(Sprite[] frames, Color color, string imagePath, int imageIndex, int rotation, bool flipX, bool flipY, float framesPerSecond, bool loop, bool showTopBorder, bool showRightBorder, bool showBottomBorder, bool showLeftBorder)
+    {
+        SetWallTile(color, frames != null && frames.Length > 0 ? frames[0] : null, imagePath, imageIndex, rotation, flipX, flipY, showTopBorder, showRightBorder, showBottomBorder, showLeftBorder);
+        StartAnimation(frames, framesPerSecond, loop);
+    }
+
     public void Clear()
     {
+        StopAnimation();
         ClearPixelSprite();
         TileId = -1;
         CurrentColor = Color.white;
@@ -450,6 +475,46 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         ConfigureBorder(wallLeftBorder, left, Vector2.zero, new Vector2(0f, 1f), new Vector2(2f, 0f));
     }
 
+    private void EnsureWallCollisionVisual()
+    {
+        if (wallCollisionFill != null)
+        {
+            return;
+        }
+
+        Transform existing = transform.Find("WallCollisionOverlay");
+
+        if (existing == null)
+        {
+            GameObject overlayObject = new GameObject("WallCollisionOverlay", typeof(RectTransform), typeof(Image));
+            overlayObject.transform.SetParent(transform, false);
+            existing = overlayObject.transform;
+        }
+
+        RectTransform rect = existing as RectTransform;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+        wallCollisionFill = existing.GetComponent<Image>();
+        wallCollisionFill.color = new Color(0.18f, 0.18f, 0.18f, 0.38f);
+        wallCollisionFill.raycastTarget = false;
+        wallCollisionTopBorder = EnsureBorder(existing, "CollisionBorder_Top");
+        wallCollisionRightBorder = EnsureBorder(existing, "CollisionBorder_Right");
+        wallCollisionBottomBorder = EnsureBorder(existing, "CollisionBorder_Bottom");
+        wallCollisionLeftBorder = EnsureBorder(existing, "CollisionBorder_Left");
+        SetWallCollisionBorders(false, false, false, false);
+        existing.SetAsLastSibling();
+    }
+
+    private void SetWallCollisionBorders(bool top, bool right, bool bottom, bool left)
+    {
+        ConfigureBorder(wallCollisionTopBorder, top, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(0f, 3f));
+        ConfigureBorder(wallCollisionRightBorder, right, new Vector2(1f, 0f), new Vector2(1f, 1f), new Vector2(3f, 0f));
+        ConfigureBorder(wallCollisionBottomBorder, bottom, Vector2.zero, new Vector2(1f, 0f), new Vector2(0f, 3f));
+        ConfigureBorder(wallCollisionLeftBorder, left, Vector2.zero, new Vector2(0f, 1f), new Vector2(3f, 0f));
+    }
+
     private void RemoveWallBorders()
     {
         DestroyBorder(ref wallTopBorder);
@@ -470,6 +535,38 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         {
             MapEditorObjectUtility.DestroyObject(pixelTexture);
             pixelTexture = null;
+        }
+    }
+
+    private void StartAnimation(Sprite[] frames, float framesPerSecond, bool loop)
+    {
+        if (frames == null || frames.Length <= 1 || image == null)
+        {
+            return;
+        }
+
+        if (animatedTilePlayer == null)
+        {
+            animatedTilePlayer = image.GetComponent<MapEditorAnimatedTilePlayer>();
+            if (animatedTilePlayer == null)
+            {
+                animatedTilePlayer = image.gameObject.AddComponent<MapEditorAnimatedTilePlayer>();
+            }
+        }
+
+        animatedTilePlayer.Configure(image, frames, framesPerSecond, loop);
+    }
+
+    private void StopAnimation()
+    {
+        if (animatedTilePlayer == null && image != null)
+        {
+            animatedTilePlayer = image.GetComponent<MapEditorAnimatedTilePlayer>();
+        }
+
+        if (animatedTilePlayer != null)
+        {
+            animatedTilePlayer.Stop();
         }
     }
 
@@ -767,5 +864,106 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         }
 
         return null;
+    }
+}
+
+[ExecuteAlways]
+public sealed class MapEditorAnimatedTilePlayer : MonoBehaviour
+{
+    private Image target;
+    private Sprite[] frames;
+    private float framesPerSecond = 8f;
+    private bool loop = true;
+    private double startedAt;
+    private int lastFrame = -1;
+
+    public void Configure(Image image, Sprite[] animationFrames, float fps, bool shouldLoop)
+    {
+        target = image;
+        frames = animationFrames;
+        framesPerSecond = Mathf.Clamp(fps, 0.1f, 60f);
+        loop = shouldLoop;
+        startedAt = GetTime();
+        lastFrame = -1;
+        enabled = target != null && frames != null && frames.Length > 1;
+        ApplyFrame(0);
+    }
+
+    public void Stop()
+    {
+        frames = null;
+        lastFrame = -1;
+        enabled = false;
+    }
+
+    private void OnEnable()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.update -= EditorTick;
+        UnityEditor.EditorApplication.update += EditorTick;
+#endif
+    }
+
+    private void OnDisable()
+    {
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.update -= EditorTick;
+#endif
+    }
+
+    private void Update()
+    {
+        if (Application.isPlaying)
+        {
+            Tick();
+        }
+    }
+
+    private void Tick()
+    {
+        if (target == null || frames == null || frames.Length == 0)
+        {
+            enabled = false;
+            return;
+        }
+
+        int elapsedFrames = Mathf.Max(0, Mathf.FloorToInt((float)(GetTime() - startedAt) * framesPerSecond));
+        int frameIndex = loop ? elapsedFrames % frames.Length : Mathf.Min(elapsedFrames, frames.Length - 1);
+        ApplyFrame(frameIndex);
+    }
+
+#if UNITY_EDITOR
+    private void EditorTick()
+    {
+        if (!Application.isPlaying && enabled)
+        {
+            Tick();
+        }
+    }
+#endif
+
+    private void ApplyFrame(int frameIndex)
+    {
+        if (target == null || frames == null || frameIndex < 0 || frameIndex >= frames.Length || frameIndex == lastFrame)
+        {
+            return;
+        }
+
+        if (frames[frameIndex] != null)
+        {
+            target.sprite = frames[frameIndex];
+            lastFrame = frameIndex;
+        }
+    }
+
+    private static double GetTime()
+    {
+#if UNITY_EDITOR
+        if (!Application.isPlaying)
+        {
+            return UnityEditor.EditorApplication.timeSinceStartup;
+        }
+#endif
+        return Time.unscaledTimeAsDouble;
     }
 }

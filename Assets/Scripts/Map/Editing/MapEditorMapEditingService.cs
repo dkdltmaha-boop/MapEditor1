@@ -91,11 +91,14 @@ public class MapEditorMapEditingService
                 int globalY = globalStartY + offsetY;
                 int mapX = Mathf.FloorToInt(globalX / (float)resolution);
                 int mapY = Mathf.FloorToInt(globalY / (float)resolution);
+                int localX = Mod(globalX, resolution);
+                int localY = Mod(globalY, resolution);
+
                 SetCellSubPixel(
                     mapX,
                     mapY,
-                    Mod(globalX, resolution),
-                    Mod(globalY, resolution),
+                    localX,
+                    localY,
                     resolution,
                     color,
                     true);
@@ -211,6 +214,54 @@ public class MapEditorMapEditingService
         clipboardEdit.PasteClipboard(topLeft, clipboard);
     }
 
+    public bool MoveConnectedCells(IReadOnlyCollection<Vector2Int> positions, MapEditorLayerType layer, Vector2Int offset)
+    {
+        MapData mapData = getMapData();
+
+        if (mapData == null || positions == null || positions.Count == 0 || offset == Vector2Int.zero)
+        {
+            return false;
+        }
+
+        HashSet<Vector2Int> selected = new HashSet<Vector2Int>(positions);
+        Dictionary<Vector2Int, MapEditorTileSnapshot> snapshots = new Dictionary<Vector2Int, MapEditorTileSnapshot>();
+
+        foreach (Vector2Int source in selected)
+        {
+            Vector2Int destination = source + offset;
+
+            if (!mapData.IsInside(destination.x, destination.y))
+            {
+                Debug.LogWarning("선택 영역이 맵 밖으로 나갈 수 없습니다.");
+                return false;
+            }
+
+            if (!selected.Contains(destination) && mapData.GetTile(destination.x, destination.y, layer) != -1)
+            {
+                Debug.LogWarning("이동할 위치에 같은 레이어의 다른 타일이 있습니다.");
+                return false;
+            }
+
+            snapshots[source] = CaptureSnapshot(mapData, source.x, source.y, layer);
+        }
+
+        BeginTransaction();
+
+        foreach (Vector2Int source in selected)
+        {
+            ApplySnapshot(source.x, source.y, layer, new MapEditorTileSnapshot(-1, Color.white, string.Empty, -1), true);
+        }
+
+        foreach (KeyValuePair<Vector2Int, MapEditorTileSnapshot> item in snapshots)
+        {
+            Vector2Int destination = item.Key + offset;
+            ApplySnapshot(destination.x, destination.y, layer, item.Value, true);
+        }
+
+        CommitTransaction();
+        return true;
+    }
+
     public void Undo()
     {
         suppressImmediateMinimapRefresh = true;
@@ -322,6 +373,61 @@ public class MapEditorMapEditingService
         SetCellTileWithLayer(action.x, action.y, action.beforeTileId, action.beforeColor, action.beforeSprite, action.beforeImagePath, action.beforeImageIndex, action.beforeImageRotation, action.beforeImageFlipX, action.beforeImageFlipY, action.beforeLayer, false);
         getMapData().SetPixelDataOnLayer(action.x, action.y, action.beforeLayer, action.beforePixelData);
         RefreshCellAndNeighbors(getMapData(), action.x, action.y);
+    }
+
+    private MapEditorTileSnapshot CaptureSnapshot(MapData mapData, int x, int y, MapEditorLayerType layer)
+    {
+        return new MapEditorTileSnapshot(
+            mapData.GetTile(x, y, layer),
+            mapData.GetColor(x, y, layer),
+            mapData.GetImagePath(x, y, layer),
+            mapData.GetImageIndex(x, y, layer),
+            mapData.GetImageRotation(x, y, layer),
+            mapData.GetImageFlipX(x, y, layer),
+            mapData.GetImageFlipY(x, y, layer),
+            layer,
+            mapData.GetPixelData(x, y, layer));
+    }
+
+    private void ApplySnapshot(int x, int y, MapEditorLayerType layer, MapEditorTileSnapshot snapshot, bool recordUndo)
+    {
+        MapData mapData = getMapData();
+
+        if (mapData == null || !mapData.IsInside(x, y))
+        {
+            return;
+        }
+
+        MapEditorTileSnapshot before = CaptureSnapshot(mapData, x, y, layer);
+        Sprite beforeSprite = GetSnapshotSprite(before);
+        mapData.SetTileOnLayer(x, y, layer, snapshot.tileId, snapshot.color, snapshot.imagePath, snapshot.imageIndex, snapshot.imageRotation, snapshot.imageFlipX, snapshot.imageFlipY);
+        mapData.SetPixelDataOnLayer(x, y, layer, snapshot.pixelData);
+        MapEditorTileSnapshot after = CaptureSnapshot(mapData, x, y, layer);
+        Sprite afterSprite = GetSnapshotSprite(after);
+        RefreshCellAndNeighbors(mapData, x, y);
+
+        if (recordUndo)
+        {
+            history.Record(new TileEditAction(
+                x, y,
+                before.tileId, after.tileId,
+                before.color, after.color,
+                beforeSprite, afterSprite,
+                before.imagePath, after.imagePath,
+                before.imageIndex, after.imageIndex,
+                before.imageRotation, after.imageRotation,
+                before.imageFlipX, after.imageFlipX,
+                before.imageFlipY, after.imageFlipY,
+                layer, layer,
+                before.pixelData, after.pixelData));
+        }
+    }
+
+    private Sprite GetSnapshotSprite(MapEditorTileSnapshot snapshot)
+    {
+        return snapshot.tileId == MapEditorManager.CustomImageTileId || snapshot.tileId == MapEditorManager.WallTileId
+            ? getPngTileSprite(snapshot.imagePath, snapshot.imageIndex, snapshot.imageRotation, snapshot.imageFlipX, snapshot.imageFlipY)
+            : null;
     }
 
     private void SetCellSubPixel(int x, int y, int pixelX, int pixelY, int resolution, Color color, bool recordUndo)

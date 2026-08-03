@@ -211,6 +211,7 @@ public static class MapEditorToolbarBuilder
         ClearToolbarContents(toolbar);
         CreateToolbarLabel(toolbar, L("도구", "Tools"));
         EnsureToolbarToolButton(toolbar, manager, L("브러시", "Brush"), "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("직선", "Line"), "L", EditorToolType.Line, MapEditorToolbarAction.Line, "LineToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("벽", "Wall"), "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("레이어 지우개", "Erase Layer"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
@@ -255,6 +256,7 @@ public static class MapEditorToolbarBuilder
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraserButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraseLayerButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "BrushToolButton", EditorToolType.Brush);
+        MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "LineToolButton", EditorToolType.Line);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraserToolButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraseLayerToolButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "WallButton", EditorToolType.Wall);
@@ -344,6 +346,16 @@ public static class MapEditorToolbarBuilder
 
     private static void EnsureToolbarActionButton(Transform toolbar, MapEditorManager manager, string label, string shortcut, MapEditorToolbarAction action, string objectName)
     {
+        if (action == MapEditorToolbarAction.ValidateMap)
+        {
+            return;
+        }
+
+        if (action == MapEditorToolbarAction.ExportWorkshop)
+        {
+            label = L("검사 후 창작마당 내보내기", "Validate & Export Workshop");
+        }
+
         Transform existing = toolbar.Find(objectName);
 
         if (existing != null)
@@ -486,7 +498,7 @@ public static class MapEditorLayerPanelBuilder
 {
     private const string LayerPanelObjectName = "MapEditor_LayerPanel";
     private const float PanelWidth = MapEditorMapSizePanelBuilder.PanelWidth;
-    private const float PanelHeight = 184f;
+    private const float PanelHeight = 250f;
     private const int LabelFontSize = 12;
     private const int ButtonFontSize = 9;
 
@@ -583,15 +595,57 @@ public static class MapEditorLayerPanelBuilder
 
         CreateLabel(panel, "레이어");
 
+        GameObject viewportObject = new GameObject(
+            "LayerScrollViewport",
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(Mask),
+            typeof(LayoutElement),
+            typeof(ScrollRect));
+        viewportObject.transform.SetParent(panel, false);
+        viewportObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 192f);
+        viewportObject.GetComponent<LayoutElement>().preferredHeight = 192f;
+
+        Image viewportImage = viewportObject.GetComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+        viewportObject.GetComponent<Mask>().showMaskGraphic = false;
+
         GameObject gridObject = new GameObject("LayerGrid", typeof(RectTransform), typeof(GridLayoutGroup));
-        gridObject.transform.SetParent(panel, false);
+        gridObject.transform.SetParent(viewportObject.transform, false);
+
+        int enabledLayerCount = 0;
+
+        foreach (MapEditorLayerType layerType in System.Enum.GetValues(typeof(MapEditorLayerType)))
+        {
+            if (layerType == MapEditorLayerType.Zone)
+            {
+                continue;
+            }
+
+            if (manager == null || manager.IsLayerEnabled(layerType))
+            {
+                enabledLayerCount++;
+            }
+        }
 
         RectTransform gridRect = gridObject.GetComponent<RectTransform>();
-        gridRect.sizeDelta = new Vector2(0f, 158f);
+        gridRect.anchorMin = new Vector2(0f, 1f);
+        gridRect.anchorMax = new Vector2(1f, 1f);
+        gridRect.pivot = new Vector2(0.5f, 1f);
+        gridRect.anchoredPosition = Vector2.zero;
+        gridRect.sizeDelta = new Vector2(0f, enabledLayerCount * 22f);
+
+        ScrollRect scrollRect = viewportObject.GetComponent<ScrollRect>();
+        scrollRect.viewport = viewportObject.GetComponent<RectTransform>();
+        scrollRect.content = gridRect;
+        scrollRect.horizontal = false;
+        scrollRect.vertical = true;
+        scrollRect.movementType = ScrollRect.MovementType.Clamped;
+        scrollRect.scrollSensitivity = 22f;
 
         GridLayoutGroup grid = gridObject.GetComponent<GridLayoutGroup>();
-        grid.cellSize = new Vector2(176f, 22f);
-        grid.spacing = new Vector2(0f, 4f);
+        grid.cellSize = new Vector2(176f, 20f);
+        grid.spacing = new Vector2(0f, 2f);
         grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
         grid.constraintCount = 1;
         grid.childAlignment = TextAnchor.UpperLeft;
@@ -601,7 +655,36 @@ public static class MapEditorLayerPanelBuilder
         CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallVisual);
         CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallCollision);
         CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Spawn);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Zone);
+        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.Ground);
+        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.Object);
+        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallVisual);
+        CreateLayerManagementRow(panel, manager);
+    }
+
+    private static void CreateOptionalLayerButtons(
+        Transform parent,
+        MapEditorManager manager,
+        Dictionary<MapEditorLayerType, Image> buttonImages,
+        MapEditorLayerType baseLayer)
+    {
+        MapEditorLayerType[] optionalLayers = MapEditorLayerUtility.GetOptionalLayers(baseLayer);
+
+        for (int i = 0; i < optionalLayers.Length; i++)
+        {
+            CreateOptionalLayerButton(parent, manager, buttonImages, optionalLayers[i]);
+        }
+    }
+
+    private static void CreateOptionalLayerButton(
+        Transform parent,
+        MapEditorManager manager,
+        Dictionary<MapEditorLayerType, Image> buttonImages,
+        MapEditorLayerType layerType)
+    {
+        if (manager != null && manager.IsLayerEnabled(layerType))
+        {
+            CreateLayerButton(parent, manager, buttonImages, layerType);
+        }
     }
 
     private static void CreateLabel(Transform parent, string text)
@@ -636,7 +719,7 @@ public static class MapEditorLayerPanelBuilder
 
         GameObject buttonObject = new GameObject("Layer_" + layerType, typeof(RectTransform), typeof(Image), typeof(Button));
         buttonObject.transform.SetParent(rowObject.transform, false);
-        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(22f, 0f);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(38f, 0f);
 
         Image image = buttonObject.GetComponent<Image>();
         image.color = new Color(0.25f, 0.25f, 0.25f, 1f);
@@ -660,7 +743,7 @@ public static class MapEditorLayerPanelBuilder
         textRect.offsetMax = new Vector2(-4f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.text = ">";
+        text.text = "선택";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;
@@ -676,7 +759,7 @@ public static class MapEditorLayerPanelBuilder
     {
         GameObject inputObject = new GameObject("LayerName_" + layerType, typeof(RectTransform), typeof(Image), typeof(InputField));
         inputObject.transform.SetParent(parent, false);
-        inputObject.GetComponent<RectTransform>().sizeDelta = new Vector2(103f, 0f);
+        inputObject.GetComponent<RectTransform>().sizeDelta = new Vector2(87f, 0f);
 
         Image background = inputObject.GetComponent<Image>();
         background.color = new Color(0.09f, 0.09f, 0.09f, 1f);
@@ -741,6 +824,67 @@ public static class MapEditorLayerPanelBuilder
         text.text = visible ? "ON" : "OFF";
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.raycastTarget = false;
+    }
+
+    private static void CreateLayerManagementRow(Transform parent, MapEditorManager manager)
+    {
+        GameObject rowObject = new GameObject("LayerManagement", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        rowObject.transform.SetParent(parent, false);
+        rowObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 20f);
+
+        HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
+        layout.spacing = 3f;
+        layout.childControlWidth = false;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        CreateLayerManagementButton(rowObject.transform, manager, "+바닥", MapEditorToolbarAction.AddLayer, MapEditorLayerType.Ground, 45f);
+        CreateLayerManagementButton(rowObject.transform, manager, "+오브젝트", MapEditorToolbarAction.AddLayer, MapEditorLayerType.Object, 51f);
+        CreateLayerManagementButton(rowObject.transform, manager, "+벽", MapEditorToolbarAction.AddLayer, MapEditorLayerType.WallVisual, 37f);
+        CreateLayerManagementButton(rowObject.transform, manager, "삭제", MapEditorToolbarAction.DeleteLayer, MapEditorLayerType.Ground, 34f);
+    }
+
+    private static void CreateLayerManagementButton(
+        Transform parent,
+        MapEditorManager manager,
+        string label,
+        MapEditorToolbarAction action,
+        MapEditorLayerType layerType,
+        float width)
+    {
+        GameObject buttonObject = new GameObject("LayerAction_" + action + "_" + layerType, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(width, 0f);
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = action == MapEditorToolbarAction.DeleteLayer
+            ? new Color(0.55f, 0.2f, 0.2f, 1f)
+            : new Color(0.22f, 0.35f, 0.5f, 1f);
+
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+
+        MapEditorToolbarButton toolbarButton = buttonObject.AddComponent<MapEditorToolbarButton>();
+        toolbarButton.manager = manager;
+        toolbarButton.action = action;
+        toolbarButton.intArgument = (int)layerType;
+
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(buttonObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+
+        Text text = textObject.GetComponent<Text>();
+        text.text = label;
+        text.font = MapEditorFontProvider.Default;
+        text.fontSize = 8;
         text.alignment = TextAnchor.MiddleCenter;
         text.color = Color.white;
         text.raycastTarget = false;

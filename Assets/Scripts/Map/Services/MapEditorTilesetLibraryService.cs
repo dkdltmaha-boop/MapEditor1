@@ -195,6 +195,90 @@ public sealed class MapEditorTilesetLibraryService
             && RegisteredByAtlasPath.TryGetValue(NormalizePath(atlasPath), out definition);
     }
 
+    public bool ConfigureAnimation(
+        string tilesetId,
+        string displayName,
+        int startTileId,
+        int frameCount,
+        float framesPerSecond,
+        bool loop,
+        out string error)
+    {
+        error = string.Empty;
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+
+        if (definition == null)
+        {
+            error = "Tileset was not found.";
+            return false;
+        }
+
+        int tileCount = Mathf.Max(0, definition.columns * definition.rows);
+        startTileId = Mathf.Clamp(startTileId, 0, Mathf.Max(0, tileCount - 1));
+        frameCount = Mathf.Clamp(frameCount, 1, Mathf.Max(1, tileCount - startTileId));
+        framesPerSecond = Mathf.Clamp(framesPerSecond, 0.1f, 60f);
+        int[] frameTileIds = new int[frameCount];
+        for (int i = 0; i < frameCount; i++)
+        {
+            frameTileIds[i] = ToAtlasTileId(definition, startTileId + i);
+        }
+
+        definition.animations = new[]
+        {
+            new MapEditorTilesetAnimationDefinition
+            {
+                id = definition.id + "_animation_0",
+                displayName = string.IsNullOrWhiteSpace(displayName) ? "Animation" : displayName.Trim(),
+                startTileId = startTileId,
+                frameCount = frameCount,
+                frameTileIds = frameTileIds,
+                framesPerSecond = framesPerSecond,
+                loop = loop
+            }
+        };
+
+        Register(definition);
+        SaveCatalog();
+        return true;
+    }
+
+    public static bool TryGetAnimation(
+        string atlasPath,
+        int imageIndex,
+        out MapEditorTilesetDefinition tileset,
+        out MapEditorTilesetAnimationDefinition animation)
+    {
+        animation = null;
+
+        if (!TryGetByAtlasPath(atlasPath, out tileset) || tileset.animations == null)
+        {
+            return false;
+        }
+
+        int tileId = MapEditorPngTilesetService.GetBaseImageIndex(imageIndex);
+
+        for (int i = 0; i < tileset.animations.Length; i++)
+        {
+            MapEditorTilesetAnimationDefinition candidate = tileset.animations[i];
+            if (candidate != null && candidate.ContainsTile(tileId))
+            {
+                animation = candidate;
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static int ToAtlasTileId(MapEditorTilesetDefinition definition, int sourceTileId)
+    {
+        int sourceColumns = Mathf.Max(1, definition.columns);
+        int sourceRowFromTop = Mathf.Max(0, sourceTileId / sourceColumns);
+        int sourceColumn = Mathf.Max(0, sourceTileId % sourceColumns);
+        int atlasRowFromBottom = Mathf.Max(0, definition.atlasGridSize - 1 - sourceRowFromTop);
+        return atlasRowFromBottom * definition.atlasGridSize + sourceColumn;
+    }
+
     public static bool IsNormalizedAtlasPath(string atlasPath)
     {
         return !string.IsNullOrEmpty(atlasPath)

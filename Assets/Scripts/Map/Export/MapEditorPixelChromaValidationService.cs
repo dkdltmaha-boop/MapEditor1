@@ -75,15 +75,6 @@ public static class MapEditorPixelChromaValidationService
             Pass(report, "오브젝트 타일: " + report.objectTileCount + "개");
         }
 
-        if (report.zoneCount == 0)
-        {
-            Warn(report, "구역 데이터가 없습니다.");
-        }
-        else
-        {
-            Pass(report, "구역 셀: " + report.zoneCount + "개");
-        }
-
         if (missingTilesets.Count > 0)
         {
             foreach (string missingTileset in missingTilesets)
@@ -132,7 +123,9 @@ public static class MapEditorPixelChromaValidationService
 
                     report.paintedTileCount++;
 
-                    switch (layerType)
+                    MapEditorLayerType countLayer = MapEditorLayerUtility.GetBaseLayer(layerType);
+
+                    switch (countLayer)
                     {
                         case MapEditorLayerType.Ground:
                             report.groundTileCount++;
@@ -143,9 +136,6 @@ public static class MapEditorPixelChromaValidationService
                             break;
                         case MapEditorLayerType.WallCollision:
                             report.wallTileCount++;
-                            break;
-                        case MapEditorLayerType.Zone:
-                            report.zoneCount++;
                             break;
                     }
 
@@ -185,11 +175,6 @@ public static class MapEditorPixelChromaValidationService
             }
         }
 
-        if (result.Count == 0)
-        {
-            result.Add(new MapEditorSpawnPointData("SpawnPoint_1", fallbackX, fallbackY, "Any"));
-        }
-
         return result;
     }
 
@@ -198,6 +183,12 @@ public static class MapEditorPixelChromaValidationService
         IReadOnlyList<MapEditorSpawnPointData> spawnPoints,
         PixelChromaMapValidationReport report)
     {
+        if (spawnPoints.Count == 0)
+        {
+            Fail(report, "시작 위치가 없습니다. 시작 위치 도구로 최소 한 곳을 지정하세요.");
+            return;
+        }
+
         HashSet<Vector2Int> positions = new HashSet<Vector2Int>();
 
         for (int i = 0; i < spawnPoints.Count; i++)

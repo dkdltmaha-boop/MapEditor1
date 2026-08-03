@@ -399,6 +399,11 @@ public class MapEditorMapSaveService
                 continue;
             }
 
+            if (IsAnimatedTile(saveData.importedTilesets, saveData.imagePaths[i], saveData.imageIndices[i]))
+            {
+                continue;
+            }
+
             Sprite sprite = tilesets.GetTileSprite(
                 saveData.imagePaths[i],
                 saveData.imageIndices[i],
@@ -432,6 +437,36 @@ public class MapEditorMapSaveService
         {
             Debug.Log("포함된 PNG 맵 타일을 편집 가능한 픽셀 데이터로 변환했습니다: " + bakedCount + "개");
         }
+    }
+
+    private static bool IsAnimatedTile(MapEditorTilesetDefinition[] definitions, string imagePath, int imageIndex)
+    {
+        if (definitions == null || string.IsNullOrEmpty(imagePath))
+        {
+            return false;
+        }
+
+        int tileId = MapEditorPngTilesetService.GetBaseImageIndex(imageIndex);
+        for (int i = 0; i < definitions.Length; i++)
+        {
+            MapEditorTilesetDefinition definition = definitions[i];
+            if (definition == null
+                || !string.Equals(definition.atlasPath, imagePath, System.StringComparison.OrdinalIgnoreCase)
+                || definition.animations == null)
+            {
+                continue;
+            }
+
+            for (int animationIndex = 0; animationIndex < definition.animations.Length; animationIndex++)
+            {
+                if (definition.animations[animationIndex] != null && definition.animations[animationIndex].ContainsTile(tileId))
+                {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private static string SanitizeFileName(string fileName)

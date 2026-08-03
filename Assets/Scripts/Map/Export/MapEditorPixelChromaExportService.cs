@@ -111,6 +111,7 @@ public sealed class MapEditorPixelChromaExportService
         };
 
         Dictionary<MapEditorLayerType, PixelChromaMapLayerExportData> layers = CreateLayerMap();
+        Dictionary<MapEditorLayerType, Dictionary<int, int>> tileIndices = CreateLayerTileIndexMap();
 
         MapEditorLayerType[] exportLayerTypes = MapData.GetSerializableLayers();
 
@@ -135,14 +136,14 @@ public sealed class MapEditorPixelChromaExportService
                     }
 
                     MapEditorLayerType normalizedLayer = NormalizeExportLayer(layerType, tileId);
-                    PixelChromaTileExportData tile = CreateTileData(mapData, x, y, tileId, normalizedLayer);
+                    PixelChromaTileExportData tile = CreateTileData(mapData, x, y, tileId, layerType, normalizedLayer);
 
                     if (tile == null)
                     {
                         continue;
                     }
 
-                    layers[normalizedLayer].tiles.Add(tile);
+                    AddOrCompositeTile(layers[normalizedLayer], tileIndices[normalizedLayer], tile, mapData.width);
                 }
             }
         }
@@ -424,6 +425,18 @@ public sealed class MapEditorPixelChromaExportService
         };
     }
 
+    private static Dictionary<MapEditorLayerType, Dictionary<int, int>> CreateLayerTileIndexMap()
+    {
+        return new Dictionary<MapEditorLayerType, Dictionary<int, int>>
+        {
+            { MapEditorLayerType.Ground, new Dictionary<int, int>() },
+            { MapEditorLayerType.Object, new Dictionary<int, int>() },
+            { MapEditorLayerType.WallVisual, new Dictionary<int, int>() },
+            { MapEditorLayerType.WallCollision, new Dictionary<int, int>() },
+            { MapEditorLayerType.Spawn, new Dictionary<int, int>() }
+        };
+    }
+
     private static void AddLayerIfNotEmpty(List<PixelChromaMapLayerExportData> exportLayers, PixelChromaMapLayerExportData layer)
     {
         if (layer != null && layer.tiles.Count > 0)
@@ -444,12 +457,116 @@ public sealed class MapEditorPixelChromaExportService
             return layerType;
         }
 
+        layerType = MapEditorLayerUtility.GetBaseLayer(layerType);
+
         if (layerType == MapEditorLayerType.Object || layerType == MapEditorLayerType.WallVisual)
         {
             return layerType;
         }
 
         return MapEditorLayerType.Ground;
+    }
+
+    private static void AddOrCompositeTile(
+        PixelChromaMapLayerExportData layer,
+        Dictionary<int, int> tileIndices,
+        PixelChromaTileExportData tile,
+        int mapWidth)
+    {
+        int coordinateKey = tile.y * mapWidth + tile.x;
+
+        if (!tileIndices.TryGetValue(coordinateKey, out int existingIndex))
+        {
+            tileIndices[coordinateKey] = layer.tiles.Count;
+            layer.tiles.Add(tile);
+            return;
+        }
+
+        layer.tiles[existingIndex] = CompositeExportTiles(layer.tiles[existingIndex], tile);
+    }
+
+    private static PixelChromaTileExportData CompositeExportTiles(
+        PixelChromaTileExportData below,
+        PixelChromaTileExportData above)
+    {
+        const int resolution = PixelChromaExportContract.TilePixelSize;
+        string[] pixels = new string[resolution * resolution];
+
+        for (int y = 0; y < resolution; y++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                Color belowColor = SampleExportTile(below, x, y, resolution);
+                Color aboveColor = SampleExportTile(above, x, y, resolution);
+                Color result = AlphaBlend(belowColor, aboveColor);
+                pixels[y * resolution + x] = "#" + ColorUtility.ToHtmlStringRGBA(result);
+            }
+        }
+
+        return new PixelChromaTileExportData
+        {
+            x = above.x,
+            y = above.y,
+            kind = PixelChromaExportContract.PixelTileKind,
+            tilesetId = string.Empty,
+            tileId = -1,
+            colorHex = "#" + ColorUtility.ToHtmlStringRGBA(AveragePixels(pixels)),
+            pixelResolution = resolution,
+            pixelHexes = pixels,
+            rotation = 0,
+            flipX = false,
+            flipY = false,
+            collision = below.collision || above.collision
+        };
+    }
+
+    private static Color SampleExportTile(PixelChromaTileExportData tile, int x, int y, int targetResolution)
+    {
+        if (tile.pixelHexes != null && tile.pixelHexes.Length > 0 && tile.pixelResolution > 0)
+        {
+            int sourceX = Mathf.Clamp(Mathf.FloorToInt((x + 0.5f) / targetResolution * tile.pixelResolution), 0, tile.pixelResolution - 1);
+            int sourceY = Mathf.Clamp(Mathf.FloorToInt((y + 0.5f) / targetResolution * tile.pixelResolution), 0, tile.pixelResolution - 1);
+            int index = sourceY * tile.pixelResolution + sourceX;
+            return index < tile.pixelHexes.Length ? ParseHex(tile.pixelHexes[index], Color.clear) : Color.clear;
+        }
+
+        return ParseHex(tile.colorHex, Color.white);
+    }
+
+    private static Color AveragePixels(string[] pixels)
+    {
+        Color total = Color.clear;
+
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            total += ParseHex(pixels[i], Color.clear);
+        }
+
+        return pixels.Length == 0 ? Color.clear : total / pixels.Length;
+    }
+
+    private static Color ParseHex(string value, Color fallback)
+    {
+        return !string.IsNullOrEmpty(value) && ColorUtility.TryParseHtmlString(value, out Color color)
+            ? color
+            : fallback;
+    }
+
+    private static Color AlphaBlend(Color below, Color above)
+    {
+        float alpha = above.a + below.a * (1f - above.a);
+
+        if (alpha <= 0.0001f)
+        {
+            return Color.clear;
+        }
+
+        float belowWeight = below.a * (1f - above.a);
+        return new Color(
+            (above.r * above.a + below.r * belowWeight) / alpha,
+            (above.g * above.a + below.g * belowWeight) / alpha,
+            (above.b * above.a + below.b * belowWeight) / alpha,
+            alpha);
     }
 
     private static PixelChromaMapBoundsExportData CreateBounds(int width, int height)
@@ -470,25 +587,65 @@ public sealed class MapEditorPixelChromaExportService
         int x,
         int y,
         int mapEditorTileId,
-        MapEditorLayerType layerType)
+        MapEditorLayerType sourceLayer,
+        MapEditorLayerType outputLayer)
     {
-        string imagePath = mapData.GetImagePath(x, y, layerType);
-        int imageIndex = mapData.GetImageIndex(x, y, layerType);
+        string imagePath = mapData.GetImagePath(x, y, sourceLayer);
+        int imageIndex = mapData.GetImageIndex(x, y, sourceLayer);
         bool hasImage = !string.IsNullOrEmpty(imagePath) && imageIndex >= 0;
-        bool isWall = mapEditorTileId == MapEditorManager.WallTileId || layerType == MapEditorLayerType.WallCollision;
+        bool isWall = mapEditorTileId == MapEditorManager.WallTileId || outputLayer == MapEditorLayerType.WallCollision;
 
         PixelChromaTileExportData tile = new PixelChromaTileExportData
         {
             x = x,
             y = y,
-            rotation = MapEditorRotationUtility.NormalizeQuarterTurn(mapData.GetImageRotation(x, y, layerType)) / 90,
-            flipX = mapData.GetImageFlipX(x, y, layerType),
-            flipY = mapData.GetImageFlipY(x, y, layerType),
+            rotation = MapEditorRotationUtility.NormalizeQuarterTurn(mapData.GetImageRotation(x, y, sourceLayer)) / 90,
+            flipX = mapData.GetImageFlipX(x, y, sourceLayer),
+            flipY = mapData.GetImageFlipY(x, y, sourceLayer),
             collision = isWall
         };
 
         if (hasImage)
         {
+            if (MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out MapEditorTilesetDefinition tileset, out MapEditorTilesetAnimationDefinition animation))
+            {
+                tile.kind = PixelChromaExportContract.AnimatedPixelTileKind;
+                tile.tilesetId = string.Empty;
+                tile.tileId = -1;
+                tile.animationFps = animation.framesPerSecond;
+                tile.animationLoop = animation.loop;
+                tile.animationFrames = new PixelChromaAnimationFrameExportData[Mathf.Max(1, animation.frameCount)];
+
+                for (int frame = 0; frame < tile.animationFrames.Length; frame++)
+                {
+                    int frameImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(tileset.atlasGridSize, animation.GetFrameTileId(frame));
+                    Sprite frameSprite = pngTilesets.GetTileSprite(
+                        imagePath,
+                        frameImageIndex,
+                        mapData.GetImageRotation(x, y, sourceLayer),
+                        mapData.GetImageFlipX(x, y, sourceLayer),
+                        mapData.GetImageFlipY(x, y, sourceLayer));
+                    MapTilePixelData framePixels = MapTilePixelData.CreateFromSprite(frameSprite, PixelChromaExportContract.TilePixelSize);
+
+                    if (framePixels == null)
+                    {
+                        Debug.LogError("Animated tile frame could not be exported: " + imagePath + " #" + frameImageIndex);
+                        return null;
+                    }
+
+                    tile.animationFrames[frame] = new PixelChromaAnimationFrameExportData
+                    {
+                        pixelResolution = framePixels.resolution,
+                        pixelHexes = CreatePixelHexes(framePixels)
+                    };
+                }
+
+                tile.colorHex = tile.animationFrames.Length > 0 && tile.animationFrames[0].pixelHexes.Length > 0
+                    ? tile.animationFrames[0].pixelHexes[0]
+                    : "#FFFFFFFF";
+                return tile;
+            }
+
             Sprite sprite = pngTilesets.GetTileSprite(imagePath, imageIndex);
             MapTilePixelData imagePixels = MapTilePixelData.CreateFromSprite(sprite, PixelChromaExportContract.TilePixelSize);
 
@@ -509,11 +666,11 @@ public sealed class MapEditorPixelChromaExportService
 
         if (mapEditorTileId == MapEditorManager.CustomColorTileId || isWall)
         {
-            MapTilePixelData pixelData = mapData.GetPixelData(x, y, layerType);
+            MapTilePixelData pixelData = mapData.GetPixelData(x, y, sourceLayer);
 
             tile.tilesetId = string.Empty;
             tile.tileId = -1;
-            tile.colorHex = "#" + ColorUtility.ToHtmlStringRGBA(mapData.GetColor(x, y, layerType));
+            tile.colorHex = "#" + ColorUtility.ToHtmlStringRGBA(mapData.GetColor(x, y, sourceLayer));
 
             if (pixelData != null)
             {

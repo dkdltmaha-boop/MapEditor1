@@ -5,6 +5,9 @@ using UnityEngine.UI;
 public static class MapEditorSceneUiBuilder
 {
     private const string BackgroundObjectName = "MapEditor_Background";
+    private const string GroundObjectName = "MapEditor_TitleGround";
+    private const string CloudsObjectName = "MapEditor_TitleClouds";
+    private const string CharactersObjectName = "MapEditor_TitleCharacters";
     private const string LogoObjectName = "MapEditor_Logo";
     private const string QuitButtonObjectName = "MapEditor_QuitButton";
 
@@ -49,26 +52,112 @@ public static class MapEditorSceneUiBuilder
         background.raycastTarget = false;
 
         RectTransform rect = background.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+
+        AspectRatioFitter fitter = background.GetComponent<AspectRatioFitter>();
+        if (fitter != null)
+        {
+            MapEditorObjectUtility.DestroyObject(fitter);
+        }
+
+        background.transform.SetAsFirstSibling();
+        EnsureTitleDecorations(canvas);
+        EnsureLogo(canvas);
+        EnsureTitleLayout(canvas, background);
+        EnsureQuitButton(canvas);
+    }
+
+    private static void EnsureTitleDecorations(Canvas canvas)
+    {
+        EnsureDecorativeImage(
+            canvas,
+            CloudsObjectName,
+            MapEditorBackgroundProvider.LoadClouds(),
+            1);
+
+        RawImage ground = EnsureDecorativeImage(
+            canvas,
+            GroundObjectName,
+            MapEditorBackgroundProvider.LoadGround(),
+            2);
+
+        if (ground != null && ground.GetComponent<MapEditorBackgroundRotator>() == null)
+        {
+            ground.gameObject.AddComponent<MapEditorBackgroundRotator>();
+        }
+
+        EnsureDecorativeImage(
+            canvas,
+            CharactersObjectName,
+            MapEditorBackgroundProvider.LoadCharacters(),
+            3);
+    }
+
+    private static RawImage EnsureDecorativeImage(
+        Canvas canvas,
+        string objectName,
+        Texture2D texture,
+        int siblingIndex)
+    {
+        MapEditorObjectUtility.RemoveDuplicateManagedRoots(canvas.transform, null, objectName);
+        Transform existing = canvas.transform.Find(objectName);
+        RawImage image;
+
+        if (existing == null)
+        {
+            GameObject imageObject = new GameObject(objectName, typeof(RectTransform), typeof(RawImage));
+            imageObject.transform.SetParent(canvas.transform, false);
+            image = imageObject.GetComponent<RawImage>();
+        }
+        else
+        {
+            image = existing.GetComponent<RawImage>();
+            if (image == null)
+            {
+                image = existing.gameObject.AddComponent<RawImage>();
+            }
+        }
+
+        image.texture = texture;
+        image.color = Color.white;
+        image.raycastTarget = false;
+        image.gameObject.SetActive(texture != null);
+
+        RectTransform rect = image.rectTransform;
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
         rect.anchoredPosition = Vector2.zero;
         rect.sizeDelta = Vector2.zero;
 
-        AspectRatioFitter fitter = background.GetComponent<AspectRatioFitter>();
-        if (fitter == null)
+        AspectRatioFitter fitter = image.GetComponent<AspectRatioFitter>();
+        if (fitter != null)
         {
-            fitter = background.gameObject.AddComponent<AspectRatioFitter>();
+            MapEditorObjectUtility.DestroyObject(fitter);
         }
 
-        fitter.aspectMode = AspectRatioFitter.AspectMode.EnvelopeParent;
-        fitter.aspectRatio = texture == null || texture.height <= 0
-            ? 16f / 9f
-            : texture.width / (float)texture.height;
+        image.transform.SetSiblingIndex(Mathf.Min(siblingIndex, canvas.transform.childCount - 1));
+        return image;
+    }
 
-        background.transform.SetAsFirstSibling();
-        EnsureLogo(canvas);
-        EnsureQuitButton(canvas);
+    private static void EnsureTitleLayout(Canvas canvas, RawImage background)
+    {
+        MapEditorTitleBackdropLayout layout = canvas.GetComponent<MapEditorTitleBackdropLayout>();
+        if (layout == null)
+        {
+            layout = canvas.gameObject.AddComponent<MapEditorTitleBackdropLayout>();
+        }
+
+        layout.Configure(
+            background,
+            canvas.transform.Find(GroundObjectName)?.GetComponent<RawImage>(),
+            canvas.transform.Find(CloudsObjectName)?.GetComponent<RawImage>(),
+            canvas.transform.Find(CharactersObjectName)?.GetComponent<RawImage>(),
+            canvas.transform.Find(LogoObjectName)?.GetComponent<RawImage>());
     }
 
     public static void ConfigureCanvasScaler(Canvas canvas)
@@ -125,17 +214,12 @@ public static class MapEditorSceneUiBuilder
         RectTransform rect = logo.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
-        rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -8f);
-
-        float aspect = texture == null || texture.height <= 0
-            ? 158f / 72f
-            : texture.width / (float)texture.height;
-        float width = 250f;
-        rect.sizeDelta = new Vector2(width, width / aspect);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, -250f);
+        rect.sizeDelta = new Vector2(850f, 420f);
 
         logo.gameObject.SetActive(texture != null);
-        logo.transform.SetSiblingIndex(Mathf.Min(1, canvas.transform.childCount - 1));
+        logo.transform.SetSiblingIndex(Mathf.Min(4, canvas.transform.childCount - 1));
     }
 
     public static void EnsureQuitButton(Canvas canvas)
@@ -241,5 +325,126 @@ public static class MapEditorSceneUiBuilder
     public static MapEditorMinimap EnsureMinimap(MapEditorManager manager, Vector2 offset, Vector2 size)
     {
         return MapEditorMinimapBuilder.Ensure(manager, offset, size);
+    }
+}
+
+public sealed class MapEditorBackgroundRotator : MonoBehaviour
+{
+    [SerializeField] private float degreesPerSecond = 10f;
+
+    private void Update()
+    {
+        transform.Rotate(0f, 0f, degreesPerSecond * Time.deltaTime);
+    }
+}
+
+public sealed class MapEditorTitleBackdropLayout : MonoBehaviour
+{
+    private const float ReferenceWidth = 1920f;
+    private const float ReferenceHeight = 1080f;
+
+    private RawImage sky;
+    private RawImage ground;
+    private RawImage clouds;
+    private RawImage characters;
+    private RawImage logo;
+
+    public void Configure(
+        RawImage skyImage,
+        RawImage groundImage,
+        RawImage cloudImage,
+        RawImage characterImage,
+        RawImage logoImage)
+    {
+        sky = skyImage;
+        ground = groundImage;
+        clouds = cloudImage;
+        characters = characterImage;
+        logo = logoImage;
+        ApplyLayout();
+    }
+
+    private void OnRectTransformDimensionsChange()
+    {
+        ApplyLayout();
+    }
+
+    private void ApplyLayout()
+    {
+        RectTransform canvasRect = transform as RectTransform;
+        if (canvasRect == null || canvasRect.rect.width <= 0f || canvasRect.rect.height <= 0f)
+        {
+            return;
+        }
+
+        float scale = Mathf.Min(
+            canvasRect.rect.width / ReferenceWidth,
+            canvasRect.rect.height / ReferenceHeight);
+
+        ConfigureStretch(sky);
+        ConfigureStretch(characters);
+        ConfigureCentered(clouds, new Vector2(ReferenceWidth, ReferenceHeight) * scale);
+        ConfigureBottomCentered(ground, new Vector2(1500f, 1500f) * scale, -357f * scale);
+        ConfigureTopCentered(logo, new Vector2(850f, 420f) * scale, -250f * scale);
+    }
+
+    private static void ConfigureStretch(RawImage image)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
+    }
+
+    private static void ConfigureCentered(RawImage image, Vector2 size)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0.5f);
+        rect.anchorMax = new Vector2(0.5f, 0.5f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = size;
+    }
+
+    private static void ConfigureBottomCentered(RawImage image, Vector2 size, float y)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 0f);
+        rect.anchorMax = new Vector2(0.5f, 0f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = size;
+    }
+
+    private static void ConfigureTopCentered(RawImage image, Vector2 size, float y)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        RectTransform rect = image.rectTransform;
+        rect.anchorMin = new Vector2(0.5f, 1f);
+        rect.anchorMax = new Vector2(0.5f, 1f);
+        rect.pivot = new Vector2(0.5f, 0.5f);
+        rect.anchoredPosition = new Vector2(0f, y);
+        rect.sizeDelta = size;
     }
 }

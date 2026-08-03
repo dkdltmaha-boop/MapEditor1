@@ -14,6 +14,12 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
     private int spacing;
     private MapEditorLayerType defaultLayer = MapEditorLayerType.Ground;
     private bool collision;
+    private bool animated;
+    private string animationName = "Animation";
+    private int animationStartTile;
+    private int animationFrameCount = 4;
+    private float animationFps = 8f;
+    private bool animationLoop = true;
     private Vector2 scroll;
     private Texture2D preview;
 
@@ -44,16 +50,42 @@ public sealed class MapEditorTilesetImporterWindow : EditorWindow
         tileHeight = Mathf.Max(1, EditorGUILayout.IntField("타일 높이", tileHeight));
         margin = Mathf.Max(0, EditorGUILayout.IntField("바깥 여백", margin));
         spacing = Mathf.Max(0, EditorGUILayout.IntField("타일 간격", spacing));
-        string[] layerNames = { "바닥", "오브젝트", "벽 모양", "벽 충돌", "시작 위치", "구역" };
+        string[] layerNames = { "바닥", "오브젝트", "벽 모양", "벽 충돌", "시작 위치" };
         defaultLayer = (MapEditorLayerType)EditorGUILayout.Popup("기본 레이어", (int)defaultLayer, layerNames);
         collision = EditorGUILayout.Toggle("충돌 사용", collision);
+
+        EditorGUILayout.Space(6f);
+        animated = EditorGUILayout.Toggle("애니메이션 타일", animated);
+        if (animated)
+        {
+            animationName = EditorGUILayout.TextField("애니메이션 이름", animationName);
+            animationStartTile = Mathf.Max(0, EditorGUILayout.IntField("시작 타일 번호", animationStartTile));
+            animationFrameCount = Mathf.Max(1, EditorGUILayout.IntField("프레임 수", animationFrameCount));
+            animationFps = Mathf.Clamp(EditorGUILayout.FloatField("초당 프레임", animationFps), 0.1f, 60f);
+            animationLoop = EditorGUILayout.Toggle("반복 재생", animationLoop);
+            EditorGUILayout.HelpBox("프레임은 시작 타일부터 가로 방향으로 읽고, 줄 끝에서는 다음 줄로 이어집니다.", MessageType.Info);
+        }
 
         DrawPreview();
 
         GUI.enabled = manager != null && File.Exists(sourcePath);
         if (GUILayout.Button("가져와서 사용", GUILayout.Height(30f)))
         {
-            manager.ImportTileset(sourcePath, displayName, tileWidth, tileHeight, margin, spacing, defaultLayer, collision);
+            manager.ImportTileset(
+                sourcePath,
+                displayName,
+                tileWidth,
+                tileHeight,
+                margin,
+                spacing,
+                defaultLayer,
+                collision,
+                animated,
+                animationName,
+                animationStartTile,
+                animationFrameCount,
+                animationFps,
+                animationLoop);
         }
         GUI.enabled = true;
 

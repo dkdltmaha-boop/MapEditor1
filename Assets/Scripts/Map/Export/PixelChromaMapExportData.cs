@@ -8,6 +8,7 @@ public static class PixelChromaExportContract
 
     public const string ColorTileKind = "Color";
     public const string PixelTileKind = "Pixels";
+    public const string AnimatedPixelTileKind = "AnimatedPixels";
 }
 
 [System.Serializable]
@@ -114,6 +115,16 @@ public sealed class PixelChromaTileExportData
     public bool flipX;
     public bool flipY;
     public bool collision;
+    public float animationFps;
+    public bool animationLoop;
+    public PixelChromaAnimationFrameExportData[] animationFrames;
+}
+
+[System.Serializable]
+public sealed class PixelChromaAnimationFrameExportData
+{
+    public int pixelResolution;
+    public string[] pixelHexes;
 }
 
 [System.Serializable]

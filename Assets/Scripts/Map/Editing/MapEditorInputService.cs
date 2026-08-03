@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.EventSystems;
+using UnityEngine.UI;
 
 public class MapEditorInputService
 {
@@ -49,6 +50,13 @@ public class MapEditorInputService
 
     private void HandleKeyboardShortcuts()
     {
+        if (EventSystem.current != null
+            && EventSystem.current.currentSelectedGameObject != null
+            && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>() != null)
+        {
+            return;
+        }
+
         bool control = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
 
         if (Input.GetKeyDown(KeyCode.Escape) || Input.GetKeyDown(KeyCode.Delete))
@@ -58,9 +66,29 @@ public class MapEditorInputService
 
         if (!control)
         {
+            if (manager.IsSelectionToolActive())
+            {
+                Vector2Int move = Vector2Int.zero;
+
+                if (Input.GetKeyDown(KeyCode.UpArrow)) move = Vector2Int.down;
+                else if (Input.GetKeyDown(KeyCode.RightArrow)) move = Vector2Int.right;
+                else if (Input.GetKeyDown(KeyCode.DownArrow)) move = Vector2Int.up;
+                else if (Input.GetKeyDown(KeyCode.LeftArrow)) move = Vector2Int.left;
+
+                if (move != Vector2Int.zero)
+                {
+                    manager.MoveSelection(move);
+                    return;
+                }
+            }
+
             if (Input.GetKeyDown(KeyCode.B))
             {
                 manager.SetBrushTool();
+            }
+            else if (Input.GetKeyDown(KeyCode.L))
+            {
+                manager.SetLineTool();
             }
             else if (Input.GetKeyDown(KeyCode.W))
             {

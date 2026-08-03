@@ -6,7 +6,7 @@ public static class MapEditorMapSizePanelBuilder
     private const string MapSizePanelObjectName = "MapEditor_MapSizePanel";
     private const float ToolbarWidth = 176f;
     internal const float PanelWidth = 184f;
-    internal const float PanelHeight = 172f;
+    internal const float PanelHeight = 198f;
     internal const float PanelGap = 12f;
 
     internal static Vector2 GetPanelPosition(Vector2 toolbarOffset)
@@ -42,10 +42,12 @@ public static class MapEditorMapSizePanelBuilder
         Text panelTitle = CreateLabel(panel, "맵 크기", 12, 16f);
         panelTitle.fontStyle = FontStyle.Bold;
         Text currentSizeText = CreateCurrentSizeLabel(panel, manager);
-        CreateValueControls(panel, manager, currentSizeText, true);
-        CreateValueControls(panel, manager, currentSizeText, false);
+        InputField widthInput = CreateValueControls(panel, manager, currentSizeText, true);
+        InputField heightInput = CreateValueControls(panel, manager, currentSizeText, false);
+        ConfigureTabNavigation(widthInput, heightInput);
         CreatePresetRow(panel, manager, "PresetRow", "64 x 64", 64, 64, "128 x 128", 128, 128);
         CreatePresetRow(panel, manager, "LargePresetRow", "256 x 128", 256, 128, "256 x 256", 256, 256);
+        CreatePlayerScaleGuideButton(panel, manager);
     }
 
     public static void RefreshLayout(Transform canvas, Vector2 toolbarOffset)
@@ -113,7 +115,7 @@ public static class MapEditorMapSizePanelBuilder
         return text;
     }
 
-    private static void CreateValueControls(Transform parent, MapEditorManager manager, Text currentSizeText, bool widthControl)
+    private static InputField CreateValueControls(Transform parent, MapEditorManager manager, Text currentSizeText, bool widthControl)
     {
         GameObject groupObject = new GameObject(widthControl ? "WidthControl" : "HeightControl", typeof(RectTransform), typeof(VerticalLayoutGroup));
         groupObject.transform.SetParent(parent, false);
@@ -144,6 +146,41 @@ public static class MapEditorMapSizePanelBuilder
 
         MapEditorMapSizeControl control = input.gameObject.AddComponent<MapEditorMapSizeControl>();
         control.Configure(manager, widthControl, input, currentSizeText);
+        return input;
+    }
+
+    private static void ConfigureTabNavigation(InputField widthInput, InputField heightInput)
+    {
+        if (widthInput == null || heightInput == null)
+        {
+            return;
+        }
+
+        widthInput.gameObject.AddComponent<MapEditorTabNavigation>().Configure(heightInput, heightInput);
+        heightInput.gameObject.AddComponent<MapEditorTabNavigation>().Configure(widthInput, widthInput);
+    }
+
+    private static void CreatePlayerScaleGuideButton(Transform parent, MapEditorManager manager)
+    {
+        GameObject buttonObject = new GameObject("PlayerScaleGuideButton", typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 20f);
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = manager.showPlayerScaleGuide
+            ? new Color(0.18f, 0.48f, 0.95f, 1f)
+            : new Color(0.24f, 0.24f, 0.24f, 1f);
+
+        Text label = CreateSmallText(buttonObject.transform, "플레이어 크기 비교 (드래그)", 164f);
+        label.alignment = TextAnchor.MiddleCenter;
+        RectTransform labelRect = label.rectTransform;
+        labelRect.anchorMin = Vector2.zero;
+        labelRect.anchorMax = Vector2.one;
+        labelRect.offsetMin = Vector2.zero;
+        labelRect.offsetMax = Vector2.zero;
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.AddListener(manager.TogglePlayerScaleGuide);
     }
 
     private static InputField CreateInput(Transform parent, int value)

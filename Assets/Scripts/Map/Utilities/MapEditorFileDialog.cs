@@ -1,5 +1,4 @@
 using System.IO;
-using System.Runtime.InteropServices;
 using System.Text;
 using UnityEngine;
 
@@ -78,159 +77,143 @@ public static class MapEditorFileDialog
 #if UNITY_STANDALONE_WIN && !UNITY_EDITOR
     private static class WindowsFileDialog
     {
-        private const int MaxPath = 4096;
-        private const int OfnExplorer = 0x00080000;
-        private const int OfnPathMustExist = 0x00000800;
-        private const int OfnFileMustExist = 0x00001000;
-        private const int OfnNoChangeDir = 0x00000008;
-        private const int OfnOverwritePrompt = 0x00000002;
-        private const uint BifReturnOnlyFsDirs = 0x00000001;
-        private const uint BifNewDialogStyle = 0x00000040;
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct BrowseInfo
-        {
-            public System.IntPtr owner;
-            public System.IntPtr root;
-            public System.IntPtr displayName;
-            public string title;
-            public uint flags;
-            public System.IntPtr callback;
-            public System.IntPtr parameter;
-            public int image;
-        }
-
-        [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-        private struct OpenFileName
-        {
-            public int structSize;
-            public System.IntPtr owner;
-            public System.IntPtr instance;
-            public string filter;
-            public string customFilter;
-            public int maxCustomFilter;
-            public int filterIndex;
-            public StringBuilder file;
-            public int maxFile;
-            public StringBuilder fileTitle;
-            public int maxFileTitle;
-            public string initialDirectory;
-            public string title;
-            public int flags;
-            public short fileOffset;
-            public short fileExtension;
-            public string defaultExtension;
-            public System.IntPtr customData;
-            public System.IntPtr hook;
-            public string templateName;
-            public System.IntPtr reserved;
-            public int reserved2;
-            public int flagsEx;
-        }
-
-        [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetOpenFileName(ref OpenFileName dialog);
-
-        [DllImport("comdlg32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool GetSaveFileName(ref OpenFileName dialog);
-
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-        private static extern System.IntPtr SHBrowseForFolder(ref BrowseInfo browseInfo);
-
-        [DllImport("shell32.dll", CharSet = CharSet.Unicode)]
-        [return: MarshalAs(UnmanagedType.Bool)]
-        private static extern bool SHGetPathFromIDList(System.IntPtr itemIdList, StringBuilder path);
-
-        [DllImport("ole32.dll")]
-        private static extern void CoTaskMemFree(System.IntPtr pointer);
-
         public static string Open(string title, string extension)
         {
-            OpenFileName dialog = Create(title, string.Empty, extension);
-            dialog.flags |= OfnFileMustExist;
-            string path = GetOpenFileName(ref dialog) ? dialog.file.ToString() : string.Empty;
+            string path = RunPowerShellDialog("Open", title, string.Empty, extension);
             RememberDirectory(path);
             return path;
         }
 
         public static string Save(string title, string defaultFileName, string extension)
         {
-            OpenFileName dialog = Create(title, EnsureExtension(defaultFileName, extension), extension);
-            dialog.flags |= OfnOverwritePrompt;
-            string path = GetSaveFileName(ref dialog) ? dialog.file.ToString() : string.Empty;
+            string path = RunPowerShellDialog("Save", title, EnsureExtension(defaultFileName, extension), extension);
             RememberDirectory(path);
             return path;
         }
 
         public static string SelectFolder(string title, string defaultFolderName)
         {
-            System.IntPtr displayName = Marshal.AllocHGlobal(512 * sizeof(char));
-            System.IntPtr itemIdList = System.IntPtr.Zero;
+            string selectedFolder = RunPowerShellDialog("Folder", title, string.Empty, string.Empty);
+            if (string.IsNullOrEmpty(selectedFolder))
+            {
+                return string.Empty;
+            }
 
+            if (!string.IsNullOrWhiteSpace(defaultFolderName))
+            {
+                selectedFolder = Path.Combine(selectedFolder, defaultFolderName);
+            }
+
+            RememberDirectory(selectedFolder);
+            return selectedFolder;
+        }
+
+        private const string PowerShellDialogScript = @"
+$ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.Windows.Forms
+[Console]::OutputEncoding = New-Object System.Text.UTF8Encoding($false)
+$owner = New-Object System.Windows.Forms.Form
+$owner.TopMost = $true
+$owner.ShowInTaskbar = $false
+$owner.Opacity = 0
+$owner.Width = 1
+$owner.Height = 1
+$owner.StartPosition = 'CenterScreen'
+$owner.Show()
+$owner.Activate()
+try {
+    $mode = $env:MAPEDITOR_DIALOG_MODE
+    $title = $env:MAPEDITOR_DIALOG_TITLE
+    $initial = $env:MAPEDITOR_DIALOG_INITIAL
+    $extension = $env:MAPEDITOR_DIALOG_EXTENSION
+    $defaultName = $env:MAPEDITOR_DIALOG_DEFAULT
+    if ($mode -eq 'Folder') {
+        $dialog = New-Object System.Windows.Forms.FolderBrowserDialog
+        $dialog.Description = $title
+        $dialog.ShowNewFolderButton = $true
+        if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
+            [Console]::Out.Write($dialog.SelectedPath)
+        }
+    } else {
+        if ($mode -eq 'Save') {
+            $dialog = New-Object System.Windows.Forms.SaveFileDialog
+            $dialog.FileName = $defaultName
+            $dialog.OverwritePrompt = $true
+        } else {
+            $dialog = New-Object System.Windows.Forms.OpenFileDialog
+            $dialog.CheckFileExists = $true
+        }
+        $dialog.Title = $title
+        $dialog.InitialDirectory = $initial
+        $dialog.DefaultExt = $extension
+        $dialog.AddExtension = $true
+        $dialog.Filter = $extension.ToUpperInvariant() + ' files (*.' + $extension + ')|*.' + $extension + '|All files (*.*)|*.*'
+        if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
+            [Console]::Out.Write($dialog.FileName)
+        }
+    }
+} finally {
+    $owner.Close()
+    $owner.Dispose()
+}
+";
+
+        private static string RunPowerShellDialog(
+            string mode,
+            string title,
+            string defaultFileName,
+            string extension)
+        {
             try
             {
-                BrowseInfo browseInfo = new BrowseInfo
+                byte[] scriptBytes = Encoding.Unicode.GetBytes(PowerShellDialogScript);
+                string encodedScript = System.Convert.ToBase64String(scriptBytes);
+                System.Diagnostics.ProcessStartInfo startInfo = new System.Diagnostics.ProcessStartInfo
                 {
-                    displayName = displayName,
-                    title = title,
-                    flags = BifReturnOnlyFsDirs | BifNewDialogStyle
+                    FileName = "powershell.exe",
+                    Arguments = "-NoLogo -NoProfile -STA -NonInteractive -EncodedCommand " + encodedScript,
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true,
+                    StandardOutputEncoding = Encoding.UTF8,
+                    StandardErrorEncoding = Encoding.UTF8
                 };
 
-                itemIdList = SHBrowseForFolder(ref browseInfo);
-                if (itemIdList == System.IntPtr.Zero)
-                {
-                    return string.Empty;
-                }
+                startInfo.EnvironmentVariables["MAPEDITOR_DIALOG_MODE"] = mode;
+                startInfo.EnvironmentVariables["MAPEDITOR_DIALOG_TITLE"] = title ?? string.Empty;
+                startInfo.EnvironmentVariables["MAPEDITOR_DIALOG_INITIAL"] = GetInitialDirectory();
+                startInfo.EnvironmentVariables["MAPEDITOR_DIALOG_EXTENSION"] = extension.TrimStart('.');
+                startInfo.EnvironmentVariables["MAPEDITOR_DIALOG_DEFAULT"] = defaultFileName ?? string.Empty;
 
-                StringBuilder path = new StringBuilder(MaxPath);
-                if (!SHGetPathFromIDList(itemIdList, path))
+                using (System.Diagnostics.Process process = System.Diagnostics.Process.Start(startInfo))
                 {
-                    return string.Empty;
-                }
+                    if (process == null)
+                    {
+                        Debug.LogError("Windows file dialog process could not be started.");
+                        return string.Empty;
+                    }
 
-                string selectedFolder = path.ToString();
-                if (!string.IsNullOrWhiteSpace(defaultFolderName))
-                {
-                    selectedFolder = Path.Combine(selectedFolder, defaultFolderName);
-                }
+                    string output = process.StandardOutput.ReadToEnd();
+                    string error = process.StandardError.ReadToEnd();
+                    process.WaitForExit();
 
-                RememberDirectory(selectedFolder);
-                return selectedFolder;
+                    if (process.ExitCode != 0)
+                    {
+                        Debug.LogError("Windows file dialog failed: " + error.Trim());
+                        return string.Empty;
+                    }
+
+                    return output.Trim();
+                }
             }
-            finally
+            catch (System.Exception exception)
             {
-                if (itemIdList != System.IntPtr.Zero)
-                {
-                    CoTaskMemFree(itemIdList);
-                }
-
-                Marshal.FreeHGlobal(displayName);
+                Debug.LogException(exception);
+                return string.Empty;
             }
         }
 
-        private static OpenFileName Create(string title, string defaultFileName, string extension)
-        {
-            string normalizedExtension = extension.TrimStart('.');
-            StringBuilder file = new StringBuilder(MaxPath);
-            file.Append(defaultFileName);
-
-            return new OpenFileName
-            {
-                structSize = Marshal.SizeOf(typeof(OpenFileName)),
-                filter = normalizedExtension.ToUpperInvariant() + " files (*." + normalizedExtension + ")\0*." + normalizedExtension + "\0All files (*.*)\0*.*\0",
-                filterIndex = 1,
-                file = file,
-                maxFile = MaxPath,
-                fileTitle = new StringBuilder(256),
-                maxFileTitle = 256,
-                initialDirectory = GetInitialDirectory(),
-                title = title,
-                flags = OfnExplorer | OfnPathMustExist | OfnNoChangeDir,
-                defaultExtension = normalizedExtension
-            };
-        }
     }
 #endif
 }

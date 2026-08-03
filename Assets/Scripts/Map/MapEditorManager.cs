@@ -126,11 +126,16 @@ public class MapEditorManager : MonoBehaviour
     private int selectedRegionStartYFromTop;
     private int selectedRegionWidth = 1;
     private int selectedRegionHeight = 1;
+    private bool hasPaintStrokeSample;
+    private Vector2Int lastPaintStrokePoint;
+    private int lastPaintStrokeResolution;
+    private EditorToolType lastPaintStrokeTool;
     private Vector2Int? previewDragStart;
     private RectInt? previewRegion;
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
+    private Vector2 lastCanvasSize = new Vector2(-1f, -1f);
 
     public void SetCurrentMapDataForLoad(MapData mapData)
     {
@@ -376,6 +381,8 @@ public class MapEditorManager : MonoBehaviour
         }
 
         ConfigureMapViewportVisual();
+        RefreshResponsiveLayout(true);
+        MapEditorSceneUiBuilder.EnsureQuitButton(Object.FindFirstObjectByType<Canvas>());
         MapEditorFontProvider.ApplyToScene(gameObject.scene);
 
 #if UNITY_EDITOR
@@ -393,8 +400,35 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
+        RefreshResponsiveLayout(false);
+        MapEditorSceneUiBuilder.BringQuitButtonToFront();
         inputService.Tick();
         UpdateBrushCursorPreview();
+    }
+
+    private void RefreshResponsiveLayout(bool force)
+    {
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        RectTransform canvasRect = canvas == null ? null : canvas.transform as RectTransform;
+
+        if (canvasRect == null)
+        {
+            return;
+        }
+
+        Vector2 currentSize = canvasRect.rect.size;
+
+        if (!force && (currentSize - lastCanvasSize).sqrMagnitude < 0.01f)
+        {
+            return;
+        }
+
+        lastCanvasSize = currentSize;
+        MapEditorSceneUiBuilder.ConfigureCanvasScaler(canvas);
+        MapEditorToolbarBuilder.RefreshLayout(toolToolbarOffset);
+        MapEditorMapSizePanelBuilder.RefreshLayout(canvas.transform, toolToolbarOffset);
+        MapEditorLayerPanelBuilder.RefreshLayout(toolToolbarOffset);
+        ConfigureMapViewportVisual();
     }
 
     public void SetBrushTool()
@@ -745,6 +779,7 @@ public class MapEditorManager : MonoBehaviour
 
     private void CancelTransientToolState()
     {
+        ResetPaintStroke();
         mapEditing?.ClearPendingPaintGesture();
         selectionClipboard?.CancelActiveDrag();
         previewDragStart = null;
@@ -856,29 +891,34 @@ public class MapEditorManager : MonoBehaviour
 
     private void PaintSelectedTileRegion(GridCell centerCell)
     {
-        int startMapX = centerCell.X - selectedRegionWidth / 2;
-        int startMapY = centerCell.Y - selectedRegionHeight / 2;
+        int outputWidth = GetSelectedRegionOutputWidth();
+        int outputHeight = GetSelectedRegionOutputHeight();
+        int startMapX = centerCell.X - outputWidth / 2;
+        int startMapY = centerCell.Y - outputHeight / 2;
         MapEditorPaintSelection selection = GetPaintSelection();
         selection.brushSize = 1;
 
-        mapEditing.BeginTransaction();
-
-        for (int y = 0; y < selectedRegionHeight; y++)
+        for (int y = 0; y < outputHeight; y++)
         {
-            int sourceYFromTop = selectedRegionStartYFromTop + y;
-            int sourceY = selectedRegionGridSize - 1 - sourceYFromTop;
-
-            for (int x = 0; x < selectedRegionWidth; x++)
+            for (int x = 0; x < outputWidth; x++)
             {
                 if (!cells.TryGetValue(new Vector2Int(startMapX + x, startMapY + y), out GridCell targetCell))
                 {
                     continue;
                 }
 
-                int sourceX = selectedRegionStartX + x;
+                GetSelectedRegionSourceCoordinate(x, y, out int localSourceX, out int localSourceYFromTop);
+                int sourceX = selectedRegionStartX + localSourceX;
+                int sourceYFromTop = selectedRegionStartYFromTop + localSourceYFromTop;
+                int sourceY = selectedRegionGridSize - 1 - sourceYFromTop;
                 int baseIndex = sourceY * selectedRegionGridSize + sourceX;
                 int imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(selectedRegionGridSize, baseIndex);
-                Sprite sprite = GetPngTileSprite(selectedImagePath, imageIndex);
+                Sprite sprite = GetPngTileSprite(
+                    selectedImagePath,
+                    imageIndex,
+                    selectedImageRotation,
+                    selectedImageFlipX,
+                    selectedImageFlipY);
 
                 if (sprite == null)
                 {
@@ -890,8 +930,34 @@ public class MapEditorManager : MonoBehaviour
                 mapEditing.PaintCell(targetCell, selection);
             }
         }
+    }
 
-        mapEditing.CommitTransaction();
+    private int GetSelectedRegionOutputWidth()
+    {
+        return MapEditorBrushGeometry.GetRotatedSize(selectedRegionWidth, selectedRegionHeight, selectedImageRotation).x;
+    }
+
+    private int GetSelectedRegionOutputHeight()
+    {
+        return MapEditorBrushGeometry.GetRotatedSize(selectedRegionWidth, selectedRegionHeight, selectedImageRotation).y;
+    }
+
+    private void GetSelectedRegionSourceCoordinate(
+        int outputX,
+        int outputY,
+        out int sourceX,
+        out int sourceY)
+    {
+        Vector2Int source = MapEditorBrushGeometry.MapOutputToSource(
+            outputX,
+            outputY,
+            selectedRegionWidth,
+            selectedRegionHeight,
+            selectedImageRotation,
+            selectedImageFlipX,
+            selectedImageFlipY);
+        sourceX = source.x;
+        sourceY = source.y;
     }
 
     public void UseCurrentTool(GridCell cell)
@@ -914,6 +980,7 @@ public class MapEditorManager : MonoBehaviour
 
         if ((EditorToolController.Instance.CurrentTool == EditorToolType.Brush || EditorToolController.Instance.CurrentTool == EditorToolType.Wall) && IsAreaFillModifierPressed())
         {
+            ResetPaintStroke();
             MapEditorPaintSelection selection = EditorToolController.Instance.CurrentTool == EditorToolType.Wall
                 ? GetWallPaintSelection()
                 : GetPaintSelection();
@@ -921,7 +988,77 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        switch (EditorToolController.Instance.CurrentTool)
+        EditorToolType tool = EditorToolController.Instance.CurrentTool;
+
+        if (tool == EditorToolType.Brush || tool == EditorToolType.Wall || tool == EditorToolType.Eraser)
+        {
+            PaintInterpolatedStroke(cell, subPixelX, subPixelY, tool);
+            return;
+        }
+
+        UseCurrentToolAt(cell, subPixelX, subPixelY, tool);
+    }
+
+    private void PaintInterpolatedStroke(GridCell cell, int subPixelX, int subPixelY, EditorToolType tool)
+    {
+        if (cell == null)
+        {
+            return;
+        }
+
+        int resolution = UsesSubPixelStroke(tool, subPixelX, subPixelY) ? MaxExportCellPixels : 1;
+        int localX = resolution == 1 ? 0 : Mathf.Clamp(subPixelX, 0, resolution - 1);
+        int localY = resolution == 1 ? 0 : Mathf.Clamp(subPixelY, 0, resolution - 1);
+        Vector2Int current = new Vector2Int(cell.X * resolution + localX, cell.Y * resolution + localY);
+
+        if (!hasPaintStrokeSample || lastPaintStrokeTool != tool || lastPaintStrokeResolution != resolution)
+        {
+            PaintStrokePoint(current, resolution, tool);
+        }
+        else
+        {
+            PaintStrokeLine(lastPaintStrokePoint, current, resolution, tool);
+        }
+
+        hasPaintStrokeSample = true;
+        lastPaintStrokePoint = current;
+        lastPaintStrokeResolution = resolution;
+        lastPaintStrokeTool = tool;
+    }
+
+    private bool UsesSubPixelStroke(EditorToolType tool, int subPixelX, int subPixelY)
+    {
+        return tool == EditorToolType.Brush
+            && !paintWholeTile
+            && !useWallTileBrush
+            && subPixelX >= 0
+            && subPixelY >= 0;
+    }
+
+    private void PaintStrokeLine(Vector2Int start, Vector2Int end, int resolution, EditorToolType tool)
+    {
+        MapEditorBrushGeometry.RasterizeLine(start, end, point => PaintStrokePoint(point, resolution, tool));
+    }
+
+    private void PaintStrokePoint(Vector2Int point, int resolution, EditorToolType tool)
+    {
+        int mapX = Mathf.FloorToInt(point.x / (float)resolution);
+        int mapY = Mathf.FloorToInt(point.y / (float)resolution);
+
+        if (!cells.TryGetValue(new Vector2Int(mapX, mapY), out GridCell targetCell))
+        {
+            return;
+        }
+
+        int localX = resolution == 1 ? -1 : point.x % resolution;
+        int localY = resolution == 1 ? -1 : point.y % resolution;
+        UseCurrentToolAt(targetCell, localX, localY, tool);
+    }
+
+    private void UseCurrentToolAt(GridCell cell, int subPixelX, int subPixelY, EditorToolType tool)
+    {
+
+        switch (tool)
         {
             case EditorToolType.Brush:
                 if (paintWholeTile)
@@ -971,6 +1108,12 @@ public class MapEditorManager : MonoBehaviour
         }
     }
 
+    private void ResetPaintStroke()
+    {
+        hasPaintStrokeSample = false;
+        lastPaintStrokeResolution = 0;
+    }
+
     public void ClearSelectedImageBrush()
     {
         ClearSelectedTileRegion();
@@ -1005,11 +1148,20 @@ public class MapEditorManager : MonoBehaviour
         RefreshMinimap();
     }
 
+    public void ClearActiveLayer()
+    {
+        ClearSelection();
+        mapEditing.ClearLayer(activeLayer);
+        RefreshAllCells();
+        Debug.Log("Cleared layer: " + GetLayerDisplayName(activeLayer));
+    }
+
     public void ChangeBrushSize(int delta)
     {
         EnsureBrushSelectionService();
         brushSelection.ChangeBrushSize(this, delta);
         UpdateBrushPreview();
+        UpdateBrushCursorPreview();
     }
 
     public void RotateSelectedImageBrush()
@@ -1107,11 +1259,13 @@ public class MapEditorManager : MonoBehaviour
 
     public void BeginEditTransaction()
     {
+        ResetPaintStroke();
         mapEditing.BeginTransaction();
     }
 
     public void CommitEditTransaction()
     {
+        ResetPaintStroke();
         mapEditing.CommitTransaction();
     }
 
@@ -1660,8 +1814,8 @@ public class MapEditorManager : MonoBehaviour
             selectedImageFlipX,
             selectedImageFlipY,
             paintWholeTile,
-            HasSelectedTileRegion() ? selectedRegionWidth : 1,
-            HasSelectedTileRegion() ? selectedRegionHeight : 1,
+            HasSelectedTileRegion() ? GetSelectedRegionOutputWidth() : 1,
+            HasSelectedTileRegion() ? GetSelectedRegionOutputHeight() : 1,
             MaxExportCellPixels,
             GetSubPixelBrushSide(),
             hoveredSubPixelX,

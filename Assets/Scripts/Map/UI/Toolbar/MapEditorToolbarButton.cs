@@ -193,7 +193,7 @@ public class MapEditorToolbarButton : MonoBehaviour
                 target.ToggleLayerVisible((MapEditorLayerType)intArgument);
                 break;
             case MapEditorToolbarAction.Clear:
-                target.ClearMap();
+                target.ClearActiveLayer();
                 break;
             case MapEditorToolbarAction.UploadWorkshop:
                 PixelChromaRuntimeWorkshopUploader uploader =

@@ -4,6 +4,7 @@ using UnityEngine;
 public sealed class MapEditorClipboardEditService
 {
     private readonly Func<MapData> getMapData;
+    private readonly Func<MapEditorLayerType> getActiveLayer;
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
     private readonly Action beginTransaction;
     private readonly Action commitTransaction;
@@ -11,12 +12,14 @@ public sealed class MapEditorClipboardEditService
 
     public MapEditorClipboardEditService(
         Func<MapData> getMapData,
+        Func<MapEditorLayerType> getActiveLayer,
         Func<string, int, int, bool, bool, Sprite> getPngTileSprite,
         Action beginTransaction,
         Action commitTransaction,
         Action<int, int, int, Color, Sprite, string, int, int, bool, bool, MapEditorLayerType, bool> setCellTile)
     {
         this.getMapData = getMapData;
+        this.getActiveLayer = getActiveLayer;
         this.getPngTileSprite = getPngTileSprite;
         this.beginTransaction = beginTransaction;
         this.commitTransaction = commitTransaction;
@@ -69,13 +72,14 @@ public sealed class MapEditorClipboardEditService
 
     public void ClearRect(RectInt rect)
     {
+        MapEditorLayerType layer = getActiveLayer();
         beginTransaction();
 
         for (int y = rect.yMin; y < rect.yMax; y++)
         {
             for (int x = rect.xMin; x < rect.xMax; x++)
             {
-                setCellTile(x, y, -1, Color.white, null, string.Empty, -1, 0, false, false, MapEditorLayerType.Ground, true);
+                setCellTile(x, y, -1, Color.white, null, string.Empty, -1, 0, false, false, layer, true);
             }
         }
 

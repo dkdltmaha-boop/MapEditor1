@@ -48,6 +48,16 @@ public static class MapEditorMapSizePanelBuilder
         CreatePresetRow(panel, manager, "LargePresetRow", "256 x 128", 256, 128, "256 x 256", 256, 256);
     }
 
+    public static void RefreshLayout(Transform canvas, Vector2 toolbarOffset)
+    {
+        Transform panel = canvas == null ? null : canvas.Find(MapSizePanelObjectName);
+
+        if (panel != null)
+        {
+            ConfigurePanel(panel, toolbarOffset);
+        }
+    }
+
     private static void ConfigurePanel(Transform panel, Vector2 toolbarOffset)
     {
         RectTransform rect = panel.GetComponent<RectTransform>();

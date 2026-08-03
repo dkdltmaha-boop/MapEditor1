@@ -252,6 +252,8 @@ public sealed class MapEditorCellRenderService
     private void ApplyUnderlay(GridCell cell, MapData mapData, MapEditorLayerType topLayer)
     {
         int topIndex = Array.IndexOf(LayerPriority, topLayer);
+        int occupiedLayerCount = 0;
+        MapEditorLayerType singleLayer = MapEditorLayerType.Ground;
 
         for (int i = topIndex + 1; i < LayerPriority.Length; i++)
         {
@@ -267,24 +269,136 @@ public sealed class MapEditorCellRenderService
                 continue;
             }
 
-            string imagePath = mapData.GetImagePath(cell.X, cell.Y, layerType);
-            int imageIndex = mapData.GetImageIndex(cell.X, cell.Y, layerType);
-            Sprite sprite = tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId
-                ? getPngTileSprite(
-                    imagePath,
-                    imageIndex,
-                    mapData.GetImageRotation(cell.X, cell.Y, layerType),
-                    mapData.GetImageFlipX(cell.X, cell.Y, layerType),
-                    mapData.GetImageFlipY(cell.X, cell.Y, layerType))
-                : null;
+            occupiedLayerCount++;
+            singleLayer = layerType;
+        }
 
-            cell.SetUnderlay(
-                mapData.GetColor(cell.X, cell.Y, layerType),
-                sprite,
-                mapData.GetPixelData(cell.X, cell.Y, layerType));
+        if (occupiedLayerCount == 0)
+        {
+            cell.ClearUnderlay();
             return;
         }
 
-        cell.ClearUnderlay();
+        if (occupiedLayerCount == 1)
+        {
+            ApplySingleUnderlay(cell, mapData, singleLayer);
+            return;
+        }
+
+        const int compositeResolution = 16;
+        MapTilePixelData composite = MapTilePixelData.CreateFilled(compositeResolution, Color.white);
+
+        for (int i = LayerPriority.Length - 1; i > topIndex; i--)
+        {
+            MapEditorLayerType layerType = LayerPriority[i];
+
+            if (isLayerVisible != null && !isLayerVisible(layerType))
+            {
+                continue;
+            }
+
+            if (mapData.GetTile(cell.X, cell.Y, layerType) == -1)
+            {
+                continue;
+            }
+
+            CompositeLayer(composite, mapData, cell.X, cell.Y, layerType);
+        }
+
+        cell.SetUnderlay(composite.GetAverageColor(), null, composite);
+    }
+
+    private void ApplySingleUnderlay(GridCell cell, MapData mapData, MapEditorLayerType layerType)
+    {
+        int tileId = mapData.GetTile(cell.X, cell.Y, layerType);
+        string imagePath = mapData.GetImagePath(cell.X, cell.Y, layerType);
+        int imageIndex = mapData.GetImageIndex(cell.X, cell.Y, layerType);
+        Sprite sprite = tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId
+            ? getPngTileSprite(
+                imagePath,
+                imageIndex,
+                mapData.GetImageRotation(cell.X, cell.Y, layerType),
+                mapData.GetImageFlipX(cell.X, cell.Y, layerType),
+                mapData.GetImageFlipY(cell.X, cell.Y, layerType))
+            : null;
+
+        cell.SetUnderlay(
+            mapData.GetColor(cell.X, cell.Y, layerType),
+            sprite,
+            mapData.GetPixelData(cell.X, cell.Y, layerType));
+    }
+
+    private void CompositeLayer(MapTilePixelData target, MapData mapData, int mapX, int mapY, MapEditorLayerType layerType)
+    {
+        int tileId = mapData.GetTile(mapX, mapY, layerType);
+        MapTilePixelData pixels = mapData.GetPixelData(mapX, mapY, layerType);
+        Sprite sprite = null;
+
+        if (tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId)
+        {
+            sprite = getPngTileSprite(
+                mapData.GetImagePath(mapX, mapY, layerType),
+                mapData.GetImageIndex(mapX, mapY, layerType),
+                mapData.GetImageRotation(mapX, mapY, layerType),
+                mapData.GetImageFlipX(mapX, mapY, layerType),
+                mapData.GetImageFlipY(mapX, mapY, layerType));
+        }
+
+        int resolution = Mathf.Max(1, target.resolution);
+
+        for (int y = 0; y < resolution; y++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                Color source = SampleLayerColor(
+                    mapData.GetColor(mapX, mapY, layerType),
+                    pixels,
+                    sprite,
+                    x,
+                    y,
+                    resolution);
+                target.SetPixel(x, y, AlphaBlend(target.GetPixel(x, y), source));
+            }
+        }
+    }
+
+    private static Color SampleLayerColor(Color fallback, MapTilePixelData pixels, Sprite sprite, int x, int y, int resolution)
+    {
+        if (pixels != null && pixels.colors != null && pixels.colors.Length > 0)
+        {
+            int sourceResolution = Mathf.Max(1, pixels.resolution);
+            int sourceX = Mathf.Clamp(Mathf.FloorToInt((x + 0.5f) / resolution * sourceResolution), 0, sourceResolution - 1);
+            int sourceY = Mathf.Clamp(Mathf.FloorToInt((y + 0.5f) / resolution * sourceResolution), 0, sourceResolution - 1);
+            return pixels.GetPixel(sourceX, sourceY);
+        }
+
+        if (sprite == null || sprite.texture == null)
+        {
+            return fallback;
+        }
+
+        Rect rect = sprite.textureRect;
+        float u = (x + 0.5f) / resolution;
+        float v = 1f - ((y + 0.5f) / resolution);
+        int pixelX = Mathf.Clamp(Mathf.FloorToInt(rect.xMin + u * rect.width), Mathf.FloorToInt(rect.xMin), Mathf.FloorToInt(rect.xMax) - 1);
+        int pixelY = Mathf.Clamp(Mathf.FloorToInt(rect.yMin + v * rect.height), Mathf.FloorToInt(rect.yMin), Mathf.FloorToInt(rect.yMax) - 1);
+        return sprite.texture.GetPixel(pixelX, pixelY);
+    }
+
+    private static Color AlphaBlend(Color below, Color above)
+    {
+        float alpha = above.a + below.a * (1f - above.a);
+
+        if (alpha <= 0.0001f)
+        {
+            return Color.clear;
+        }
+
+        float belowWeight = below.a * (1f - above.a);
+        return new Color(
+            (above.r * above.a + below.r * belowWeight) / alpha,
+            (above.g * above.a + below.g * belowWeight) / alpha,
+            (above.b * above.a + below.b * belowWeight) / alpha,
+            alpha);
     }
 }

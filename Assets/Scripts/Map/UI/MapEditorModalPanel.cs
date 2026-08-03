@@ -43,7 +43,7 @@ public static class MapEditorModalPanel
             "P  프리뷰 영역 지정\n\n" +
             "그리기와 이미지\n" +
             "Shift + 클릭  같은 영역 채우기\n" +
-            "[ / ]          브러시 크기 줄이기 / 키우기\n" +
+            "[ / ]          브러시·지우개 크기 줄이기 / 키우기\n" +
             "R              선택 이미지 90도 회전\n" +
             "H / V          좌우 반전 / 상하 반전\n" +
             "I 또는 Space   마우스 아래 색상 선택\n" +
@@ -75,7 +75,7 @@ public static class MapEditorModalPanel
             "P  Set preview area\n\n" +
             "Painting and images\n" +
             "Shift + Click  Fill connected area\n" +
-            "[ / ]          Decrease / increase brush size\n" +
+            "[ / ]          Decrease / increase brush and eraser size\n" +
             "R              Rotate selection 90 degrees\n" +
             "H / V          Flip horizontal / vertical\n" +
             "I or Space     Pick the color under the cursor\n" +

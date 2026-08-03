@@ -32,6 +32,13 @@ public static class MapEditorSizeConfigurationSmokeTest
             Canvas canvas = UnityEngine.Object.FindFirstObjectByType<Canvas>();
             Require(canvas != null, "SampleScene is missing Canvas.");
             MapEditorSceneUiBuilder.EnsureBackground();
+            CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+            Require(scaler != null && scaler.uiScaleMode == CanvasScaler.ScaleMode.ConstantPixelSize,
+                "Desktop editor UI is being resampled instead of rendered at a fixed pixel size.");
+            Require(Mathf.Abs(scaler.scaleFactor - 1f) < 0.001f,
+                "Canvas scale factor is not using one-to-one pixel rendering.");
+            Require(canvas.pixelPerfect,
+                "Canvas pixel snapping is disabled, which can blur text at fractional positions.");
             RawImage background = canvas.transform.Find("MapEditor_Background")?.GetComponent<RawImage>();
             RawImage logo = canvas.transform.Find("MapEditor_Logo")?.GetComponent<RawImage>();
             Require(background != null && background.texture != null
@@ -41,7 +48,16 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "The title background is not preserving its aspect ratio.");
             Require(logo != null && logo.texture != null && logo.gameObject.activeSelf,
                 "The PixelChroma logo was not created.");
+            Button quitButton = canvas.transform.Find("MapEditor_QuitButton")?.GetComponent<Button>();
+            Require(quitButton != null && quitButton.interactable,
+                "The top-right application quit button was not created.");
+            RectTransform quitRect = quitButton.GetComponent<RectTransform>();
+            Require(quitRect.anchorMin == Vector2.one && quitRect.anchorMax == Vector2.one,
+                "The quit button is not anchored to the top-right corner.");
+            Require(quitButton.transform.GetSiblingIndex() == canvas.transform.childCount - 1,
+                "The quit button is not rendered above the other UI panels.");
             MapEditorToolbarBuilder.Ensure(manager, manager.toolToolbarOffset, Array.Empty<string>());
+            MapEditorSceneUiBuilder.BringQuitButtonToFront();
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
             RequireToolbarButton(toolbar, "BrushToolButton", "브러시", MapEditorToolbarAction.Brush);

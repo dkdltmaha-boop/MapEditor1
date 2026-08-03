@@ -405,6 +405,13 @@ public class MapData
         }
     }
 
+    public void ClearLayer(MapEditorLayerType layerType)
+    {
+        EnsureInitialized();
+        GetLayerData(layerType).Clear();
+        SyncAllFlatCellsFromLayers();
+    }
+
     public bool IsInside(int x, int y)
     {
         return x >= 0 && x < width && y >= 0 && y < height;

@@ -45,7 +45,9 @@ public static class MapEditorExportSmokeTest
 
         ValidateValidationReport(validation);
         ValidateLayerRoundTrip(mapData);
+        ValidateLayerIsolation();
         ValidateLayerSettingsRoundTrip();
+        ValidateBrushGeometry();
         ValidateFullImageTile(root);
 
         string mapPath = Path.Combine(root, "map.json");
@@ -340,6 +342,40 @@ public static class MapEditorExportSmokeTest
             "Loading changed layered pixel data.");
     }
 
+    private static void ValidateLayerIsolation()
+    {
+        MapData source = new MapData(2, 2);
+        Color groundColor = new Color(0.2f, 0.6f, 0.3f, 1f);
+        source.SetTileOnLayer(
+            0, 0, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId,
+            groundColor, string.Empty, -1, 0, false, false);
+
+        MapTilePixelData objectPixels = MapTilePixelData.CreateFilled(16, Color.clear);
+        objectPixels.SetPixel(3, 4, Color.red);
+        source.SetTileOnLayer(
+            0, 0, MapEditorLayerType.Object, MapEditorManager.CustomColorTileId,
+            Color.white, string.Empty, -1, 0, false, false);
+        source.SetPixelDataOnLayer(0, 0, MapEditorLayerType.Object, objectPixels);
+
+        MapData loaded = MapData.FromSaveData(source.ToSaveData());
+        Require(
+            loaded.GetTile(0, 0, MapEditorLayerType.Ground) == MapEditorManager.CustomColorTileId
+                && loaded.GetColor(0, 0, MapEditorLayerType.Ground) == groundColor,
+            "Object painting or save/load changed the Ground layer.");
+        Require(
+            loaded.GetPixelData(0, 0, MapEditorLayerType.Object)?.GetPixel(3, 4) == Color.red,
+            "Save/load removed transparent Object-layer pixel data.");
+
+        loaded.ClearLayer(MapEditorLayerType.Object);
+        Require(
+            loaded.GetTile(0, 0, MapEditorLayerType.Object) == -1,
+            "Clearing the Object layer left Object data behind.");
+        Require(
+            loaded.GetTile(0, 0, MapEditorLayerType.Ground) == MapEditorManager.CustomColorTileId
+                && loaded.GetColor(0, 0, MapEditorLayerType.Ground) == groundColor,
+            "Clearing the Object layer also cleared the Ground layer.");
+    }
+
     private static void ValidateLayerSettingsRoundTrip()
     {
         MapSaveData source = new MapSaveData(2, 2)
@@ -358,6 +394,45 @@ public static class MapEditorExportSmokeTest
         Require(loaded.layerSettings != null && loaded.layerSettings.Length == 3, "Layer settings were not serialized.");
         Require(loaded.layerSettings[0].displayName == "Floor", "A custom layer name was not preserved.");
         Require(!loaded.layerSettings[1].visible, "A hidden layer was restored as visible.");
+    }
+
+    private static void ValidateBrushGeometry()
+    {
+        List<Vector2Int> line = new List<Vector2Int>();
+        MapEditorBrushGeometry.RasterizeLine(new Vector2Int(1, 2), new Vector2Int(9, 6), line.Add);
+
+        Require(line.Count == 9, "Brush interpolation did not cover the longest line axis.");
+        Require(line[0] == new Vector2Int(1, 2) && line[line.Count - 1] == new Vector2Int(9, 6),
+            "Brush interpolation changed a stroke endpoint.");
+
+        for (int i = 1; i < line.Count; i++)
+        {
+            Vector2Int delta = line[i] - line[i - 1];
+            Require(Mathf.Abs(delta.x) <= 1 && Mathf.Abs(delta.y) <= 1,
+                "Brush interpolation left a gap between stroke samples.");
+        }
+
+        const int sourceWidth = 2;
+        const int sourceHeight = 3;
+        Vector2Int rotatedSize = MapEditorBrushGeometry.GetRotatedSize(sourceWidth, sourceHeight, 90);
+        Require(rotatedSize == new Vector2Int(3, 2), "A 90-degree brush rotation did not swap its dimensions.");
+
+        HashSet<Vector2Int> visitedSourceTiles = new HashSet<Vector2Int>();
+
+        for (int y = 0; y < rotatedSize.y; y++)
+        {
+            for (int x = 0; x < rotatedSize.x; x++)
+            {
+                Vector2Int source = MapEditorBrushGeometry.MapOutputToSource(
+                    x, y, sourceWidth, sourceHeight, 90, false, false);
+                Require(source.x >= 0 && source.x < sourceWidth && source.y >= 0 && source.y < sourceHeight,
+                    "A rotated brush tile mapped outside its source selection.");
+                visitedSourceTiles.Add(source);
+            }
+        }
+
+        Require(visitedSourceTiles.Count == sourceWidth * sourceHeight,
+            "A rotated multi-tile brush duplicated or omitted source tiles.");
     }
 
     private static void ValidateFullImageTile(string root)

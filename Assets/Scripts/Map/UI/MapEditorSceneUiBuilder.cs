@@ -6,6 +6,7 @@ public static class MapEditorSceneUiBuilder
 {
     private const string BackgroundObjectName = "MapEditor_Background";
     private const string LogoObjectName = "MapEditor_Logo";
+    private const string QuitButtonObjectName = "MapEditor_QuitButton";
 
     public static void EnsureBackground()
     {
@@ -16,6 +17,7 @@ public static class MapEditorSceneUiBuilder
             return;
         }
 
+        ConfigureCanvasScaler(canvas);
         MapEditorObjectUtility.RemoveDuplicateManagedRoots(canvas.transform, null, BackgroundObjectName);
         Transform existing = canvas.transform.Find(BackgroundObjectName);
         RawImage background;
@@ -50,8 +52,8 @@ public static class MapEditorSceneUiBuilder
         rect.anchorMin = new Vector2(0.5f, 0.5f);
         rect.anchorMax = new Vector2(0.5f, 0.5f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        RectTransform canvasRect = canvas.transform as RectTransform;
-        rect.sizeDelta = canvasRect == null ? new Vector2(1920f, 1080f) : canvasRect.rect.size;
+        rect.anchoredPosition = Vector2.zero;
+        rect.sizeDelta = Vector2.zero;
 
         AspectRatioFitter fitter = background.GetComponent<AspectRatioFitter>();
         if (fitter == null)
@@ -66,6 +68,27 @@ public static class MapEditorSceneUiBuilder
 
         background.transform.SetAsFirstSibling();
         EnsureLogo(canvas);
+        EnsureQuitButton(canvas);
+    }
+
+    public static void ConfigureCanvasScaler(Canvas canvas)
+    {
+        if (canvas == null)
+        {
+            return;
+        }
+
+        CanvasScaler scaler = canvas.GetComponent<CanvasScaler>();
+
+        if (scaler == null)
+        {
+            scaler = canvas.gameObject.AddComponent<CanvasScaler>();
+        }
+
+        scaler.uiScaleMode = CanvasScaler.ScaleMode.ConstantPixelSize;
+        scaler.scaleFactor = 1f;
+        scaler.referencePixelsPerUnit = 100f;
+        canvas.pixelPerfect = true;
     }
 
     private static void EnsureLogo(Canvas canvas)
@@ -113,6 +136,96 @@ public static class MapEditorSceneUiBuilder
 
         logo.gameObject.SetActive(texture != null);
         logo.transform.SetSiblingIndex(Mathf.Min(1, canvas.transform.childCount - 1));
+    }
+
+    public static void EnsureQuitButton(Canvas canvas)
+    {
+        if (canvas == null)
+        {
+            return;
+        }
+
+        MapEditorObjectUtility.RemoveDuplicateManagedRoots(canvas.transform, null, QuitButtonObjectName);
+        Transform existing = canvas.transform.Find(QuitButtonObjectName);
+        GameObject buttonObject;
+
+        if (existing == null)
+        {
+            buttonObject = new GameObject(QuitButtonObjectName, typeof(RectTransform), typeof(Image), typeof(Button));
+            buttonObject.transform.SetParent(canvas.transform, false);
+        }
+        else
+        {
+            buttonObject = existing.gameObject;
+        }
+
+        RectTransform rect = buttonObject.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.one;
+        rect.anchorMax = Vector2.one;
+        rect.pivot = Vector2.one;
+        rect.anchoredPosition = new Vector2(-4f, -4f);
+        rect.sizeDelta = new Vector2(30f, 30f);
+
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = new Color(0.72f, 0.16f, 0.18f, 0.98f);
+        image.raycastTarget = true;
+
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.onClick.RemoveAllListeners();
+        button.onClick.AddListener(QuitApplication);
+
+        Transform textTransform = buttonObject.transform.Find("Text");
+        Text label;
+
+        if (textTransform == null)
+        {
+            GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+            textObject.transform.SetParent(buttonObject.transform, false);
+            label = textObject.GetComponent<Text>();
+        }
+        else
+        {
+            label = textTransform.GetComponent<Text>();
+        }
+
+        RectTransform textRect = label.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = Vector2.zero;
+        textRect.offsetMax = Vector2.zero;
+        label.text = "X";
+        label.font = MapEditorFontProvider.Default;
+        label.fontSize = 18;
+        label.fontStyle = FontStyle.Bold;
+        label.alignment = TextAnchor.MiddleCenter;
+        label.color = Color.white;
+        label.raycastTarget = false;
+
+        buttonObject.transform.SetAsLastSibling();
+    }
+
+    public static void BringQuitButtonToFront()
+    {
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Transform button = canvas == null ? null : canvas.transform.Find(QuitButtonObjectName);
+
+        if (button != null && button.GetSiblingIndex() != canvas.transform.childCount - 1)
+        {
+            button.SetAsLastSibling();
+        }
+    }
+
+    private static void QuitApplication()
+    {
+#if UNITY_EDITOR
+        if (Application.isPlaying)
+        {
+            UnityEditor.EditorApplication.isPlaying = false;
+        }
+#else
+        Application.Quit();
+#endif
     }
 
     public static MapEditorToolbarRefs EnsureToolToolbar(MapEditorManager manager, Vector2 offset, IReadOnlyList<string> recentPngPaths)

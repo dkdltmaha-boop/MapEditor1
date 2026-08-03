@@ -31,7 +31,7 @@ public class MapEditorMapEditingService
         this.getPngTileSprite = getPngTileSprite;
         this.refreshMinimap = refreshMinimap;
         cellRender = new MapEditorCellRenderService(getPngTileSprite, isLayerVisible);
-        clipboardEdit = new MapEditorClipboardEditService(getMapData, getPngTileSprite, BeginTransaction, CommitTransaction, SetCellTileWithLayer);
+        clipboardEdit = new MapEditorClipboardEditService(getMapData, getActiveLayer, getPngTileSprite, BeginTransaction, CommitTransaction, SetCellTileWithLayer);
         paintOperations = new MapEditorPaintOperationService(SetCellTile);
     }
 
@@ -145,6 +145,45 @@ public class MapEditorMapEditingService
     public void EraseCell(GridCell cell, int brushSize)
     {
         paintOperations.EraseCell(cell, brushSize);
+    }
+
+    public void ClearLayer(MapEditorLayerType layerType)
+    {
+        MapData mapData = getMapData();
+
+        if (mapData == null)
+        {
+            return;
+        }
+
+        BeginTransaction();
+
+        for (int y = 0; y < mapData.height; y++)
+        {
+            for (int x = 0; x < mapData.width; x++)
+            {
+                if (mapData.GetTile(x, y, layerType) == -1)
+                {
+                    continue;
+                }
+
+                SetCellTileWithLayer(
+                    x,
+                    y,
+                    -1,
+                    Color.white,
+                    null,
+                    string.Empty,
+                    -1,
+                    0,
+                    false,
+                    false,
+                    layerType,
+                    true);
+            }
+        }
+
+        CommitTransaction();
     }
 
     public void HandleAreaFill(GridCell cell, MapEditorPaintSelection selection)

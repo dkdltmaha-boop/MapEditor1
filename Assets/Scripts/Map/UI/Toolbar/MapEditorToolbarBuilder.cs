@@ -104,6 +104,17 @@ public static class MapEditorToolbarBuilder
         }
     }
 
+    public static void RefreshLayout(Vector2 offset)
+    {
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Transform toolbar = canvas == null ? null : FindExistingToolbar(canvas.transform);
+
+        if (toolbar != null)
+        {
+            ConfigureToolToolbar(toolbar, offset);
+        }
+    }
+
     private static Transform FindExistingToolbar(Transform canvas)
     {
         Transform toolToolbar = canvas.Find(ToolbarObjectName);
@@ -217,7 +228,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, L("창작마당 내보내기", "Export Workshop"), L("클릭", "Click"), MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
         EnsureToolbarActionButton(toolbar, manager, L("창작마당 업로드", "Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopUploadButton");
         EnsureToolbarActionButton(toolbar, manager, L("도움말", "Help"), "F1", MapEditorToolbarAction.PackageGuide, "HelpButton");
-        EnsureToolbarActionButton(toolbar, manager, L("전체 지우기", "Clear All"), L("클릭", "Click"), MapEditorToolbarAction.Clear, "ClearButton");
+        EnsureToolbarActionButton(toolbar, manager, L("현재 레이어 지우기", "Clear Layer"), L("클릭", "Click"), MapEditorToolbarAction.Clear, "ClearButton");
         EnsureValidationStatus(toolbar);
         EnsureRecentPngList(toolbar);
     }
@@ -501,6 +512,17 @@ public static class MapEditorLayerPanelBuilder
         ConfigurePanel(panel, toolbarOffset);
         EnsureContents(panel, manager, buttonImages);
         return buttonImages;
+    }
+
+    public static void RefreshLayout(Vector2 toolbarOffset)
+    {
+        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Transform panel = canvas == null ? null : canvas.transform.Find(LayerPanelObjectName);
+
+        if (panel != null)
+        {
+            ConfigurePanel(panel, toolbarOffset);
+        }
     }
 
     private static Transform CreatePanel(Transform parent)

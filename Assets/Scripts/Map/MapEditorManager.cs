@@ -142,7 +142,6 @@ public class MapEditorManager : MonoBehaviour
     private Vector2Int? rectangleFillDragEnd;
     private RectInt? previewRegion;
     private MapEditorLayerType lastPaintLayer = MapEditorLayerType.Ground;
-    private bool layerToolbarRefreshPending;
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
@@ -213,14 +212,7 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        mapEditing = new MapEditorMapEditingService(
-            () => CurrentMapData,
-            () => activeLayer,
-            IsLayerVisible,
-            cells,
-            GetPngTileSprite,
-            RefreshMinimap,
-            ResolveTilePaintLayer);
+        mapEditing = new MapEditorMapEditingService(() => CurrentMapData, () => activeLayer, IsLayerVisible, cells, GetPngTileSprite, RefreshMinimap);
     }
 
     private MapEditorTilesetLibraryService EnsureTilesetLibrary()
@@ -419,12 +411,6 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        if (layerToolbarRefreshPending)
-        {
-            layerToolbarRefreshPending = false;
-            CreateToolToolbar();
-        }
-
         RefreshResponsiveLayout(false);
         MapEditorSceneUiBuilder.BringQuitButtonToFront();
         inputService.Tick();
@@ -552,6 +538,7 @@ public class MapEditorManager : MonoBehaviour
     {
         CancelTransientToolState();
         useWallTileBrush = false;
+        RestoreLastPaintLayer();
 
         if (EditorToolController.Instance != null)
         {
@@ -682,71 +669,6 @@ public class MapEditorManager : MonoBehaviour
         EnsureLayerSettings();
         MapEditorLayerSetting setting = FindLayerSetting(layerType);
         return setting == null ? !MapEditorLayerUtility.IsOptional(layerType) : setting.enabled;
-    }
-
-    private MapEditorLayerType ResolveTilePaintLayer(int x, int y, MapEditorLayerType requestedLayer)
-    {
-        MapData mapData = CurrentMapData;
-
-        if (mapData == null
-            || !mapData.IsInside(x, y)
-            || mapData.GetTile(x, y, requestedLayer) == -1)
-        {
-            return requestedLayer;
-        }
-
-        MapEditorLayerType baseLayer = MapEditorLayerUtility.GetBaseLayer(requestedLayer);
-
-        if (baseLayer != MapEditorLayerType.Ground
-            && baseLayer != MapEditorLayerType.Object
-            && baseLayer != MapEditorLayerType.WallVisual)
-        {
-            return requestedLayer;
-        }
-
-        MapEditorLayerType[] optionalLayers = MapEditorLayerUtility.GetOptionalLayers(baseLayer);
-        int startIndex = -1;
-
-        for (int i = 0; i < optionalLayers.Length; i++)
-        {
-            if (optionalLayers[i] == requestedLayer)
-            {
-                startIndex = i;
-                break;
-            }
-        }
-
-        for (int i = startIndex + 1; i < optionalLayers.Length; i++)
-        {
-            MapEditorLayerType candidate = optionalLayers[i];
-
-            if (mapData.GetTile(x, y, candidate) != -1)
-            {
-                continue;
-            }
-
-            EnsureOverlayLayerEnabled(candidate);
-            return candidate;
-        }
-
-        Debug.LogWarning("겹쳐 그릴 수 있는 빈 레이어가 없어 현재 레이어를 교체했습니다.");
-        return requestedLayer;
-    }
-
-    private void EnsureOverlayLayerEnabled(MapEditorLayerType layerType)
-    {
-        EnsureLayerSettings();
-        MapEditorLayerSetting setting = FindLayerSetting(layerType);
-
-        if (setting == null || setting.enabled)
-        {
-            return;
-        }
-
-        setting.enabled = true;
-        setting.visible = true;
-        setting.displayName = GetDefaultLayerName(layerType);
-        layerToolbarRefreshPending = true;
     }
 
     public void AddUserLayer(MapEditorLayerType baseLayer)
@@ -1449,8 +1371,14 @@ public class MapEditorManager : MonoBehaviour
     {
         ClearSelection();
         CurrentMapData.Clear();
+        EnsureSpawnPointList();
+        pixelChromaSpawnPoints.Clear();
+        previewRegion = null;
         mapEditing.ClearHistory();
         RefreshAllCells();
+        RefreshSpawnMarker();
+        UpdatePlayerScaleGuide();
+        UpdateBrushCursorPreview();
         RefreshMinimap();
     }
 

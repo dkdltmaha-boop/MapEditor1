@@ -90,6 +90,12 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Standalone Validate Map button is still visible.");
             RequireToolbarButton(toolbar, "WorkshopButton", "검사 후 창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
             RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
+            Require(toolbar.Find("ClearButton")?.GetComponent<MapEditorToolbarButton>()?.action
+                    == MapEditorToolbarAction.Clear,
+                "Clear Layer button is not connected to the current-layer clear action.");
+            Require(toolbar.Find("ClearAllButton")?.GetComponent<MapEditorToolbarButton>()?.action
+                    == MapEditorToolbarAction.ClearAll,
+                "Clear All button is missing or connected to the wrong action.");
             Require(toolbar.Find("CharacterTestToolButton") == null, "Removed character test tool is still visible.");
 
             MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
@@ -107,12 +113,20 @@ public static class MapEditorSizeConfigurationSmokeTest
             manager.SetWallTileTool();
             Require(manager.ActiveLayer == MapEditorLayerType.WallCollision,
                 "Wall tool did not activate the collision layer.");
+            manager.SetSelectionTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+                "Selection tool did not restore the last normal layer after Wall.");
+            manager.SetWallTileTool();
             manager.SetBrushTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Object,
                 "Brush tool did not restore the last normal paint layer after Wall.");
             manager.SetSpawnTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Spawn,
                 "Start Point tool did not activate the Spawn layer.");
+            manager.SetSelectionTool();
+            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+                "Selection tool did not restore the last normal layer after Start Point.");
+            manager.SetSpawnTool();
             manager.SetBrushTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Object,
                 "Brush tool did not restore the last normal paint layer after Start Point.");

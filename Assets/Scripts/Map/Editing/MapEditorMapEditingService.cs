@@ -6,7 +6,6 @@ public class MapEditorMapEditingService
 {
     private readonly Func<MapData> getMapData;
     private readonly Func<MapEditorLayerType> getActiveLayer;
-    private readonly Func<int, int, MapEditorLayerType, MapEditorLayerType> resolveTilePaintLayer;
     private readonly Func<MapEditorLayerType, bool> isLayerVisible;
     private readonly Dictionary<Vector2Int, GridCell> cells;
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
@@ -23,12 +22,10 @@ public class MapEditorMapEditingService
         Func<MapEditorLayerType, bool> isLayerVisible,
         Dictionary<Vector2Int, GridCell> cells,
         Func<string, int, int, bool, bool, Sprite> getPngTileSprite,
-        Action refreshMinimap,
-        Func<int, int, MapEditorLayerType, MapEditorLayerType> resolveTilePaintLayer = null)
+        Action refreshMinimap)
     {
         this.getMapData = getMapData;
         this.getActiveLayer = getActiveLayer;
-        this.resolveTilePaintLayer = resolveTilePaintLayer;
         this.isLayerVisible = isLayerVisible;
         this.cells = cells;
         this.getPngTileSprite = getPngTileSprite;
@@ -388,12 +385,6 @@ public class MapEditorMapEditingService
     private void SetCellTile(int x, int y, int tileId, Color color, Sprite sprite, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY, bool recordUndo)
     {
         MapEditorLayerType layer = getActiveLayer();
-
-        if (tileId != -1 && resolveTilePaintLayer != null)
-        {
-            layer = resolveTilePaintLayer(x, y, layer);
-        }
-
         SetCellTileWithLayer(x, y, tileId, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY, layer, recordUndo);
     }
 

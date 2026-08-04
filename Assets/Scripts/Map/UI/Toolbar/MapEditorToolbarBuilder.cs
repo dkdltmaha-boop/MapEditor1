@@ -232,6 +232,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, L("창작마당 업로드", "Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopUploadButton");
         EnsureToolbarActionButton(toolbar, manager, L("도움말", "Help"), "F1", MapEditorToolbarAction.PackageGuide, "HelpButton");
         EnsureToolbarActionButton(toolbar, manager, L("현재 레이어 지우기", "Clear Layer"), L("클릭", "Click"), MapEditorToolbarAction.Clear, "ClearButton");
+        EnsureToolbarActionButton(toolbar, manager, L("전체 지우기", "Clear All"), L("클릭", "Click"), MapEditorToolbarAction.ClearAll, "ClearAllButton");
         EnsureValidationStatus(toolbar);
         EnsureRecentPngList(toolbar);
     }

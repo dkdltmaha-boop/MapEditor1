@@ -1,6 +1,7 @@
 public static class MapEditorLayerUtility
 {
     public const MapEditorLayerType LastLayer = MapEditorLayerType.WallVisualExtra8;
+    public const int CanvasLayerCount = 9;
 
     public static readonly MapEditorLayerType[] GroundOptionalLayers =
     {
@@ -112,6 +113,44 @@ public static class MapEditorLayerUtility
                 if (Contains(WallOptionalLayers, layerType)) return MapEditorLayerType.WallVisual;
                 return layerType;
         }
+    }
+
+    public static int GetCanvasIndex(MapEditorLayerType layerType)
+    {
+        MapEditorLayerType baseLayer = GetBaseLayer(layerType);
+        if (baseLayer != MapEditorLayerType.Ground
+            && baseLayer != MapEditorLayerType.Object
+            && baseLayer != MapEditorLayerType.WallVisual)
+        {
+            return -1;
+        }
+
+        if (layerType == baseLayer) return 0;
+        MapEditorLayerType[] layers = GetOptionalLayers(baseLayer);
+
+        for (int i = 0; i < layers.Length; i++)
+        {
+            if (layers[i] == layerType) return i + 1;
+        }
+
+        return -1;
+    }
+
+    public static MapEditorLayerType GetCanvasLayer(int canvasIndex, MapEditorLayerType role)
+    {
+        role = GetBaseLayer(role);
+        if (role != MapEditorLayerType.Ground
+            && role != MapEditorLayerType.Object
+            && role != MapEditorLayerType.WallVisual)
+        {
+            return role;
+        }
+
+        canvasIndex = UnityEngine.Mathf.Clamp(canvasIndex, 0, CanvasLayerCount - 1);
+        if (canvasIndex == 0) return role;
+
+        MapEditorLayerType[] layers = GetOptionalLayers(role);
+        return layers[canvasIndex - 1];
     }
 
     private static bool Contains(MapEditorLayerType[] layers, MapEditorLayerType layerType)

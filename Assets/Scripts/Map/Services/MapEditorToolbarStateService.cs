@@ -82,14 +82,17 @@ public sealed class MapEditorToolbarStateService
             return;
         }
 
+        HashSet<Image> refreshedImages = new HashSet<Image>();
         foreach (KeyValuePair<MapEditorLayerType, Image> pair in layerButtonImages)
         {
-            if (pair.Value == null)
+            if (pair.Value == null || !refreshedImages.Add(pair.Value))
             {
                 continue;
             }
 
-            pair.Value.color = pair.Key == manager.ActiveLayer ? SelectedButtonColor : NormalButtonColor;
+            int canvasIndex = MapEditorLayerUtility.GetCanvasIndex(pair.Key);
+            bool selected = canvasIndex >= 0 && canvasIndex == manager.ActiveCanvasIndex;
+            pair.Value.color = selected ? SelectedButtonColor : NormalButtonColor;
         }
     }
 

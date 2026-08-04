@@ -210,10 +210,13 @@ public static class MapEditorToolbarBuilder
     {
         ClearToolbarContents(toolbar);
         CreateToolbarLabel(toolbar, L("도구", "Tools"));
-        EnsureToolbarToolButton(toolbar, manager, L("브러시", "Brush"), "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
+        CreateBrushToolRow(toolbar, manager);
+        if (manager != null && manager.BrushRoleMenuOpen)
+        {
+            CreateBrushRoleRow(toolbar, manager);
+        }
         EnsureToolbarToolButton(toolbar, manager, L("직선", "Line"), "L", EditorToolType.Line, MapEditorToolbarAction.Line, "LineToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("사각형 채우기", "Rectangle Fill"), "G", EditorToolType.RectangleFill, MapEditorToolbarAction.RectangleFill, "RectangleFillToolButton");
-        EnsureToolbarToolButton(toolbar, manager, L("벽", "Wall"), "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("레이어 지우개", "Erase Layer"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("브러시 지우개", "Brush Eraser"), "Shift+E", EditorToolType.BrushEraser, MapEditorToolbarAction.BrushEraser, "BrushEraserToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
@@ -358,6 +361,88 @@ public static class MapEditorToolbarBuilder
         }
 
         MapEditorToolbarButtonFactory.CreateActionButton(toolbar, manager, label, shortcut, action, objectName);
+    }
+
+    private static void CreateBrushToolRow(Transform toolbar, MapEditorManager manager)
+    {
+        GameObject rowObject = new GameObject("BrushToolRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        rowObject.transform.SetParent(toolbar, false);
+        rowObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 18f);
+
+        HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
+        layout.spacing = 2f;
+        layout.childControlWidth = false;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        string roleLabel = GetBrushRoleLabel(manager == null ? MapEditorLayerType.Ground : manager.BrushLayerRole);
+        Button brush = MapEditorToolbarButtonFactory.CreateActionButton(
+            rowObject.transform, manager, L("브러시 · ", "Brush · ") + roleLabel, "B", MapEditorToolbarAction.Brush, "BrushToolButton");
+        brush.GetComponent<RectTransform>().sizeDelta = new Vector2(137f, 18f);
+
+        string arrow = manager != null && manager.BrushRoleMenuOpen ? "▲" : "▼";
+        Button menu = MapEditorToolbarButtonFactory.CreateActionButton(
+            rowObject.transform, manager, arrow, string.Empty, MapEditorToolbarAction.ToggleBrushRoleMenu, "BrushRoleMenuButton");
+        menu.GetComponent<RectTransform>().sizeDelta = new Vector2(29f, 18f);
+        Text menuText = menu.GetComponentInChildren<Text>();
+        if (menuText != null) menuText.alignment = TextAnchor.MiddleCenter;
+    }
+
+    private static string GetBrushRoleLabel(MapEditorLayerType role)
+    {
+        switch (MapEditorLayerUtility.GetBaseLayer(role))
+        {
+            case MapEditorLayerType.Object:
+                return L("물체", "Object");
+            case MapEditorLayerType.WallVisual:
+                return L("벽", "Wall");
+            case MapEditorLayerType.WallCollision:
+                return L("충돌", "Collision");
+            default:
+                return L("바닥", "Ground");
+        }
+    }
+
+    private static void CreateBrushRoleRow(Transform toolbar, MapEditorManager manager)
+    {
+        GameObject rowObject = new GameObject("BrushRoleRow", typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        rowObject.transform.SetParent(toolbar, false);
+        rowObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 18f);
+
+        HorizontalLayoutGroup layout = rowObject.GetComponent<HorizontalLayoutGroup>();
+        layout.spacing = 2f;
+        layout.childControlWidth = false;
+        layout.childControlHeight = true;
+        layout.childForceExpandWidth = false;
+        layout.childForceExpandHeight = true;
+
+        CreateBrushRoleButton(rowObject.transform, manager, L("바닥", "Ground"), MapEditorLayerType.Ground);
+        CreateBrushRoleButton(rowObject.transform, manager, L("물체", "Object"), MapEditorLayerType.Object);
+        CreateBrushRoleButton(rowObject.transform, manager, L("벽", "Wall"), MapEditorLayerType.WallVisual);
+        CreateBrushRoleButton(rowObject.transform, manager, L("충돌", "Collision"), MapEditorLayerType.WallCollision);
+    }
+
+    private static void CreateBrushRoleButton(Transform parent, MapEditorManager manager, string label, MapEditorLayerType role)
+    {
+        Button button = MapEditorToolbarButtonFactory.CreateActionButton(
+            parent, manager, label, string.Empty, MapEditorToolbarAction.SetBrushRole, "BrushRole_" + role);
+        button.GetComponent<RectTransform>().sizeDelta = new Vector2(40f, 18f);
+        MapEditorToolbarButton handler = button.GetComponent<MapEditorToolbarButton>();
+        handler.intArgument = (int)role;
+
+        Image image = button.GetComponent<Image>();
+        if (manager != null && manager.BrushLayerRole == role)
+        {
+            image.color = new Color(0.18f, 0.48f, 0.95f, 1f);
+        }
+
+        Text text = button.GetComponentInChildren<Text>();
+        if (text != null)
+        {
+            text.alignment = TextAnchor.MiddleCenter;
+            text.fontSize = 8;
+        }
     }
 
     private static string GetToolbarObjectName(string label, string suffix)
@@ -606,18 +691,13 @@ public static class MapEditorLayerPanelBuilder
         GameObject gridObject = new GameObject("LayerGrid", typeof(RectTransform), typeof(GridLayoutGroup));
         gridObject.transform.SetParent(viewportObject.transform, false);
 
-        int enabledLayerCount = 0;
-
-        foreach (MapEditorLayerType layerType in System.Enum.GetValues(typeof(MapEditorLayerType)))
+        int enabledLayerCount = 1;
+        if (manager != null)
         {
-            if (layerType == MapEditorLayerType.Zone)
+            enabledLayerCount = 0;
+            for (int i = 0; i < MapEditorLayerUtility.CanvasLayerCount; i++)
             {
-                continue;
-            }
-
-            if (manager == null || manager.IsLayerEnabled(layerType))
-            {
-                enabledLayerCount++;
+                if (manager.IsCanvasEnabled(i)) enabledLayerCount++;
             }
         }
 
@@ -643,15 +723,131 @@ public static class MapEditorLayerPanelBuilder
         grid.constraintCount = 1;
         grid.childAlignment = TextAnchor.UpperLeft;
 
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Ground);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Object);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallVisual);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallCollision);
-        CreateLayerButton(gridObject.transform, manager, buttonImages, MapEditorLayerType.Spawn);
-        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.Ground);
-        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.Object);
-        CreateOptionalLayerButtons(gridObject.transform, manager, buttonImages, MapEditorLayerType.WallVisual);
+        for (int canvasIndex = MapEditorLayerUtility.CanvasLayerCount - 1; canvasIndex >= 0; canvasIndex--)
+        {
+            if (manager == null || manager.IsCanvasEnabled(canvasIndex))
+            {
+                CreateCanvasLayerButton(gridObject.transform, manager, buttonImages, canvasIndex);
+            }
+        }
         CreateLayerManagementRow(panel, manager);
+    }
+
+    private static void CreateCanvasLayerButton(
+        Transform parent,
+        MapEditorManager manager,
+        Dictionary<MapEditorLayerType, Image> buttonImages,
+        int canvasIndex)
+    {
+        GameObject rowObject = new GameObject("CanvasLayerRow_" + canvasIndex, typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        rowObject.transform.SetParent(parent, false);
+
+        HorizontalLayoutGroup rowLayout = rowObject.GetComponent<HorizontalLayoutGroup>();
+        rowLayout.spacing = 3f;
+        rowLayout.childControlWidth = false;
+        rowLayout.childControlHeight = true;
+        rowLayout.childForceExpandWidth = false;
+        rowLayout.childForceExpandHeight = true;
+
+        GameObject selectObject = new GameObject("CanvasLayer_" + canvasIndex, typeof(RectTransform), typeof(Image), typeof(Button));
+        selectObject.transform.SetParent(rowObject.transform, false);
+        selectObject.GetComponent<RectTransform>().sizeDelta = new Vector2(38f, 0f);
+
+        Image selectImage = selectObject.GetComponent<Image>();
+        bool selected = manager != null && manager.ActiveCanvasIndex == canvasIndex;
+        selectImage.color = selected ? new Color(0.18f, 0.48f, 0.95f, 1f) : new Color(0.25f, 0.25f, 0.25f, 1f);
+        Button selectButton = selectObject.GetComponent<Button>();
+        selectButton.targetGraphic = selectImage;
+        selectButton.transition = Selectable.Transition.None;
+
+        MapEditorToolbarButton selectHandler = selectObject.AddComponent<MapEditorToolbarButton>();
+        selectHandler.manager = manager;
+        selectHandler.action = MapEditorToolbarAction.SetCanvas;
+        selectHandler.intArgument = canvasIndex;
+        CreateCenteredText(selectObject.transform, "선택", ButtonFontSize);
+
+        foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+        {
+            buttonImages[MapEditorLayerUtility.GetCanvasLayer(canvasIndex, role)] = selectImage;
+        }
+        if (selected) buttonImages[MapEditorLayerType.WallCollision] = selectImage;
+
+        CreateCanvasNameInput(rowObject.transform, manager, canvasIndex);
+        CreateCanvasVisibilityButton(rowObject.transform, manager, canvasIndex);
+    }
+
+    private static void CreateCanvasNameInput(Transform parent, MapEditorManager manager, int canvasIndex)
+    {
+        GameObject inputObject = new GameObject("CanvasLayerName_" + canvasIndex, typeof(RectTransform), typeof(Image), typeof(InputField));
+        inputObject.transform.SetParent(parent, false);
+        inputObject.GetComponent<RectTransform>().sizeDelta = new Vector2(87f, 0f);
+
+        Image background = inputObject.GetComponent<Image>();
+        background.color = new Color(0.09f, 0.09f, 0.09f, 1f);
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(inputObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(5f, 1f);
+        textRect.offsetMax = new Vector2(-5f, -1f);
+
+        Text text = textObject.GetComponent<Text>();
+        text.font = MapEditorFontProvider.Default;
+        text.fontSize = ButtonFontSize;
+        text.alignment = TextAnchor.MiddleLeft;
+        text.color = Color.white;
+        text.supportRichText = false;
+
+        InputField input = inputObject.GetComponent<InputField>();
+        input.targetGraphic = background;
+        input.textComponent = text;
+        input.text = manager == null ? "레이어 " + (canvasIndex + 1) : manager.GetCanvasDisplayName(canvasIndex);
+        input.characterLimit = 18;
+        input.lineType = InputField.LineType.SingleLine;
+
+        MapEditorCanvasNameInput nameInput = inputObject.AddComponent<MapEditorCanvasNameInput>();
+        nameInput.manager = manager;
+        nameInput.canvasIndex = canvasIndex;
+    }
+
+    private static void CreateCanvasVisibilityButton(Transform parent, MapEditorManager manager, int canvasIndex)
+    {
+        GameObject buttonObject = new GameObject("CanvasLayerVisibility_" + canvasIndex, typeof(RectTransform), typeof(Image), typeof(Button));
+        buttonObject.transform.SetParent(parent, false);
+        buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(45f, 0f);
+
+        bool visible = manager == null || manager.IsCanvasVisible(canvasIndex);
+        Image image = buttonObject.GetComponent<Image>();
+        image.color = visible ? new Color(0.18f, 0.48f, 0.95f, 1f) : new Color(0.18f, 0.18f, 0.18f, 1f);
+        Button button = buttonObject.GetComponent<Button>();
+        button.targetGraphic = image;
+        button.transition = Selectable.Transition.None;
+
+        MapEditorToolbarButton handler = buttonObject.AddComponent<MapEditorToolbarButton>();
+        handler.manager = manager;
+        handler.action = MapEditorToolbarAction.ToggleCanvasVisible;
+        handler.intArgument = canvasIndex;
+        CreateCenteredText(buttonObject.transform, visible ? "ON" : "OFF", ButtonFontSize);
+    }
+
+    private static void CreateCenteredText(Transform parent, string value, int fontSize)
+    {
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(parent, false);
+        RectTransform rect = textObject.GetComponent<RectTransform>();
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+
+        Text text = textObject.GetComponent<Text>();
+        text.text = value;
+        text.font = MapEditorFontProvider.Default;
+        text.fontSize = fontSize;
+        text.alignment = TextAnchor.MiddleCenter;
+        text.color = Color.white;
+        text.raycastTarget = false;
     }
 
     private static void CreateOptionalLayerButtons(
@@ -835,10 +1031,8 @@ public static class MapEditorLayerPanelBuilder
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
 
-        CreateLayerManagementButton(rowObject.transform, manager, "+바닥", MapEditorToolbarAction.AddLayer, MapEditorLayerType.Ground, 45f);
-        CreateLayerManagementButton(rowObject.transform, manager, "+오브젝트", MapEditorToolbarAction.AddLayer, MapEditorLayerType.Object, 51f);
-        CreateLayerManagementButton(rowObject.transform, manager, "+벽", MapEditorToolbarAction.AddLayer, MapEditorLayerType.WallVisual, 37f);
-        CreateLayerManagementButton(rowObject.transform, manager, "삭제", MapEditorToolbarAction.DeleteLayer, MapEditorLayerType.Ground, 34f);
+        CreateLayerManagementButton(rowObject.transform, manager, "+ 레이어", MapEditorToolbarAction.AddCanvas, MapEditorLayerType.Ground, 83f);
+        CreateLayerManagementButton(rowObject.transform, manager, "레이어 삭제", MapEditorToolbarAction.DeleteCanvas, MapEditorLayerType.Ground, 83f);
     }
 
     private static void CreateLayerManagementButton(
@@ -854,7 +1048,7 @@ public static class MapEditorLayerPanelBuilder
         buttonObject.GetComponent<RectTransform>().sizeDelta = new Vector2(width, 0f);
 
         Image image = buttonObject.GetComponent<Image>();
-        image.color = action == MapEditorToolbarAction.DeleteLayer
+        image.color = action == MapEditorToolbarAction.DeleteLayer || action == MapEditorToolbarAction.DeleteCanvas
             ? new Color(0.55f, 0.2f, 0.2f, 1f)
             : new Color(0.22f, 0.35f, 0.5f, 1f);
 

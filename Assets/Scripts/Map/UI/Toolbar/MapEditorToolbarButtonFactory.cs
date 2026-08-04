@@ -107,7 +107,17 @@ public static class MapEditorToolbarButtonFactory
 
         if (button == null)
         {
-            return;
+            Transform[] descendants = toolbar.GetComponentsInChildren<Transform>(true);
+            for (int i = 0; i < descendants.Length; i++)
+            {
+                if (descendants[i].name == objectName)
+                {
+                    button = descendants[i];
+                    break;
+                }
+            }
+
+            if (button == null) return;
         }
 
         Image image = button.GetComponent<Image>();

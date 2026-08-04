@@ -83,8 +83,10 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorSceneUiBuilder.BringQuitButtonToFront();
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
-            RequireToolbarButton(toolbar, "BrushToolButton", "브러시", MapEditorToolbarAction.Brush);
-            RequireToolbarButton(toolbar, "WallToolButton", "벽", MapEditorToolbarAction.Wall);
+            RequireToolbarButton(toolbar, "BrushToolButton", "브러시 · 바닥", MapEditorToolbarAction.Brush);
+            RequireToolbarButton(toolbar, "BrushRoleMenuButton", "▼", MapEditorToolbarAction.ToggleBrushRoleMenu);
+            Require(FindDescendant(toolbar, "WallToolButton") == null,
+                "Legacy standalone Wall tool is still visible.");
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
             Require(toolbar.Find("ValidateButton") == null,
                 "Standalone Validate Map button is still visible.");
@@ -103,25 +105,24 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
             Transform layerPanel = canvas.transform.Find("MapEditor_LayerPanel");
             Require(layerPanel != null, "Layer panel was not created.");
-            Require(layerPanel.Find("LayerGrid/LayerRow_Ground/Layer_Ground")?.GetComponent<MapEditorToolbarButton>()?.action
-                    == MapEditorToolbarAction.SetLayer,
-                "Ground layer does not have an explicit selection button.");
-            Require(layerPanel.Find("LayerManagement/LayerAction_AddLayer_Object") != null,
-                "Object-layer add button is missing.");
-            Require(layerPanel.Find("LayerManagement/LayerAction_DeleteLayer_Ground") != null,
-                "Optional-layer delete button is missing.");
+            Require(FindDescendant(layerPanel, "CanvasLayer_0")?.GetComponent<MapEditorToolbarButton>()?.action
+                    == MapEditorToolbarAction.SetCanvas,
+                "The base canvas layer does not have a selection button.");
+            Require(FindDescendant(layerPanel, "LayerAction_AddCanvas_Ground") != null,
+                "Canvas-layer add button is missing.");
+            Require(FindDescendant(layerPanel, "LayerAction_DeleteCanvas_Ground") != null,
+                "Canvas-layer delete button is missing.");
 
-            manager.SetActiveLayer(MapEditorLayerType.Object);
-            manager.SetWallTileTool();
+            manager.SetBrushLayerRole(MapEditorLayerType.Object);
+            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+                "Object brush role did not select the Object slot of Layer 1.");
+            manager.SetBrushLayerRole(MapEditorLayerType.WallCollision);
             Require(manager.ActiveLayer == MapEditorLayerType.WallCollision,
-                "Wall tool did not activate the collision layer.");
+                "Collision brush role did not activate the collision layer.");
             manager.SetSelectionTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Object,
-                "Selection tool did not restore the last normal layer after Wall.");
-            manager.SetWallTileTool();
-            manager.SetBrushTool();
-            Require(manager.ActiveLayer == MapEditorLayerType.Object,
-                "Brush tool did not restore the last normal paint layer after Wall.");
+                "Selection tool did not restore the last drawable canvas slot after Collision.");
+            manager.SetBrushLayerRole(MapEditorLayerType.Object);
             manager.SetSpawnTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Spawn,
                 "Start Point tool did not activate the Spawn layer.");
@@ -133,25 +134,30 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(manager.ActiveLayer == MapEditorLayerType.Object,
                 "Brush tool did not restore the last normal paint layer after Start Point.");
 
-            manager.AddUserLayer(MapEditorLayerType.Object);
-            Require(manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra), "Object user layer was not enabled.");
-            Require(manager.ActiveLayer == MapEditorLayerType.ObjectExtra, "New Object user layer was not selected.");
+            manager.AddCanvasLayer();
+            Require(manager.IsLayerEnabled(MapEditorLayerType.GroundExtra)
+                && manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra)
+                && manager.IsLayerEnabled(MapEditorLayerType.WallVisualExtra),
+                "Adding Layer 2 did not enable all of its internal drawing slots.");
+            Require(manager.ActiveCanvasIndex == 1 && manager.ActiveLayer == MapEditorLayerType.ObjectExtra,
+                "Layer 2 was not selected with the current Object brush role.");
             manager.CurrentMapData.SetTileOnLayer(
                 0, 0, MapEditorLayerType.ObjectExtra, MapEditorManager.CustomColorTileId,
                 Color.magenta, string.Empty, -1, 0, false, false);
-            manager.AddUserLayer(MapEditorLayerType.Object);
-            Require(manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra2), "Second Object user layer was not enabled.");
-            Require(manager.ActiveLayer == MapEditorLayerType.ObjectExtra2, "Second Object user layer was not selected.");
-            manager.DeleteActiveUserLayer();
-            Require(!manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra2), "Deleted second Object user layer is still enabled.");
+            manager.AddCanvasLayer();
+            Require(manager.ActiveCanvasIndex == 2 && manager.ActiveLayer == MapEditorLayerType.ObjectExtra2,
+                "Layer 3 was not selected.");
+            manager.DeleteActiveCanvasLayer();
+            Require(!manager.IsCanvasEnabled(2), "Deleted Layer 3 is still enabled.");
             Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == MapEditorManager.CustomColorTileId,
-                "Deleting one user layer damaged another user layer.");
-            manager.SetActiveLayer(MapEditorLayerType.ObjectExtra);
-            manager.DeleteActiveUserLayer();
-            Require(!manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra), "Deleted Object user layer is still enabled.");
+                "Deleting Layer 3 damaged Layer 2.");
+            manager.SetActiveCanvas(1);
+            manager.DeleteActiveCanvasLayer();
+            Require(!manager.IsCanvasEnabled(1), "Deleted Layer 2 is still enabled.");
             Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == -1,
-                "Deleting a user layer left its tile data behind.");
-            Require(manager.ActiveLayer == MapEditorLayerType.Object, "Deleting a user layer did not select its protected base layer.");
+                "Deleting a canvas layer left its tile data behind.");
+            Require(manager.ActiveCanvasIndex == 0 && manager.ActiveLayer == MapEditorLayerType.Object,
+                "Deleting a canvas layer did not return to Layer 1 with the current brush role.");
 
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, manager.toolToolbarOffset);
             Transform panel = canvas.transform.Find("MapEditor_MapSizePanel");
@@ -335,10 +341,21 @@ public static class MapEditorSizeConfigurationSmokeTest
 
     private static void RequireToolbarButton(Transform toolbar, string objectName, string label, MapEditorToolbarAction action)
     {
-        Transform button = toolbar.Find(objectName);
+        Transform button = FindDescendant(toolbar, objectName);
         Require(button != null, objectName + " is missing.");
         Require(button.Find("Text")?.GetComponent<Text>()?.text == label, objectName + " label was not localized.");
         Require(button.GetComponent<MapEditorToolbarButton>()?.action == action, objectName + " action mapping changed.");
+    }
+
+    private static Transform FindDescendant(Transform root, string objectName)
+    {
+        Transform[] descendants = root.GetComponentsInChildren<Transform>(true);
+        for (int i = 0; i < descendants.Length; i++)
+        {
+            if (descendants[i].name == objectName) return descendants[i];
+        }
+
+        return null;
     }
 
     private static void Require(bool condition, string message)

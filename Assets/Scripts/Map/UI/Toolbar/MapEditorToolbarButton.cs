@@ -46,7 +46,13 @@ public enum MapEditorToolbarAction
     Line,
     BrushEraser,
     RectangleFill,
-    ClearAll
+    ClearAll,
+    ToggleBrushRoleMenu,
+    SetBrushRole,
+    SetCanvas,
+    ToggleCanvasVisible,
+    AddCanvas,
+    DeleteCanvas
 }
 
 public enum MapEditorLayerType
@@ -256,7 +262,52 @@ public class MapEditorToolbarButton : MonoBehaviour
             case MapEditorToolbarAction.Line:
                 target.SetLineTool();
                 break;
+            case MapEditorToolbarAction.ToggleBrushRoleMenu:
+                target.ToggleBrushRoleMenu();
+                break;
+            case MapEditorToolbarAction.SetBrushRole:
+                target.SetBrushLayerRole((MapEditorLayerType)intArgument);
+                break;
+            case MapEditorToolbarAction.SetCanvas:
+                target.SetActiveCanvas(intArgument);
+                break;
+            case MapEditorToolbarAction.ToggleCanvasVisible:
+                target.ToggleCanvasVisible(intArgument);
+                break;
+            case MapEditorToolbarAction.AddCanvas:
+                target.AddCanvasLayer();
+                break;
+            case MapEditorToolbarAction.DeleteCanvas:
+                target.DeleteActiveCanvasLayer();
+                break;
         }
+    }
+}
+
+[RequireComponent(typeof(InputField))]
+public class MapEditorCanvasNameInput : MonoBehaviour
+{
+    public MapEditorManager manager;
+    public int canvasIndex;
+
+    private InputField input;
+
+    private void OnEnable()
+    {
+        input = GetComponent<InputField>();
+        input.onEndEdit.RemoveListener(ApplyName);
+        input.onEndEdit.AddListener(ApplyName);
+    }
+
+    private void OnDisable()
+    {
+        if (input != null) input.onEndEdit.RemoveListener(ApplyName);
+    }
+
+    private void ApplyName(string value)
+    {
+        MapEditorManager target = manager != null ? manager : MapEditorManager.Instance;
+        if (target != null) target.SetCanvasDisplayName(canvasIndex, value);
     }
 }
 

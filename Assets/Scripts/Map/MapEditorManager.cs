@@ -39,6 +39,9 @@ public class MapEditorManager : MonoBehaviour
 
     [Header("레이어")]
     public MapEditorLayerType activeLayer = MapEditorLayerType.Ground;
+    [SerializeField] private int activeCanvasIndex;
+    [SerializeField] private MapEditorLayerType brushLayerRole = MapEditorLayerType.Ground;
+    [SerializeField] private bool brushRoleMenuOpen;
     public bool showGroundLayer = true;
     public bool showObjectLayer = true;
     public bool showWallVisualLayer = true;
@@ -145,6 +148,9 @@ public class MapEditorManager : MonoBehaviour
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
+    public int ActiveCanvasIndex => activeCanvasIndex;
+    public MapEditorLayerType BrushLayerRole => brushLayerRole;
+    public bool BrushRoleMenuOpen => brushRoleMenuOpen;
     private Vector2 lastCanvasSize = new Vector2(-1f, -1f);
 
     public void SetCurrentMapDataForLoad(MapData mapData)
@@ -161,6 +167,7 @@ public class MapEditorManager : MonoBehaviour
     {
         Instance = this;
         EnsureLayerSettings();
+        NormalizeCanvasSelection();
         EnsureTilesetLibrary();
         gridGenerator = GetComponent<GridGenerator>();
 
@@ -186,6 +193,7 @@ public class MapEditorManager : MonoBehaviour
     {
         Instance = this;
         EnsureLayerSettings();
+        NormalizeCanvasSelection();
         EnsureTilesetLibrary();
         EnsureMapEditingService();
         EnsureSelectionClipboardService();
@@ -444,9 +452,15 @@ public class MapEditorManager : MonoBehaviour
 
     public void SetBrushTool()
     {
+        if (brushLayerRole == MapEditorLayerType.WallCollision)
+        {
+            SetWallTileTool();
+            return;
+        }
+
         CancelTransientToolState();
         useWallTileBrush = false;
-        RestoreLastPaintLayer();
+        ApplyBrushRoleToActiveLayer();
 
         if (EditorToolController.Instance != null)
         {
@@ -462,7 +476,7 @@ public class MapEditorManager : MonoBehaviour
     {
         CancelTransientToolState();
         useWallTileBrush = false;
-        RestoreLastPaintLayer();
+        ApplyBrushRoleToActiveLayer();
 
         if (EditorToolController.Instance != null)
         {
@@ -478,7 +492,7 @@ public class MapEditorManager : MonoBehaviour
     {
         CancelTransientToolState();
         useWallTileBrush = false;
-        RestoreLastPaintLayer();
+        ApplyBrushRoleToActiveLayer();
 
         if (EditorToolController.Instance != null)
         {
@@ -496,6 +510,7 @@ public class MapEditorManager : MonoBehaviour
         useWallTileBrush = true;
         useSelectedColor = true;
         activeLayer = MapEditorLayerType.WallCollision;
+        brushLayerRole = MapEditorLayerType.WallCollision;
 
         if (EditorToolController.Instance != null)
         {
@@ -585,6 +600,14 @@ public class MapEditorManager : MonoBehaviour
             layerType = MapEditorLayerType.Ground;
         }
 
+        int canvasIndex = MapEditorLayerUtility.GetCanvasIndex(layerType);
+
+        if (canvasIndex >= 0)
+        {
+            activeCanvasIndex = canvasIndex;
+            brushLayerRole = MapEditorLayerUtility.GetBaseLayer(layerType);
+        }
+
         if (!IsLayerEnabled(layerType))
         {
             return;
@@ -644,6 +667,182 @@ public class MapEditorManager : MonoBehaviour
 
         activeLayer = lastPaintLayer;
         toolbarState.RefreshLayerSelection();
+    }
+
+    public void ToggleBrushRoleMenu()
+    {
+        brushRoleMenuOpen = !brushRoleMenuOpen;
+        CreateToolToolbar();
+    }
+
+    public void SetBrushLayerRole(MapEditorLayerType role)
+    {
+        role = MapEditorLayerUtility.GetBaseLayer(role);
+        if (role != MapEditorLayerType.Ground
+            && role != MapEditorLayerType.Object
+            && role != MapEditorLayerType.WallVisual
+            && role != MapEditorLayerType.WallCollision)
+        {
+            role = MapEditorLayerType.Ground;
+        }
+
+        brushLayerRole = role;
+        brushRoleMenuOpen = false;
+
+        if (role == MapEditorLayerType.WallCollision)
+        {
+            SetWallTileTool();
+            return;
+        }
+
+        activeLayer = MapEditorLayerUtility.GetCanvasLayer(activeCanvasIndex, role);
+        lastPaintLayer = activeLayer;
+        SetBrushTool();
+        CreateToolToolbar();
+    }
+
+    private void ApplyBrushRoleToActiveLayer()
+    {
+        activeLayer = MapEditorLayerUtility.GetCanvasLayer(activeCanvasIndex, brushLayerRole);
+        lastPaintLayer = activeLayer;
+    }
+
+    public bool IsCanvasEnabled(int canvasIndex)
+    {
+        if (canvasIndex <= 0) return true;
+        if (canvasIndex >= MapEditorLayerUtility.CanvasLayerCount) return false;
+
+        return IsLayerEnabled(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Ground))
+            || IsLayerEnabled(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Object))
+            || IsLayerEnabled(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.WallVisual));
+    }
+
+    public bool IsCanvasVisible(int canvasIndex)
+    {
+        return IsLayerVisible(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Ground))
+            || IsLayerVisible(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Object))
+            || IsLayerVisible(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.WallVisual));
+    }
+
+    public string GetCanvasDisplayName(int canvasIndex)
+    {
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(
+            MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Ground));
+        string fallback = "레이어 " + (canvasIndex + 1);
+        if (setting == null || string.IsNullOrWhiteSpace(setting.displayName)) return fallback;
+
+        string legacyDefault = GetDefaultLayerName((MapEditorLayerType)setting.layer);
+        return setting.displayName == legacyDefault ? fallback : setting.displayName;
+    }
+
+    public void SetCanvasDisplayName(int canvasIndex, string displayName)
+    {
+        EnsureLayerSettings();
+        string name = string.IsNullOrWhiteSpace(displayName) ? "레이어 " + (canvasIndex + 1) : displayName.Trim();
+        if (name.Length > 18) name = name.Substring(0, 18);
+
+        foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+        {
+            MapEditorLayerSetting setting = FindLayerSetting(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, role));
+            if (setting != null) setting.displayName = name;
+        }
+    }
+
+    public void SetActiveCanvas(int canvasIndex)
+    {
+        canvasIndex = Mathf.Clamp(canvasIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        if (!IsCanvasEnabled(canvasIndex)) return;
+
+        if (activeCanvasIndex != canvasIndex) selectionClipboard?.ClearSelection();
+        activeCanvasIndex = canvasIndex;
+
+        if (brushLayerRole == MapEditorLayerType.WallCollision)
+        {
+            activeLayer = MapEditorLayerType.WallCollision;
+        }
+        else
+        {
+            activeLayer = MapEditorLayerUtility.GetCanvasLayer(activeCanvasIndex, brushLayerRole);
+            lastPaintLayer = activeLayer;
+        }
+
+        toolbarState.RefreshLayerSelection();
+        CreateToolToolbar();
+    }
+
+    public void ToggleCanvasVisible(int canvasIndex)
+    {
+        bool visible = !IsCanvasVisible(canvasIndex);
+        foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+        {
+            MapEditorLayerSetting setting = FindLayerSetting(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, role));
+            if (setting != null && setting.enabled) setting.visible = visible;
+        }
+
+        SyncLegacyLayerVisibility();
+        RefreshAllCells();
+        CreateToolToolbar();
+    }
+
+    public void AddCanvasLayer()
+    {
+        EnsureLayerSettings();
+        for (int canvasIndex = 1; canvasIndex < MapEditorLayerUtility.CanvasLayerCount; canvasIndex++)
+        {
+            if (IsCanvasEnabled(canvasIndex)) continue;
+
+            foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+            {
+                MapEditorLayerType layer = MapEditorLayerUtility.GetCanvasLayer(canvasIndex, role);
+                CurrentMapData?.ClearLayer(layer);
+                MapEditorLayerSetting setting = FindLayerSetting(layer);
+                if (setting == null) continue;
+                setting.enabled = true;
+                setting.visible = true;
+                setting.displayName = "레이어 " + (canvasIndex + 1);
+            }
+
+            SetActiveCanvas(canvasIndex);
+            Debug.Log("레이어 추가: 레이어 " + (canvasIndex + 1));
+            return;
+        }
+
+        Debug.LogWarning("더 이상 레이어를 추가할 수 없습니다.");
+    }
+
+    public void DeleteActiveCanvasLayer()
+    {
+        if (activeCanvasIndex == 0)
+        {
+            Debug.LogWarning("기본 레이어는 삭제할 수 없습니다.");
+            return;
+        }
+
+        int removedCanvas = activeCanvasIndex;
+        foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+        {
+            MapEditorLayerType layer = MapEditorLayerUtility.GetCanvasLayer(removedCanvas, role);
+            CurrentMapData?.ClearLayer(layer);
+            MapEditorLayerSetting setting = FindLayerSetting(layer);
+            if (setting == null) continue;
+            setting.enabled = false;
+            setting.visible = false;
+            setting.displayName = GetDefaultLayerName(layer);
+        }
+
+        activeCanvasIndex = 0;
+        if (brushLayerRole == MapEditorLayerType.WallCollision)
+        {
+            activeLayer = MapEditorLayerType.WallCollision;
+        }
+        else
+        {
+            ApplyBrushRoleToActiveLayer();
+        }
+        RefreshAllCells();
+        CreateToolToolbar();
+        Debug.Log("레이어 삭제: 레이어 " + (removedCanvas + 1));
     }
 
     public bool IsLayerVisible(MapEditorLayerType layerType)
@@ -845,6 +1044,7 @@ public class MapEditorManager : MonoBehaviour
         }
 
         EnsureLayerSettings();
+        NormalizeCanvasSelection();
         SyncLegacyLayerVisibility();
     }
 
@@ -885,6 +1085,23 @@ public class MapEditorManager : MonoBehaviour
         }
 
         layerSettings.Sort((left, right) => left.layer.CompareTo(right.layer));
+    }
+
+    private void NormalizeCanvasSelection()
+    {
+        int canvasIndex = MapEditorLayerUtility.GetCanvasIndex(activeLayer);
+        if (canvasIndex >= 0)
+        {
+            activeCanvasIndex = canvasIndex;
+            brushLayerRole = MapEditorLayerUtility.GetBaseLayer(activeLayer);
+        }
+        else if (activeLayer == MapEditorLayerType.WallCollision)
+        {
+            brushLayerRole = MapEditorLayerType.WallCollision;
+        }
+
+        activeCanvasIndex = Mathf.Clamp(activeCanvasIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        if (!IsCanvasEnabled(activeCanvasIndex)) activeCanvasIndex = 0;
     }
 
     private MapEditorLayerSetting FindLayerSetting(MapEditorLayerType layerType)
@@ -1031,7 +1248,12 @@ public class MapEditorManager : MonoBehaviour
 
         if (MapEditorTilesetLibraryService.TryGetByAtlasPath(imagePath, out MapEditorTilesetDefinition tileset))
         {
-            activeLayer = tileset.defaultCollision ? MapEditorLayerType.WallCollision : tileset.defaultLayer;
+            brushLayerRole = tileset.defaultCollision
+                ? MapEditorLayerType.WallCollision
+                : MapEditorLayerUtility.GetBaseLayer(tileset.defaultLayer);
+            activeLayer = brushLayerRole == MapEditorLayerType.WallCollision
+                ? MapEditorLayerType.WallCollision
+                : MapEditorLayerUtility.GetCanvasLayer(activeCanvasIndex, brushLayerRole);
             useWallTileBrush = tileset.defaultCollision || activeLayer == MapEditorLayerType.WallCollision;
         }
 
@@ -1396,9 +1618,20 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        mapEditing.ClearLayer(activeLayer);
+        int canvasIndex = MapEditorLayerUtility.GetCanvasIndex(activeLayer);
+        if (canvasIndex >= 0)
+        {
+            foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+            {
+                mapEditing.ClearLayer(MapEditorLayerUtility.GetCanvasLayer(canvasIndex, role));
+            }
+        }
+        else
+        {
+            mapEditing.ClearLayer(activeLayer);
+        }
         RefreshAllCells();
-        Debug.Log("Cleared layer: " + GetLayerDisplayName(activeLayer));
+        Debug.Log("현재 레이어를 지웠습니다: " + GetCanvasDisplayName(activeCanvasIndex));
     }
 
     public void ChangeBrushSize(int delta)
@@ -2546,7 +2779,7 @@ public class MapEditorManager : MonoBehaviour
 
         SetPngPaletteGridSize(definition.atlasGridSize);
         LoadPngPalette(definition.atlasPath);
-        SetActiveLayer(definition.defaultCollision ? MapEditorLayerType.WallCollision : definition.defaultLayer);
+        SetBrushLayerRole(definition.defaultCollision ? MapEditorLayerType.WallCollision : definition.defaultLayer);
     }
 
     public void RemoveImportedTileset(string id)

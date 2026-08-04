@@ -6,6 +6,7 @@ public class MapEditorMapEditingService
 {
     private readonly Func<MapData> getMapData;
     private readonly Func<MapEditorLayerType> getActiveLayer;
+    private readonly Func<int, int, MapEditorLayerType, MapEditorLayerType> resolveTilePaintLayer;
     private readonly Func<MapEditorLayerType, bool> isLayerVisible;
     private readonly Dictionary<Vector2Int, GridCell> cells;
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
@@ -22,10 +23,12 @@ public class MapEditorMapEditingService
         Func<MapEditorLayerType, bool> isLayerVisible,
         Dictionary<Vector2Int, GridCell> cells,
         Func<string, int, int, bool, bool, Sprite> getPngTileSprite,
-        Action refreshMinimap)
+        Action refreshMinimap,
+        Func<int, int, MapEditorLayerType, MapEditorLayerType> resolveTilePaintLayer = null)
     {
         this.getMapData = getMapData;
         this.getActiveLayer = getActiveLayer;
+        this.resolveTilePaintLayer = resolveTilePaintLayer;
         this.isLayerVisible = isLayerVisible;
         this.cells = cells;
         this.getPngTileSprite = getPngTileSprite;
@@ -148,6 +151,82 @@ public class MapEditorMapEditingService
     public void EraseCell(GridCell cell, int brushSize)
     {
         paintOperations.EraseCell(cell, brushSize);
+    }
+
+    public void EraseLayerAssignment(GridCell cell, int brushSize)
+    {
+        MapData mapData = getMapData();
+
+        if (cell == null || mapData == null)
+        {
+            return;
+        }
+
+        int startX = cell.X - brushSize / 2;
+        int startY = cell.Y - brushSize / 2;
+
+        for (int y = startY; y < startY + brushSize; y++)
+        {
+            for (int x = startX; x < startX + brushSize; x++)
+            {
+                EraseLayerAssignmentAt(mapData, x, y, getActiveLayer());
+            }
+        }
+    }
+
+    private void EraseLayerAssignmentAt(MapData mapData, int x, int y, MapEditorLayerType sourceLayer)
+    {
+        if (!mapData.IsInside(x, y) || mapData.GetTile(x, y, sourceLayer) == -1)
+        {
+            return;
+        }
+
+        if (sourceLayer == MapEditorLayerType.WallCollision || sourceLayer == MapEditorLayerType.Zone)
+        {
+            ApplySnapshot(x, y, sourceLayer, CreateEmptySnapshot(sourceLayer), true);
+            return;
+        }
+
+        MapEditorLayerType? destinationLayer = GetLayerEraseDestination(sourceLayer);
+
+        if (!destinationLayer.HasValue)
+        {
+            Debug.LogWarning("기본 Ground 레이어의 소속은 제거할 수 없습니다. 타일을 삭제하려면 브러시 지우개를 사용하세요.");
+            return;
+        }
+
+        if (mapData.GetTile(x, y, destinationLayer.Value) != -1)
+        {
+            Debug.LogWarning("아래 레이어에 타일이 있어 현재 타일의 레이어 소속을 안전하게 제거할 수 없습니다.");
+            return;
+        }
+
+        MapEditorTileSnapshot source = CaptureSnapshot(mapData, x, y, sourceLayer);
+        ApplySnapshot(x, y, destinationLayer.Value, source, true);
+        ApplySnapshot(x, y, sourceLayer, CreateEmptySnapshot(sourceLayer), true);
+    }
+
+    private static MapEditorLayerType? GetLayerEraseDestination(MapEditorLayerType sourceLayer)
+    {
+        if (MapEditorLayerUtility.IsOptional(sourceLayer))
+        {
+            return MapEditorLayerUtility.GetBaseLayer(sourceLayer);
+        }
+
+        switch (sourceLayer)
+        {
+            case MapEditorLayerType.WallVisual:
+                return MapEditorLayerType.Object;
+            case MapEditorLayerType.Object:
+                return MapEditorLayerType.Ground;
+            default:
+                return null;
+        }
+    }
+
+    private static MapEditorTileSnapshot CreateEmptySnapshot(MapEditorLayerType layer)
+    {
+        return new MapEditorTileSnapshot(-1, Color.white, string.Empty, -1, 0, false, false, layer);
     }
 
     public void ClearLayer(MapEditorLayerType layerType)
@@ -309,6 +388,12 @@ public class MapEditorMapEditingService
     private void SetCellTile(int x, int y, int tileId, Color color, Sprite sprite, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY, bool recordUndo)
     {
         MapEditorLayerType layer = getActiveLayer();
+
+        if (tileId != -1 && resolveTilePaintLayer != null)
+        {
+            layer = resolveTilePaintLayer(x, y, layer);
+        }
+
         SetCellTileWithLayer(x, y, tileId, color, sprite, imagePath, imageIndex, imageRotation, imageFlipX, imageFlipY, layer, recordUndo);
     }
 

@@ -55,6 +55,11 @@ public sealed class MapEditorToolbarStateService
             ? (EditorToolType?)null
             : EditorToolController.Instance.CurrentTool;
 
+        if (manager != null && manager.showPlayerScaleGuide)
+        {
+            currentTool = null;
+        }
+
         foreach (KeyValuePair<EditorToolType, Image> pair in toolButtonImages)
         {
             if (pair.Value == null)

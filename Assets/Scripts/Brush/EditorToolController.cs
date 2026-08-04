@@ -9,7 +9,9 @@ public enum EditorToolType
     Wall,
     Spawn,
     Line,
-    PreviewRegion = 6
+    PreviewRegion = 6,
+    BrushEraser,
+    RectangleFill
 }
 
 [ExecuteAlways]
@@ -43,6 +45,16 @@ public class EditorToolController : MonoBehaviour
     public void SetEraserTool()
     {
         SetTool(EditorToolType.Eraser);
+    }
+
+    public void SetBrushEraserTool()
+    {
+        SetTool(EditorToolType.BrushEraser);
+    }
+
+    public void SetRectangleFillTool()
+    {
+        SetTool(EditorToolType.RectangleFill);
     }
 
     public void SetSelectionTool()

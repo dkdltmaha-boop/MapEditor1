@@ -43,7 +43,9 @@ public enum MapEditorToolbarAction
     Clear,
     UploadWorkshop,
     OpenTileCreator,
-    Line
+    Line,
+    BrushEraser,
+    RectangleFill
 }
 
 public enum MapEditorLayerType
@@ -125,6 +127,12 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.Eraser:
                 target.SetEraserTool();
+                break;
+            case MapEditorToolbarAction.BrushEraser:
+                target.SetBrushEraserTool();
+                break;
+            case MapEditorToolbarAction.RectangleFill:
+                target.SetRectangleFillTool();
                 break;
             case MapEditorToolbarAction.Select:
                 target.SetSelectionTool();

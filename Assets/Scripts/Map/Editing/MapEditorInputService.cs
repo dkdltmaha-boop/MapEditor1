@@ -90,13 +90,24 @@ public class MapEditorInputService
             {
                 manager.SetLineTool();
             }
+            else if (Input.GetKeyDown(KeyCode.G))
+            {
+                manager.SetRectangleFillTool();
+            }
             else if (Input.GetKeyDown(KeyCode.W))
             {
                 manager.SetWallTileTool();
             }
             else if (Input.GetKeyDown(KeyCode.E))
             {
-                manager.SetEraserTool();
+                if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
+                {
+                    manager.SetBrushEraserTool();
+                }
+                else
+                {
+                    manager.SetEraserTool();
+                }
             }
             else if (Input.GetKeyDown(KeyCode.S))
             {

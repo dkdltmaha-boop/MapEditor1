@@ -138,8 +138,11 @@ public class MapEditorManager : MonoBehaviour
     private Vector2Int? previewDragStart;
     private Vector2Int? lineDragStart;
     private Vector2Int? lineDragEnd;
+    private Vector2Int? rectangleFillDragStart;
+    private Vector2Int? rectangleFillDragEnd;
     private RectInt? previewRegion;
     private MapEditorLayerType lastPaintLayer = MapEditorLayerType.Ground;
+    private bool layerToolbarRefreshPending;
 
     public GridGenerator GridGenerator => gridGenerator;
     public MapEditorLayerType ActiveLayer => activeLayer;
@@ -210,7 +213,14 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        mapEditing = new MapEditorMapEditingService(() => CurrentMapData, () => activeLayer, IsLayerVisible, cells, GetPngTileSprite, RefreshMinimap);
+        mapEditing = new MapEditorMapEditingService(
+            () => CurrentMapData,
+            () => activeLayer,
+            IsLayerVisible,
+            cells,
+            GetPngTileSprite,
+            RefreshMinimap,
+            ResolveTilePaintLayer);
     }
 
     private MapEditorTilesetLibraryService EnsureTilesetLibrary()
@@ -409,6 +419,12 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
+        if (layerToolbarRefreshPending)
+        {
+            layerToolbarRefreshPending = false;
+            CreateToolToolbar();
+        }
+
         RefreshResponsiveLayout(false);
         MapEditorSceneUiBuilder.BringQuitButtonToFront();
         inputService.Tick();
@@ -472,6 +488,22 @@ public class MapEditorManager : MonoBehaviour
         UpdateBrushCursorPreview();
     }
 
+    public void SetRectangleFillTool()
+    {
+        CancelTransientToolState();
+        useWallTileBrush = false;
+        RestoreLastPaintLayer();
+
+        if (EditorToolController.Instance != null)
+        {
+            EditorToolController.Instance.SetRectangleFillTool();
+        }
+
+        RefreshToolToolbarSelection();
+        UpdateBrushPreview();
+        UpdateBrushCursorPreview();
+    }
+
     public void SetWallTileTool()
     {
         CancelTransientToolState();
@@ -500,6 +532,20 @@ public class MapEditorManager : MonoBehaviour
         }
 
         RefreshToolToolbarSelection();
+    }
+
+    public void SetBrushEraserTool()
+    {
+        CancelTransientToolState();
+        useWallTileBrush = false;
+
+        if (EditorToolController.Instance != null)
+        {
+            EditorToolController.Instance.SetBrushEraserTool();
+        }
+
+        RefreshToolToolbarSelection();
+        UpdateBrushCursorPreview();
     }
 
     public void SetSelectionTool()
@@ -636,6 +682,71 @@ public class MapEditorManager : MonoBehaviour
         EnsureLayerSettings();
         MapEditorLayerSetting setting = FindLayerSetting(layerType);
         return setting == null ? !MapEditorLayerUtility.IsOptional(layerType) : setting.enabled;
+    }
+
+    private MapEditorLayerType ResolveTilePaintLayer(int x, int y, MapEditorLayerType requestedLayer)
+    {
+        MapData mapData = CurrentMapData;
+
+        if (mapData == null
+            || !mapData.IsInside(x, y)
+            || mapData.GetTile(x, y, requestedLayer) == -1)
+        {
+            return requestedLayer;
+        }
+
+        MapEditorLayerType baseLayer = MapEditorLayerUtility.GetBaseLayer(requestedLayer);
+
+        if (baseLayer != MapEditorLayerType.Ground
+            && baseLayer != MapEditorLayerType.Object
+            && baseLayer != MapEditorLayerType.WallVisual)
+        {
+            return requestedLayer;
+        }
+
+        MapEditorLayerType[] optionalLayers = MapEditorLayerUtility.GetOptionalLayers(baseLayer);
+        int startIndex = -1;
+
+        for (int i = 0; i < optionalLayers.Length; i++)
+        {
+            if (optionalLayers[i] == requestedLayer)
+            {
+                startIndex = i;
+                break;
+            }
+        }
+
+        for (int i = startIndex + 1; i < optionalLayers.Length; i++)
+        {
+            MapEditorLayerType candidate = optionalLayers[i];
+
+            if (mapData.GetTile(x, y, candidate) != -1)
+            {
+                continue;
+            }
+
+            EnsureOverlayLayerEnabled(candidate);
+            return candidate;
+        }
+
+        Debug.LogWarning("겹쳐 그릴 수 있는 빈 레이어가 없어 현재 레이어를 교체했습니다.");
+        return requestedLayer;
+    }
+
+    private void EnsureOverlayLayerEnabled(MapEditorLayerType layerType)
+    {
+        EnsureLayerSettings();
+        MapEditorLayerSetting setting = FindLayerSetting(layerType);
+
+        if (setting == null || setting.enabled)
+        {
+            return;
+        }
+
+        setting.enabled = true;
+        setting.visible = true;
+        setting.displayName = GetDefaultLayerName(layerType);
+        layerToolbarRefreshPending = true;
     }
 
     public void AddUserLayer(MapEditorLayerType baseLayer)
@@ -942,6 +1053,8 @@ public class MapEditorManager : MonoBehaviour
         previewDragStart = null;
         lineDragStart = null;
         lineDragEnd = null;
+        rectangleFillDragStart = null;
+        rectangleFillDragEnd = null;
         linePreviewCells.Clear();
     }
 
@@ -1139,7 +1252,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void UseCurrentTool(GridCell cell, int subPixelX, int subPixelY)
     {
-        if (EditorToolController.Instance == null)
+        if (showPlayerScaleGuide || EditorToolController.Instance == null)
         {
             return;
         }
@@ -1162,7 +1275,10 @@ public class MapEditorManager : MonoBehaviour
 
         EditorToolType tool = EditorToolController.Instance.CurrentTool;
 
-        if (tool == EditorToolType.Brush || tool == EditorToolType.Wall || tool == EditorToolType.Eraser)
+        if (tool == EditorToolType.Brush
+            || tool == EditorToolType.Wall
+            || tool == EditorToolType.Eraser
+            || tool == EditorToolType.BrushEraser)
         {
             PaintInterpolatedStroke(cell, subPixelX, subPixelY, tool);
             return;
@@ -1277,7 +1393,18 @@ public class MapEditorManager : MonoBehaviour
                 }
                 else
                 {
-                    eraserTool.Use(cell);
+                    mapEditing.EraseLayerAssignment(cell, brushSize);
+                }
+                break;
+
+            case EditorToolType.BrushEraser:
+                if (activeLayer == MapEditorLayerType.Spawn)
+                {
+                    RemovePixelChromaSpawnAtCell(cell);
+                }
+                else
+                {
+                    mapEditing.EraseCell(cell, brushSize);
                 }
                 break;
 
@@ -1548,9 +1675,15 @@ public class MapEditorManager : MonoBehaviour
         return EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.Line;
     }
 
+    public bool IsRectangleFillToolActive()
+    {
+        return EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.RectangleFill;
+    }
+
     public bool IsPointerDragToolActive()
     {
-        return IsSelectionToolActive() || IsPreviewRegionToolActive() || IsLineToolActive();
+        return !showPlayerScaleGuide
+            && (IsSelectionToolActive() || IsPreviewRegionToolActive() || IsLineToolActive() || IsRectangleFillToolActive());
     }
 
     public void CopySelection()
@@ -1758,6 +1891,12 @@ public class MapEditorManager : MonoBehaviour
 
     public void BeginPointerDrag(GridCell cell)
     {
+        if (IsRectangleFillToolActive())
+        {
+            BeginRectangleFillDrag(cell);
+            return;
+        }
+
         if (IsLineToolActive())
         {
             BeginLineDrag(cell);
@@ -1780,6 +1919,12 @@ public class MapEditorManager : MonoBehaviour
 
     public void UpdatePointerDrag(GridCell cell)
     {
+        if (IsRectangleFillToolActive())
+        {
+            UpdateRectangleFillDrag(cell);
+            return;
+        }
+
         if (IsLineToolActive())
         {
             UpdateLineDrag(cell);
@@ -1802,6 +1947,12 @@ public class MapEditorManager : MonoBehaviour
 
     public void EndPointerDrag(GridCell cell)
     {
+        if (rectangleFillDragStart.HasValue)
+        {
+            EndRectangleFillDrag(cell);
+            return;
+        }
+
         if (lineDragStart.HasValue)
         {
             EndLineDrag(cell);
@@ -1815,6 +1966,153 @@ public class MapEditorManager : MonoBehaviour
         }
 
         EndSelectionDrag(cell);
+    }
+
+    private void BeginRectangleFillDrag(GridCell cell)
+    {
+        if (cell == null)
+        {
+            return;
+        }
+
+        BeginEditTransaction();
+        rectangleFillDragStart = new Vector2Int(cell.X, cell.Y);
+        rectangleFillDragEnd = rectangleFillDragStart;
+        RefreshRectangleFillPreview();
+        SetHoveredCell(cell, -1, -1);
+        Debug.Log("사각형 채우기 시작: " + rectangleFillDragStart.Value);
+    }
+
+    private void UpdateRectangleFillDrag(GridCell cell)
+    {
+        if (!rectangleFillDragStart.HasValue || cell == null)
+        {
+            return;
+        }
+
+        rectangleFillDragEnd = new Vector2Int(cell.X, cell.Y);
+        RefreshRectangleFillPreview();
+        SetHoveredCell(cell, -1, -1);
+    }
+
+    private void EndRectangleFillDrag(GridCell cell)
+    {
+        if (!rectangleFillDragStart.HasValue)
+        {
+            return;
+        }
+
+        Vector2Int start = rectangleFillDragStart.Value;
+        Vector2Int end = rectangleFillDragEnd ?? start;
+        rectangleFillDragStart = null;
+        rectangleFillDragEnd = null;
+        linePreviewCells.Clear();
+
+        int minX = Mathf.Min(start.x, end.x);
+        int maxX = Mathf.Max(start.x, end.x);
+        int minY = Mathf.Min(start.y, end.y);
+        int maxY = Mathf.Max(start.y, end.y);
+        MapEditorPaintSelection selection = GetPaintSelection();
+        selection.brushSize = 1;
+
+        // The preview falls back to the selected color when no image brush is active.
+        // Keep the committed result identical to what the user saw while dragging.
+        if (selection.selectedImageBrush == null)
+        {
+            selection.useSelectedColor = true;
+        }
+
+        int paintedCellCount = 0;
+
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                if (cells.TryGetValue(new Vector2Int(x, y), out GridCell targetCell))
+                {
+                    PaintRectangleFillCell(targetCell, x - minX, y - minY, selection);
+                    paintedCellCount++;
+                }
+            }
+        }
+
+        if (paintedCellCount == 0)
+        {
+            Debug.LogWarning("사각형 채우기 범위에서 적용할 수 있는 맵 타일을 찾지 못했습니다.");
+        }
+        else
+        {
+            Debug.Log("사각형 채우기 완료: " + paintedCellCount + "칸, 레이어=" + GetLayerDisplayName(activeLayer));
+        }
+
+        UpdateBrushCursorPreview();
+    }
+
+    private void PaintRectangleFillCell(
+        GridCell targetCell,
+        int patternX,
+        int patternY,
+        MapEditorPaintSelection selection)
+    {
+        if (!paintWholeTile || !HasSelectedTileRegion())
+        {
+            mapEditing.PaintCell(targetCell, selection);
+            return;
+        }
+
+        int outputWidth = Mathf.Max(1, GetSelectedRegionOutputWidth());
+        int outputHeight = Mathf.Max(1, GetSelectedRegionOutputHeight());
+        int outputX = patternX % outputWidth;
+        int outputY = patternY % outputHeight;
+        GetSelectedRegionSourceCoordinate(outputX, outputY, out int localSourceX, out int localSourceYFromTop);
+
+        int sourceX = selectedRegionStartX + localSourceX;
+        int sourceYFromTop = selectedRegionStartYFromTop + localSourceYFromTop;
+        int sourceY = selectedRegionGridSize - 1 - sourceYFromTop;
+        int baseIndex = sourceY * selectedRegionGridSize + sourceX;
+        int imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(selectedRegionGridSize, baseIndex);
+        Sprite sprite = GetPngTileSprite(
+            selectedImagePath,
+            imageIndex,
+            selectedImageRotation,
+            selectedImageFlipX,
+            selectedImageFlipY);
+
+        if (sprite == null)
+        {
+            return;
+        }
+
+        selection.selectedImageBrush = sprite;
+        selection.selectedImageIndex = imageIndex;
+        mapEditing.PaintCell(targetCell, selection);
+    }
+
+    private void RefreshRectangleFillPreview()
+    {
+        linePreviewCells.Clear();
+
+        if (!rectangleFillDragStart.HasValue || !rectangleFillDragEnd.HasValue)
+        {
+            return;
+        }
+
+        Vector2Int start = rectangleFillDragStart.Value;
+        Vector2Int end = rectangleFillDragEnd.Value;
+        int minX = Mathf.Min(start.x, end.x);
+        int maxX = Mathf.Max(start.x, end.x);
+        int minY = Mathf.Min(start.y, end.y);
+        int maxY = Mathf.Max(start.y, end.y);
+
+        for (int y = minY; y <= maxY; y++)
+        {
+            for (int x = minX; x <= maxX; x++)
+            {
+                linePreviewCells.Add(new Vector2Int(x, y));
+            }
+        }
+
+        UpdateBrushCursorPreview();
     }
 
     private void BeginLineDrag(GridCell cell)
@@ -2083,6 +2381,7 @@ public class MapEditorManager : MonoBehaviour
     public void TogglePlayerScaleGuide()
     {
         showPlayerScaleGuide = !showPlayerScaleGuide;
+        CancelTransientToolState();
 
         if (showPlayerScaleGuide && !playerScaleGuidePositionInitialized)
         {
@@ -2090,6 +2389,8 @@ public class MapEditorManager : MonoBehaviour
         }
 
         UpdatePlayerScaleGuide();
+        RefreshToolToolbarSelection();
+        UpdateBrushCursorPreview();
 
         Canvas canvas = Object.FindFirstObjectByType<Canvas>();
         if (canvas != null)
@@ -2155,7 +2456,7 @@ public class MapEditorManager : MonoBehaviour
         }
 
         brushCursorPreview.Update(
-            showBrushCursorPreview,
+            showBrushCursorPreview && !showPlayerScaleGuide,
             gridGenerator,
             hoveredCell,
             CurrentMapData,

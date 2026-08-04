@@ -6,6 +6,7 @@ public class MapEditorBrushCursorPreview
 {
     private static readonly Color BrushOutlineColor = Color.black;
     private static readonly Color EraserOutlineColor = new Color(1f, 0.1f, 0.1f, 1f);
+    private static readonly Color LayerEraserOutlineColor = new Color(1f, 0.75f, 0.1f, 1f);
     private static readonly Color SelectionFillColor = new Color(0.2f, 0.55f, 1f, 0.14f);
     private static readonly Color SelectionOutlineColor = new Color(0.1f, 0.35f, 1f, 1f);
     private static readonly Color AreaFillColor = new Color(1f, 0.85f, 0.1f, 0.16f);
@@ -370,13 +371,23 @@ public class MapEditorBrushCursorPreview
         rect.sizeDelta = new Vector2(cellSize, cellSize);
         rect.anchoredPosition = new Vector2(mapX * cellSize, -mapY * cellSize);
 
-        if (EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.Eraser)
+        if (EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.BrushEraser)
         {
             image.sprite = null;
             image.color = new Color(1f, 0.1f, 0.1f, 0.28f);
             rect.localEulerAngles = Vector3.zero;
             rect.localScale = Vector3.one;
             ConfigureOutline(image, EraserOutlineColor, 2f);
+            return;
+        }
+
+        if (EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.Eraser)
+        {
+            image.sprite = null;
+            image.color = new Color(1f, 0.75f, 0.1f, 0.12f);
+            rect.localEulerAngles = Vector3.zero;
+            rect.localScale = Vector3.one;
+            ConfigureOutline(image, LayerEraserOutlineColor, 2f);
             return;
         }
 

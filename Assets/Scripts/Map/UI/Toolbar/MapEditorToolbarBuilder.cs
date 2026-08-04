@@ -212,8 +212,10 @@ public static class MapEditorToolbarBuilder
         CreateToolbarLabel(toolbar, L("도구", "Tools"));
         EnsureToolbarToolButton(toolbar, manager, L("브러시", "Brush"), "B", EditorToolType.Brush, MapEditorToolbarAction.Brush, "BrushToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("직선", "Line"), "L", EditorToolType.Line, MapEditorToolbarAction.Line, "LineToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("사각형 채우기", "Rectangle Fill"), "G", EditorToolType.RectangleFill, MapEditorToolbarAction.RectangleFill, "RectangleFillToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("벽", "Wall"), "W", EditorToolType.Wall, MapEditorToolbarAction.Wall, "WallToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("레이어 지우개", "Erase Layer"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraseLayerToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("브러시 지우개", "Brush Eraser"), "Shift+E", EditorToolType.BrushEraser, MapEditorToolbarAction.BrushEraser, "BrushEraserToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("시작 위치", "Start Point"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
@@ -257,8 +259,10 @@ public static class MapEditorToolbarBuilder
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraseLayerButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "BrushToolButton", EditorToolType.Brush);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "LineToolButton", EditorToolType.Line);
+        MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "RectangleFillToolButton", EditorToolType.RectangleFill);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraserToolButton", EditorToolType.Eraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraseLayerToolButton", EditorToolType.Eraser);
+        MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "BrushEraserToolButton", EditorToolType.BrushEraser);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "WallButton", EditorToolType.Wall);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "WallToolButton", EditorToolType.Wall);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SelectButton", EditorToolType.Selection);

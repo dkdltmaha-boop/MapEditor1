@@ -2,7 +2,7 @@
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
-public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler, IPointerExitHandler, IPointerUpHandler, IDragHandler, IPointerMoveHandler
+public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler, IPointerExitHandler, IPointerUpHandler, IDragHandler, IEndDragHandler, IPointerMoveHandler
 {
     public int X { get; private set; }
     public int Y { get; private set; }
@@ -758,6 +758,18 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
             MapEditorManager.Instance.EndPointerDrag(this);
             MapEditorManager.Instance.CommitEditTransaction();
         }
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (eventData.button != PointerEventData.InputButton.Left || MapEditorManager.Instance == null)
+        {
+            return;
+        }
+
+        GridCell targetCell = GetCellUnderPointer(eventData);
+        MapEditorManager.Instance.EndPointerDrag(targetCell == null ? this : targetCell);
+        MapEditorManager.Instance.CommitEditTransaction();
     }
 
     public void OnDrag(PointerEventData eventData)

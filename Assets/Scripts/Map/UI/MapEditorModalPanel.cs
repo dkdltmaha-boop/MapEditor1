@@ -77,7 +77,9 @@ public static class MapEditorModalPanel
         const string koreanGuide =
             "도구 선택\n" +
             "B  브러시                 L  직선\n" +
+            "G  사각형 채우기\n" +
             "W  벽                     E  레이어 지우개\n" +
+            "Shift+E  브러시 지우개\n" +
             "S  영역 선택              P  프리뷰 영역\n" +
             "P  프리뷰 영역 지정\n\n" +
             "그리기와 이미지\n" +

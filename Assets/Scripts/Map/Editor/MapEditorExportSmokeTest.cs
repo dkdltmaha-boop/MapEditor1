@@ -49,6 +49,7 @@ public static class MapEditorExportSmokeTest
         ValidateLayerSettingsRoundTrip();
         ValidateBrushGeometry();
         ValidateOverlappingPixelPaint();
+        ValidateTilePaintPreservesOccupiedLayer();
         ValidateConnectedSelectionMove();
         ValidateFullImageTile(root);
 
@@ -488,6 +489,53 @@ public static class MapEditorExportSmokeTest
             MapTilePixelData pixels = mapData.GetPixelData(0, 0, MapEditorLayerType.Ground);
             Require(pixels != null && pixels.GetPixel(3, 5) == Color.blue && pixels.GetPixel(4, 6) == Color.blue,
                 "A later pixel brush stroke did not overwrite an earlier stroke.");
+        }
+        finally
+        {
+            UnityEngine.Object.DestroyImmediate(cellObject);
+        }
+    }
+
+    private static void ValidateTilePaintPreservesOccupiedLayer()
+    {
+        GameObject cellObject = new GameObject("LayeredTilePaintCell", typeof(RectTransform), typeof(Image));
+
+        try
+        {
+            GridCell cell = cellObject.AddComponent<GridCell>();
+            cell.Init(0, 0);
+            MapData mapData = new MapData(1, 1);
+            mapData.SetTileOnLayer(0, 0, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId, Color.red, string.Empty, -1, 0, false, false);
+
+            MapEditorMapEditingService editing = new MapEditorMapEditingService(
+                () => mapData,
+                () => MapEditorLayerType.Ground,
+                _ => true,
+                new Dictionary<Vector2Int, GridCell> { { Vector2Int.zero, cell } },
+                (_, _, _, _, _) => null,
+                () => { },
+                (_, _, requestedLayer) => requestedLayer == MapEditorLayerType.Ground
+                    ? MapEditorLayerType.GroundExtra
+                    : requestedLayer);
+
+            editing.PaintCell(cell, new MapEditorPaintSelection
+            {
+                useSelectedColor = true,
+                selectedColor = Color.blue,
+                selectedImageIndex = -1,
+                brushSize = 1
+            });
+
+            Require(mapData.GetColor(0, 0, MapEditorLayerType.Ground) == Color.red,
+                "Painting a tile erased the occupied lower layer.");
+            Require(mapData.GetColor(0, 0, MapEditorLayerType.GroundExtra) == Color.blue,
+                "Painting over an occupied tile did not use the resolved overlay layer.");
+
+            editing.Undo();
+            Require(mapData.GetTile(0, 0, MapEditorLayerType.Ground) != -1,
+                "Undo removed the preserved lower tile.");
+            Require(mapData.GetTile(0, 0, MapEditorLayerType.GroundExtra) == -1,
+                "Undo did not remove the overlay tile.");
         }
         finally
         {

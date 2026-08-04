@@ -3,12 +3,6 @@ using UnityEngine;
 public sealed class MapEditorPngFileService
 {
     private readonly MapEditorPngPaletteService palette = new MapEditorPngPaletteService();
-    private readonly MapEditorMapExportService exporter;
-
-    public MapEditorPngFileService()
-    {
-        exporter = new MapEditorMapExportService(GetTileSprite);
-    }
 
     public string CurrentPath => palette.CurrentPath;
 
@@ -87,21 +81,4 @@ public sealed class MapEditorPngFileService
         return colorWheelWindow;
     }
 
-    public void ExportMapPngWithDialog(MapData mapData, int cellPixels, bool emptyCellsTransparent)
-    {
-        string path = MapEditorFileDialog.SaveFile("맵 PNG 내보내기", "map.png", "png");
-
-        if (string.IsNullOrEmpty(path))
-        {
-            return;
-        }
-
-        MapEditorFileDialog.RememberDirectory(path);
-        ExportMapPng(mapData, path, cellPixels, emptyCellsTransparent);
-    }
-
-    public void ExportMapPng(MapData mapData, string path, int cellPixels, bool emptyCellsTransparent)
-    {
-        exporter.ExportPng(mapData, path, cellPixels, emptyCellsTransparent);
-    }
 }

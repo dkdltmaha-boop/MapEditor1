@@ -225,8 +225,6 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일셋", "Tilesets"), L("클릭", "Click"), MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
         EnsureToolbarActionButton(toolbar, manager, L("PNG 불러오기", "Load PNG"), L("클릭", "Click"), MapEditorToolbarAction.PngLoad, "LoadPNGButton");
-        EnsureToolbarActionButton(toolbar, manager, L("PNG 내보내기", "Export PNG"), L("클릭", "Click"), MapEditorToolbarAction.ExportPng, "PNGOutButton");
-        EnsureToolbarActionButton(toolbar, manager, L("맵 검사", "Validate Map"), L("클릭", "Click"), MapEditorToolbarAction.ValidateMap, "ValidateButton");
         EnsureToolbarActionButton(toolbar, manager, L("게임용 내보내기", "Export Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
         EnsureToolbarActionButton(toolbar, manager, L("창작마당 내보내기", "Export Workshop"), L("클릭", "Click"), MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
         EnsureToolbarActionButton(toolbar, manager, L("창작마당 업로드", "Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopUploadButton");
@@ -351,16 +349,6 @@ public static class MapEditorToolbarBuilder
 
     private static void EnsureToolbarActionButton(Transform toolbar, MapEditorManager manager, string label, string shortcut, MapEditorToolbarAction action, string objectName)
     {
-        if (action == MapEditorToolbarAction.ValidateMap)
-        {
-            return;
-        }
-
-        if (action == MapEditorToolbarAction.ExportWorkshop)
-        {
-            label = L("검사 후 창작마당 내보내기", "Validate & Export Workshop");
-        }
-
         Transform existing = toolbar.Find(objectName);
 
         if (existing != null)

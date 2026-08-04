@@ -277,11 +277,6 @@ public static class MapEditorToolbarButtonFactory
             case "Paste PNG":
             case "PastePNG":
                 return MapEditorToolbarAction.PastePng;
-            case "Export PNG":
-            case "ExportPNG":
-            case "PNG Out":
-            case "PNGOut":
-                return MapEditorToolbarAction.ExportPng;
             case "Validate":
             case "Validate Map":
             case "ValidateMap":

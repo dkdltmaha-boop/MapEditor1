@@ -46,7 +46,7 @@ public static class MapEditorMapSizePanelBuilder
         InputField heightInput = CreateValueControls(panel, manager, currentSizeText, false);
         ConfigureTabNavigation(widthInput, heightInput);
         CreatePresetRow(panel, manager, "PresetRow", "64 x 64", 64, 64, "128 x 128", 128, 128);
-        CreatePresetRow(panel, manager, "LargePresetRow", "256 x 128", 256, 128, "256 x 256", 256, 256);
+        CreatePresetRow(panel, manager, "LargePresetRow", "256 x 256", 256, 256, null, 0, 0);
         CreatePlayerScaleGuideButton(panel, manager);
     }
 
@@ -256,7 +256,11 @@ public static class MapEditorMapSizePanelBuilder
         layout.childForceExpandHeight = true;
 
         CreatePresetButton(rowObject.transform, manager, firstLabel, firstWidth, firstHeight);
-        CreatePresetButton(rowObject.transform, manager, secondLabel, secondWidth, secondHeight);
+
+        if (!string.IsNullOrEmpty(secondLabel))
+        {
+            CreatePresetButton(rowObject.transform, manager, secondLabel, secondWidth, secondHeight);
+        }
     }
 
     private static void CreatePresetButton(Transform parent, MapEditorManager manager, string label, int width, int height)

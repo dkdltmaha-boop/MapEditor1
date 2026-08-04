@@ -2607,16 +2607,6 @@ public class MapEditorManager : MonoBehaviour
         LoadPngPalette(path);
     }
 
-    public void ExportMapPng()
-    {
-        pngFiles.ExportMapPngWithDialog(CurrentMapData, GetExportCellPixels(), exportEmptyCellsTransparent);
-    }
-
-    public void ExportMapPng(string path)
-    {
-        pngFiles.ExportMapPng(CurrentMapData, path, GetExportCellPixels(), exportEmptyCellsTransparent);
-    }
-
     public void ValidatePixelChromaMap()
     {
         PixelChromaMapValidationReport report = ValidateForWorkshop();

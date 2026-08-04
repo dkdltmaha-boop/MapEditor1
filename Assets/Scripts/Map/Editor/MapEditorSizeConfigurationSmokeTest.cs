@@ -88,7 +88,9 @@ public static class MapEditorSizeConfigurationSmokeTest
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
             Require(toolbar.Find("ValidateButton") == null,
                 "Standalone Validate Map button is still visible.");
-            RequireToolbarButton(toolbar, "WorkshopButton", "검사 후 창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
+            Require(toolbar.Find("PNGOutButton") == null,
+                "Removed PNG export button is still visible.");
+            RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
             RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
             Require(toolbar.Find("ClearButton")?.GetComponent<MapEditorToolbarButton>()?.action
                     == MapEditorToolbarAction.Clear,
@@ -156,7 +158,7 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(panel != null, "Map size panel was not created.");
             Require(panel.Find("PresetRow/Preset64 x 64Button") != null, "64 x 64 preset is missing.");
             Require(panel.Find("PresetRow/Preset128 x 128Button") != null, "128 x 128 preset is missing.");
-            Require(panel.Find("LargePresetRow/Preset256 x 128Button") != null, "256 x 128 preset is missing.");
+            Require(panel.Find("LargePresetRow/Preset256 x 128Button") == null, "Removed 256 x 128 preset is still visible.");
             Require(panel.Find("LargePresetRow/Preset256 x 256Button") != null, "256 x 256 preset is missing.");
             Require(panel.Find("PresetRow/Preset16Button") == null && panel.Find("PresetRow/Preset32Button") == null, "Legacy map presets are still present.");
             InputField widthInput = panel.Find("WidthControl/WidthInputRow/ValueInput")?.GetComponent<InputField>();
@@ -261,7 +263,7 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(picker.transform.Find("Title")?.GetComponent<Text>()?.text.StartsWith("색상") == true, "Color picker title was not localized.");
             Require(picker.transform.Find("WallTileSelector/WallTileLabel")?.GetComponent<Text>()?.text == "벽 타일", "Wall tile label was not localized.");
             Require(picker.transform.Find("ExportCellSizeSelector/DotSizeLabel")?.GetComponent<Text>()?.text == "그리기 크기", "Paint size label was not localized.");
-            Require(picker.transform.Find("PngPaletteLabel")?.GetComponent<Text>()?.text.StartsWith("PNG 팔레트 ") == true, "PNG palette label was not localized.");
+            Require(picker.transform.Find("PngPaletteLabel")?.GetComponent<Text>()?.text.StartsWith("팔레트 ") == true, "Palette label was not localized.");
             Require(picker.transform.Find("HueBar") != null, "PixelChroma-style hue bar is missing.");
             Require(picker.transform.Find("HueWheel") == null, "Legacy circular hue wheel still exists.");
 

@@ -189,9 +189,6 @@ public class MapEditorToolbarButton : MonoBehaviour
             case MapEditorToolbarAction.PastePng:
                 target.PasteLoadedPngToMap();
                 break;
-            case MapEditorToolbarAction.ExportPng:
-                target.ExportMapPng();
-                break;
             case MapEditorToolbarAction.ValidateMap:
                 target.ValidatePixelChromaMap();
                 break;

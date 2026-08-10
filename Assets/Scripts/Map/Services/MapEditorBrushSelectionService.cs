@@ -52,7 +52,18 @@ public sealed class MapEditorBrushSelectionService
 
     public void ChangeBrushSize(MapEditorManager manager, int delta)
     {
-        manager.brushSize = Mathf.Clamp(manager.brushSize + delta, 1, 9);
+        int[] sizes = { 1, 2, 4, 8 };
+        int currentIndex = 0;
+
+        for (int i = 1; i < sizes.Length; i++)
+        {
+            if (Mathf.Abs(manager.brushSize - sizes[i]) < Mathf.Abs(manager.brushSize - sizes[currentIndex]))
+            {
+                currentIndex = i;
+            }
+        }
+
+        manager.brushSize = sizes[Mathf.Clamp(currentIndex + (delta < 0 ? -1 : 1), 0, sizes.Length - 1)];
     }
 
     public bool RotateSelectedImageBrush(MapEditorManager manager)

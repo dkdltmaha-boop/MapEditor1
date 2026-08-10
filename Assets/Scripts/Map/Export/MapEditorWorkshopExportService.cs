@@ -156,18 +156,17 @@ public sealed class MapEditorWorkshopExportService
             return false;
         }
 
-        Directory.CreateDirectory(folderPath);
-
         string normalizedMapId = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "map" : mapId);
         PackagePaths paths = new PackagePaths(folderPath);
         PixelChromaWorkshopPackageReport report = BuildPackageReport(mapData, normalizedMapId, spawnX, spawnY, spawnPoints);
 
-        if (report.errors.Count > 0)
+        if (!report.isValid)
         {
-            WritePackageReport(paths.Report, report);
-            Debug.LogError("PixelChroma 창작마당 패키지를 내보내지 못했습니다. package_report.json의 검사 오류를 확인하세요: " + paths.Report);
+            Debug.LogError("맵 검사에 불합격하여 창작마당 패키지를 생성하지 않았습니다.");
             return false;
         }
+
+        Directory.CreateDirectory(folderPath);
 
         if (!mapExportService.Export(mapData, paths.Map, normalizedMapId, cellSize, TilesetFolderName, spawnX, spawnY, spawnPoints))
         {

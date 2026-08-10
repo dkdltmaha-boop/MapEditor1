@@ -96,7 +96,14 @@ public sealed class MapEditorToolbarStateService
         }
     }
 
-    public void UpdateBrushPreview(Sprite selectedImageBrush, Color selectedColor, int selectedImageRotation, int brushSize, bool useWallTileBrush)
+    public void UpdateBrushPreview(
+        Sprite selectedImageBrush,
+        Color selectedColor,
+        int selectedImageRotation,
+        int brushSize,
+        bool useWallTileBrush,
+        bool previewFlipX,
+        bool previewFlipY)
     {
         if (brushPreviewImage == null || brushPreviewText == null)
         {
@@ -108,6 +115,10 @@ public sealed class MapEditorToolbarStateService
             brushPreviewImage.sprite = selectedImageBrush;
             brushPreviewImage.color = Color.white;
             ResetPreviewTransform(brushPreviewImage);
+            brushPreviewImage.rectTransform.localScale = new Vector3(
+                previewFlipX ? -1f : 1f,
+                previewFlipY ? -1f : 1f,
+                1f);
             brushPreviewText.text = (useWallTileBrush ? "벽 이미지" : "이미지") + " R" + selectedImageRotation + "\n크기 " + brushSize;
             return;
         }

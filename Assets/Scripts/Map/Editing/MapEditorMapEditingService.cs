@@ -10,6 +10,8 @@ public class MapEditorMapEditingService
     private readonly Dictionary<Vector2Int, GridCell> cells;
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
     private readonly Action refreshMinimap;
+    private readonly Action<int, int> markVisualCellDirty;
+    private readonly Action markAllVisualsDirty;
     private readonly MapEditorEditHistoryService history = new MapEditorEditHistoryService();
     private readonly MapEditorCellRenderService cellRender;
     private readonly MapEditorClipboardEditService clipboardEdit;
@@ -22,7 +24,9 @@ public class MapEditorMapEditingService
         Func<MapEditorLayerType, bool> isLayerVisible,
         Dictionary<Vector2Int, GridCell> cells,
         Func<string, int, int, bool, bool, Sprite> getPngTileSprite,
-        Action refreshMinimap)
+        Action refreshMinimap,
+        Action<int, int> markVisualCellDirty = null,
+        Action markAllVisualsDirty = null)
     {
         this.getMapData = getMapData;
         this.getActiveLayer = getActiveLayer;
@@ -30,6 +34,8 @@ public class MapEditorMapEditingService
         this.cells = cells;
         this.getPngTileSprite = getPngTileSprite;
         this.refreshMinimap = refreshMinimap;
+        this.markVisualCellDirty = markVisualCellDirty;
+        this.markAllVisualsDirty = markAllVisualsDirty;
         cellRender = new MapEditorCellRenderService(getPngTileSprite, isLayerVisible);
         clipboardEdit = new MapEditorClipboardEditService(getMapData, getActiveLayer, getPngTileSprite, BeginTransaction, CommitTransaction, SetCellTileWithLayer);
         paintOperations = new MapEditorPaintOperationService(SetCellTile);
@@ -374,7 +380,28 @@ public class MapEditorMapEditingService
     public void RefreshAllCells()
     {
         cellRender.RefreshAllCells(cells, getMapData());
+        markAllVisualsDirty?.Invoke();
         refreshMinimap();
+    }
+
+    public bool WriteCompositeCellPixels(
+        int mapX,
+        int mapY,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        return cellRender.WriteCompositeCellPixels(
+            getMapData(),
+            mapX,
+            mapY,
+            resolution,
+            target,
+            targetWidth,
+            offsetX,
+            offsetY);
     }
 
     public Color GetPreviewColor(int x, int y)
@@ -616,6 +643,8 @@ public class MapEditorMapEditingService
 
     private void RefreshRegisteredCell(MapData mapData, int x, int y)
     {
+        markVisualCellDirty?.Invoke(x, y);
+
         if (cells.TryGetValue(new Vector2Int(x, y), out GridCell cell))
         {
             cellRender.RefreshCell(cell, mapData);

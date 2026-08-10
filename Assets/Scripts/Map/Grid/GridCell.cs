@@ -49,6 +49,12 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         Clear();
     }
 
+    public void SetCoordinates(int x, int y)
+    {
+        X = x;
+        Y = y;
+    }
+
     public void SetUnderlay(Color color, Sprite sprite, MapTilePixelData pixelData)
     {
         if (raycastImage == null)
@@ -168,6 +174,16 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     public void SetWallCollisionOutline(bool visible, bool showTopBorder, bool showRightBorder, bool showBottomBorder, bool showLeftBorder)
     {
+        if (!visible && wallCollisionFill == null)
+        {
+            Transform existing = transform.Find("WallCollisionOverlay");
+
+            if (existing == null)
+            {
+                return;
+            }
+        }
+
         EnsureWallCollisionVisual();
         wallCollisionFill.gameObject.SetActive(visible);
 
@@ -755,7 +771,8 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
     {
         if (eventData.button == PointerEventData.InputButton.Left && MapEditorManager.Instance != null)
         {
-            MapEditorManager.Instance.EndPointerDrag(this);
+            GridCell targetCell = GetCellUnderPointer(eventData);
+            MapEditorManager.Instance.EndPointerDrag(targetCell == null ? this : targetCell);
             MapEditorManager.Instance.CommitEditTransaction();
         }
     }
@@ -857,7 +874,19 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
 
     private GridCell GetCellUnderPointer(PointerEventData eventData)
     {
-        if (EventSystem.current == null || eventData == null)
+        if (eventData == null)
+        {
+            return null;
+        }
+
+        Camera eventCamera = eventData.pressEventCamera != null ? eventData.pressEventCamera : eventData.enterEventCamera;
+        if (MapEditorManager.Instance != null
+            && MapEditorManager.Instance.TryGetCellAtScreenPosition(eventData.position, eventCamera, out GridCell geometricCell))
+        {
+            return geometricCell;
+        }
+
+        if (EventSystem.current == null)
         {
             return null;
         }

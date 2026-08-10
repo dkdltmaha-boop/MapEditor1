@@ -21,6 +21,16 @@ public sealed class MapEditorPngFileService
         return palette.GetRecentPaths();
     }
 
+    public string GetRecentDisplayName(string path)
+    {
+        return palette.GetRecentDisplayName(path);
+    }
+
+    public void SetRecentDisplayName(string path, string displayName)
+    {
+        palette.SetRecentDisplayName(path, displayName);
+    }
+
     public MapEditorClipboard CreateCurrentPaletteClipboard()
     {
         return palette.CreateCurrentPaletteClipboard();

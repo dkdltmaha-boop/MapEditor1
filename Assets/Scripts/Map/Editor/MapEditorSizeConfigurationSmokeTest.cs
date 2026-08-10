@@ -3,6 +3,7 @@ using System.IO;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public static class MapEditorSizeConfigurationSmokeTest
@@ -13,6 +14,7 @@ public static class MapEditorSizeConfigurationSmokeTest
         string texturePath = Path.Combine(Path.GetTempPath(), "MapEditorPaletteGridSmoke.png");
         Texture2D texture = null;
         GameObject testCellObject = null;
+        GameObject collisionLineRoot = null;
 
         try
         {
@@ -94,9 +96,8 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Removed PNG export button is still visible.");
             RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
             RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
-            Require(toolbar.Find("ClearButton")?.GetComponent<MapEditorToolbarButton>()?.action
-                    == MapEditorToolbarAction.Clear,
-                "Clear Layer button is not connected to the current-layer clear action.");
+            Require(toolbar.Find("ClearButton") == null,
+                "Legacy current-layer clear button is still visible.");
             Require(toolbar.Find("ClearAllButton")?.GetComponent<MapEditorToolbarButton>()?.action
                     == MapEditorToolbarAction.ClearAll,
                 "Clear All button is missing or connected to the wrong action.");
@@ -108,45 +109,118 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(FindDescendant(layerPanel, "CanvasLayer_0")?.GetComponent<MapEditorToolbarButton>()?.action
                     == MapEditorToolbarAction.SetCanvas,
                 "The base canvas layer does not have a selection button.");
+            Require(FindDescendant(layerPanel, "CanvasLayer_0")?.GetComponentInParent<MapEditorCanvasLayerDragHandle>() != null,
+                "The base canvas layer cannot be reordered by dragging.");
             Require(FindDescendant(layerPanel, "LayerAction_AddCanvas_Ground") != null,
                 "Canvas-layer add button is missing.");
             Require(FindDescendant(layerPanel, "LayerAction_DeleteCanvas_Ground") != null,
                 "Canvas-layer delete button is missing.");
 
             manager.SetBrushLayerRole(MapEditorLayerType.Object);
-            Require(manager.ActiveLayer == MapEditorLayerType.Object,
-                "Object brush role did not select the Object slot of Layer 1.");
-            manager.SetBrushLayerRole(MapEditorLayerType.WallCollision);
+            Require(manager.ActiveLayer == MapEditorLayerType.Ground,
+                "Unsupported Object brush role did not fall back to Ground.");
+            manager.ToggleBrushRoleMenu();
+            toolbar = canvas.transform.Find("MapEditor_Toolbar");
+            Transform collisionBrushTransform = FindDescendant(toolbar, "BrushRole_WallCollision");
+            MapEditorToolbarButton collisionBrushHandler =
+                collisionBrushTransform?.GetComponent<MapEditorToolbarButton>();
+            Button collisionBrushButton = collisionBrushTransform?.GetComponent<Button>();
+            Require(collisionBrushButton != null
+                    && collisionBrushHandler != null
+                    && collisionBrushHandler.action == MapEditorToolbarAction.SetBrushRole,
+                "Collision brush role button was not created after opening the brush menu.");
+            collisionBrushButton.onClick.Invoke();
             Require(manager.ActiveLayer == MapEditorLayerType.WallCollision,
-                "Collision brush role did not activate the collision layer.");
+                "Clicking the Collision brush role did not activate the collision layer.");
+            Require(EditorToolController.Instance.CurrentTool == EditorToolType.Brush,
+                "Collision brush role incorrectly switched away from the unified brush tool.");
+            Require(!manager.BrushRoleMenuOpen,
+                "Collision brush role menu did not close after selection.");
+            Require(FindDescendant(toolbar, "BrushRole_WallCollision") == null,
+                "Collision brush role menu remained visible after selection.");
             manager.SetSelectionTool();
-            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+            Require(manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Selection tool did not restore the last drawable canvas slot after Collision.");
             manager.SetBrushLayerRole(MapEditorLayerType.Object);
             manager.SetSpawnTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Spawn,
                 "Start Point tool did not activate the Spawn layer.");
             manager.SetSelectionTool();
-            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+            Require(manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Selection tool did not restore the last normal layer after Start Point.");
             manager.SetSpawnTool();
             manager.SetBrushTool();
-            Require(manager.ActiveLayer == MapEditorLayerType.Object,
+            Require(manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Brush tool did not restore the last normal paint layer after Start Point.");
+
+            manager.brushSize = 1;
+            manager.ChangeBrushSize(1);
+            manager.ChangeBrushSize(1);
+            manager.ChangeBrushSize(1);
+            manager.ChangeBrushSize(1);
+            Require(manager.brushSize == 8, "Brush size exceeded the maximum size of 8.");
+            manager.ChangeBrushSize(-1);
+            manager.ChangeBrushSize(-1);
+            manager.ChangeBrushSize(-1);
+            manager.ChangeBrushSize(-1);
+            Require(manager.brushSize == 1, "Brush size went below the minimum size of 1.");
+
+            Require(MapEditorLayerUtility.CanvasLayerCount == 32,
+                "Canvas layer limit is not 32.");
+            Require(MapEditorLayerUtility.GroundOptionalLayers.Length == 31
+                && MapEditorLayerUtility.ObjectOptionalLayers.Length == 31
+                && MapEditorLayerUtility.WallOptionalLayers.Length == 31,
+                "The 32 canvas layers do not have matching Ground/Object/Wall slots.");
+            Require(MapEditorLayerUtility.GetCanvasLayer(31, MapEditorLayerType.Ground) == MapEditorLayerType.GroundExtra31
+                && MapEditorLayerUtility.GetCanvasLayer(31, MapEditorLayerType.Object) == MapEditorLayerType.ObjectExtra31
+                && MapEditorLayerUtility.GetCanvasLayer(31, MapEditorLayerType.WallVisual) == MapEditorLayerType.WallVisualExtra31,
+                "The final canvas layer is mapped to the wrong internal slots.");
 
             manager.AddCanvasLayer();
             Require(manager.IsLayerEnabled(MapEditorLayerType.GroundExtra)
                 && manager.IsLayerEnabled(MapEditorLayerType.ObjectExtra)
                 && manager.IsLayerEnabled(MapEditorLayerType.WallVisualExtra),
                 "Adding Layer 2 did not enable all of its internal drawing slots.");
-            Require(manager.ActiveCanvasIndex == 1 && manager.ActiveLayer == MapEditorLayerType.ObjectExtra,
-                "Layer 2 was not selected with the current Object brush role.");
+            Require(manager.ActiveCanvasIndex == 1 && manager.ActiveLayer == MapEditorLayerType.GroundExtra,
+                "Layer 2 was not selected with the Ground brush role.");
             manager.CurrentMapData.SetTileOnLayer(
                 0, 0, MapEditorLayerType.ObjectExtra, MapEditorManager.CustomColorTileId,
                 Color.magenta, string.Empty, -1, 0, false, false);
             manager.AddCanvasLayer();
-            Require(manager.ActiveCanvasIndex == 2 && manager.ActiveLayer == MapEditorLayerType.ObjectExtra2,
+            Require(manager.ActiveCanvasIndex == 2 && manager.ActiveLayer == MapEditorLayerType.GroundExtra2,
                 "Layer 3 was not selected.");
+            manager.CurrentMapData.SetTileOnLayer(
+                1, 0, MapEditorLayerType.ObjectExtra2, MapEditorManager.CustomColorTileId,
+                Color.cyan, string.Empty, -1, 0, false, false);
+            MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
+            Canvas.ForceUpdateCanvases();
+            MapEditorCanvasLayerDragHandle sourceDragHandle =
+                FindDescendant(layerPanel, "CanvasLayerRow_1")?.GetComponent<MapEditorCanvasLayerDragHandle>();
+            MapEditorCanvasLayerDragHandle targetDragHandle =
+                FindDescendant(layerPanel, "CanvasLayerRow_2")?.GetComponent<MapEditorCanvasLayerDragHandle>();
+            Require(sourceDragHandle != null && targetDragHandle != null,
+                "Layer drag rows were not rebuilt after adding layers.");
+            EventSystem eventSystem = EventSystem.current != null
+                ? EventSystem.current
+                : UnityEngine.Object.FindFirstObjectByType<EventSystem>();
+            Require(eventSystem != null, "SampleScene is missing EventSystem for layer dragging.");
+            var dragEvent = new PointerEventData(eventSystem);
+            RectTransform targetRowRect = targetDragHandle.transform as RectTransform;
+            dragEvent.position = RectTransformUtility.WorldToScreenPoint(
+                null,
+                targetRowRect.TransformPoint(targetRowRect.rect.center));
+            sourceDragHandle.OnBeginDrag(dragEvent);
+            CanvasGroup listCanvasGroup = sourceDragHandle.transform.parent.GetComponent<CanvasGroup>();
+            Require(listCanvasGroup == null || listCanvasGroup.blocksRaycasts,
+                "Dragging one layer disabled raycasts for the entire layer list.");
+            sourceDragHandle.OnEndDrag(dragEvent);
+            Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra2) == MapEditorManager.CustomColorTileId
+                && manager.CurrentMapData.GetColor(0, 0, MapEditorLayerType.ObjectExtra2) == Color.magenta,
+                "Dragging Layer 2 below Layer 3 did not move its tile data.");
+            Require(manager.CurrentMapData.GetTile(1, 0, MapEditorLayerType.ObjectExtra) == MapEditorManager.CustomColorTileId
+                && manager.CurrentMapData.GetColor(1, 0, MapEditorLayerType.ObjectExtra) == Color.cyan,
+                "Dragging a layer damaged the displaced layer data.");
+            manager.MoveCanvasLayer(2, 1);
             manager.DeleteActiveCanvasLayer();
             Require(!manager.IsCanvasEnabled(2), "Deleted Layer 3 is still enabled.");
             Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == MapEditorManager.CustomColorTileId,
@@ -156,7 +230,7 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(!manager.IsCanvasEnabled(1), "Deleted Layer 2 is still enabled.");
             Require(manager.CurrentMapData.GetTile(0, 0, MapEditorLayerType.ObjectExtra) == -1,
                 "Deleting a canvas layer left its tile data behind.");
-            Require(manager.ActiveCanvasIndex == 0 && manager.ActiveLayer == MapEditorLayerType.Object,
+            Require(manager.ActiveCanvasIndex == 0 && manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Deleting a canvas layer did not return to Layer 1 with the current brush role.");
 
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, manager.toolToolbarOffset);
@@ -177,6 +251,48 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Height input does not cycle back to Width input with Tab.");
             Require(panel.Find("PlayerScaleGuideButton")?.GetComponent<Button>() != null,
                 "Player scale comparison button is missing.");
+
+            collisionLineRoot = new GameObject("CollisionLineRegressionCells", typeof(RectTransform));
+            manager.ClearRegisteredCells();
+            GridCell collisionLineStart = null;
+            GridCell collisionLineEnd = null;
+            for (int x = 0; x < manager.CurrentMapData.width; x++)
+            {
+                GameObject cellObject = new GameObject(
+                    "CollisionLineCell_" + x,
+                    typeof(RectTransform),
+                    typeof(Image),
+                    typeof(GridCell));
+                cellObject.transform.SetParent(collisionLineRoot.transform, false);
+                GridCell generatedCell = cellObject.GetComponent<GridCell>();
+                cellObject.SendMessage("Awake");
+                generatedCell.Init(x, 1);
+                manager.RegisterCell(generatedCell);
+                if (x == 0) collisionLineStart = generatedCell;
+                if (x == manager.CurrentMapData.width - 1) collisionLineEnd = generatedCell;
+            }
+
+            Require(collisionLineStart != null && collisionLineEnd != null,
+                "Could not find map cells for the collision line regression test.");
+            manager.brushSize = 1;
+            manager.SetBrushLayerRole(MapEditorLayerType.WallCollision);
+            manager.SetLineTool();
+            manager.BeginPointerDrag(collisionLineStart);
+            manager.UpdatePointerDrag(collisionLineEnd);
+            Transform collisionLinePreview = gridGenerator.gridParent.parent.Find("MapEditor_BrushCursorPreview");
+            Require(collisionLinePreview != null
+                && collisionLinePreview.GetComponentsInChildren<Image>(false).Length >= manager.CurrentMapData.width,
+                "Collision line preview did not render the dragged tile path.");
+            manager.EndPointerDrag(collisionLineEnd);
+            manager.CommitEditTransaction();
+            for (int x = 0; x < manager.CurrentMapData.width; x++)
+            {
+                Require(
+                    manager.CurrentMapData.GetTile(x, 1, MapEditorLayerType.WallCollision) == MapEditorManager.WallTileId,
+                    "Collision line painting did not store a wall collision tile at x=" + x + ".");
+            }
+            manager.ClearActiveLayer();
+            manager.SetBrushLayerRole(MapEditorLayerType.Ground);
 
             manager.showPlayerScaleGuide = false;
             manager.TogglePlayerScaleGuide();
@@ -202,6 +318,9 @@ public static class MapEditorSizeConfigurationSmokeTest
             GridCell firstCell = testCellObject.GetComponent<GridCell>();
             testCellObject.SendMessage("Awake");
             firstCell.Init(0, 0);
+            firstCell.SetWallCollisionOutline(false, false, false, false, false);
+            Require(firstCell.transform.Find("WallCollisionOverlay") == null,
+                "An empty cell allocated a wall collision overlay during refresh.");
             manager.CurrentMapData.SetTileOnLayer(
                 0, 0, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId,
                 Color.black, string.Empty, -1, 0, false, false);
@@ -283,7 +402,7 @@ public static class MapEditorSizeConfigurationSmokeTest
 
             RectTransform hexRow = picker.transform.Find("HexColorInput") as RectTransform;
             InputField hexInput = picker.transform.Find("HexColorInput/Input")?.GetComponent<InputField>();
-            Require(hexRow != null && Mathf.Abs(hexRow.anchoredPosition.y + 228f) < 0.1f,
+            Require(hexRow != null && Mathf.Abs(hexRow.anchoredPosition.y + 218f) < 0.1f,
                 "HEX color input is not positioned below the color controls.");
             Require(hexInput != null, "HEX color input field is missing.");
             hexInput.text = "46F1F1";
@@ -299,7 +418,7 @@ public static class MapEditorSizeConfigurationSmokeTest
             RectTransform paletteContentRect = paletteContent as RectTransform;
             GridLayoutGroup paletteGrid = paletteContent.GetComponent<GridLayoutGroup>();
             Require(paletteViewport != null && paletteContentRect != null, "PNG palette viewport layout is missing.");
-            Require(Mathf.Abs(paletteViewport.rect.width - 176f) < 0.1f && Mathf.Abs(paletteViewport.rect.height - 176f) < 0.1f,
+            Require(Mathf.Abs(paletteViewport.rect.width - 200f) < 0.1f && Mathf.Abs(paletteViewport.rect.height - 200f) < 0.1f,
                 "PNG palette viewport is not using the full display size.");
             Require(paletteGrid != null && paletteGrid.padding.horizontal == 0 && paletteGrid.padding.vertical == 0,
                 "PNG palette still has an outer border padding.");
@@ -319,6 +438,11 @@ public static class MapEditorSizeConfigurationSmokeTest
             if (testCellObject != null)
             {
                 UnityEngine.Object.DestroyImmediate(testCellObject);
+            }
+
+            if (collisionLineRoot != null)
+            {
+                UnityEngine.Object.DestroyImmediate(collisionLineRoot);
             }
 
             if (File.Exists(texturePath))

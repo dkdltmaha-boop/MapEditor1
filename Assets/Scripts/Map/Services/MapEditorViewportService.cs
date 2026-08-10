@@ -27,6 +27,16 @@ public class MapEditorViewportService
 
     public void ZoomMap(float direction)
     {
+        ZoomMap(direction, null);
+    }
+
+    public void ZoomMap(float direction, Vector2 screenPosition)
+    {
+        ZoomMap(direction, (Vector2?)screenPosition);
+    }
+
+    private void ZoomMap(float direction, Vector2? screenPosition)
+    {
         GridGenerator gridGenerator = getGridGenerator();
 
         if (gridGenerator == null || gridGenerator.gridParent == null)
@@ -52,7 +62,37 @@ public class MapEditorViewportService
             return;
         }
 
+        RectTransform viewportRect = gridRect.parent as RectTransform;
+        Camera eventCamera = GetEventCamera(gridRect);
+        Vector2 gridLocalFocus = Vector2.zero;
+        Vector2 viewportLocalFocus = Vector2.zero;
+        bool preserveFocus = viewportRect != null;
+
+        if (preserveFocus)
+        {
+            Vector2 focusScreenPosition = screenPosition ?? RectTransformUtility.WorldToScreenPoint(
+                eventCamera,
+                viewportRect.TransformPoint(viewportRect.rect.center));
+            preserveFocus = RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    gridRect,
+                    focusScreenPosition,
+                    eventCamera,
+                    out gridLocalFocus)
+                && RectTransformUtility.ScreenPointToLocalPointInRectangle(
+                    viewportRect,
+                    focusScreenPosition,
+                    eventCamera,
+                    out viewportLocalFocus);
+        }
+
         gridRect.localScale = new Vector3(nextZoom, nextZoom, 1f);
+
+        if (preserveFocus)
+        {
+            Vector2 scaledFocusInViewport = viewportRect.InverseTransformPoint(gridRect.TransformPoint(gridLocalFocus));
+            gridRect.anchoredPosition += viewportLocalFocus - scaledFocusInViewport;
+        }
+
         ClampMapToViewport();
         syncMinimapView();
     }
@@ -208,5 +248,11 @@ public class MapEditorViewportService
 
         float maxOffset = (contentSize - viewportSize) * 0.5f;
         return Mathf.Clamp(position, -maxOffset, maxOffset);
+    }
+
+    private static Camera GetEventCamera(RectTransform rect)
+    {
+        Canvas canvas = rect == null ? null : rect.GetComponentInParent<Canvas>();
+        return canvas != null && canvas.renderMode != RenderMode.ScreenSpaceOverlay ? canvas.worldCamera : null;
     }
 }

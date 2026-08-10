@@ -13,6 +13,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
     private const int SquareHeight = 140;
     private const int HueBarWidth = 196;
     private const int HueBarHeight = 16;
+    private const float ContentVerticalOffset = 10f;
     private static readonly Vector2 PreferredWindowSize = new Vector2(246f, 620f);
     private const float WindowScreenMargin = 8f;
     private const string WallTileSelectorObjectName = "WallTileSelector";
@@ -103,24 +104,34 @@ public class ColorWheelPickerWindow : MonoBehaviour
             return;
         }
 
-        rect.anchorMin = new Vector2(0f, 1f);
-        rect.anchorMax = new Vector2(0f, 1f);
-        rect.pivot = new Vector2(0f, 1f);
-
         Vector2 size = PreferredWindowSize;
         Vector2 position = offset;
         RectTransform parentRect = rect.parent as RectTransform;
 
         if (parentRect != null)
         {
+            rect.anchorMin = new Vector2(0f, 0f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
             size.x = Mathf.Min(size.x, Mathf.Max(120f, parentRect.rect.width - WindowScreenMargin * 2f));
-            size.y = Mathf.Min(size.y, Mathf.Max(360f, parentRect.rect.height - WindowScreenMargin * 2f));
             position.x = Mathf.Clamp(position.x, WindowScreenMargin, parentRect.rect.width - size.x - WindowScreenMargin);
-            position.y = Mathf.Clamp(position.y, -parentRect.rect.height + size.y + WindowScreenMargin, -WindowScreenMargin);
+            position.y = 0f;
+            size.y = 0f;
+        }
+        else
+        {
+            rect.anchorMin = new Vector2(0f, 1f);
+            rect.anchorMax = new Vector2(0f, 1f);
+            rect.pivot = new Vector2(0f, 1f);
         }
 
         rect.anchoredPosition = position;
         rect.sizeDelta = size;
+    }
+
+    public void RefreshLayout(Vector2 offset)
+    {
+        ConfigureWindowRect(transform as RectTransform, offset);
     }
 
     public void Initialize(MapEditorManager manager)
@@ -149,8 +160,27 @@ public class ColorWheelPickerWindow : MonoBehaviour
             EnsureHexColorInput();
         }
 
+        ApplyCompactVerticalLayout();
         isBuilt = true;
         SetColor(manager.selectedColor, false);
+    }
+
+    private void ApplyCompactVerticalLayout()
+    {
+        SetChildVerticalPosition("SaturationValueSquare", -122f + ContentVerticalOffset);
+        SetChildVerticalPosition("HueBar", -210f + ContentVerticalOffset);
+        SetChildVerticalPosition(HexColorInputObjectName, -228f + ContentVerticalOffset);
+        SetChildVerticalPosition(WallTileSelectorObjectName, -270f + ContentVerticalOffset);
+        SetChildVerticalPosition(ExportCellSizeSelectorObjectName, -312f + ContentVerticalOffset);
+    }
+
+    private void SetChildVerticalPosition(string childName, float y)
+    {
+        RectTransform child = transform.Find(childName) as RectTransform;
+        if (child != null)
+        {
+            child.anchoredPosition = new Vector2(child.anchoredPosition.x, y);
+        }
     }
 
     public void SetColor(Color color, bool notifyManager)
@@ -419,7 +449,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, -210f);
+        rect.anchoredPosition = new Vector2(0f, -210f + ContentVerticalOffset);
         rect.sizeDelta = new Vector2(HueBarWidth, HueBarHeight);
 
         wheelImage = wheelObject.GetComponent<RawImage>();
@@ -464,7 +494,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rowRect.anchorMin = new Vector2(0f, 1f);
         rowRect.anchorMax = new Vector2(1f, 1f);
         rowRect.pivot = new Vector2(0.5f, 1f);
-        rowRect.anchoredPosition = new Vector2(0f, -228f);
+        rowRect.anchoredPosition = new Vector2(0f, -228f + ContentVerticalOffset);
         rowRect.sizeDelta = new Vector2(-16f, 28f);
         rowObject.GetComponent<Image>().color = new Color(0.11f, 0.11f, 0.11f, 0.92f);
 
@@ -619,7 +649,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMin = new Vector2(0.5f, 1f);
         rect.anchorMax = new Vector2(0.5f, 1f);
         rect.pivot = new Vector2(0.5f, 0.5f);
-        rect.anchoredPosition = new Vector2(0f, -122f);
+        rect.anchoredPosition = new Vector2(0f, -122f + ContentVerticalOffset);
         rect.sizeDelta = new Vector2(SquareWidth, SquareHeight);
 
         squareTexture = new Texture2D(SquareWidth, SquareHeight, TextureFormat.RGBA32, false);
@@ -665,7 +695,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -270f);
+        rect.anchoredPosition = new Vector2(0f, -270f + ContentVerticalOffset);
         rect.sizeDelta = new Vector2(-16f, 34f);
 
         Image background = selectorObject.GetComponent<Image>();
@@ -747,7 +777,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -312f);
+        rect.anchoredPosition = new Vector2(0f, -312f + ContentVerticalOffset);
         rect.sizeDelta = new Vector2(-16f, 24f);
 
         Image background = selectorObject.GetComponent<Image>();

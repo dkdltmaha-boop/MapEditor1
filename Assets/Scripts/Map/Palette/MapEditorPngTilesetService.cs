@@ -6,6 +6,7 @@ public class MapEditorPngTilesetService
 {
     public const int FullImageTileIndex = 1 << 28;
     private const string RecentPngPrefsKey = "MapEditor.RecentPngFiles";
+    private const string RecentResourceAliasesPrefsKey = "MapEditor.RecentResourceAliases";
     private const int TileGridSize = 16;
     private const int FlexibleTileMarker = 1 << 30;
     private const int FlexibleBaseIndexMask = (1 << 14) - 1;
@@ -492,5 +493,64 @@ public class MapEditorPngTilesetService
         }
 
         return paths;
+    }
+
+    public string GetRecentDisplayName(string path)
+    {
+        RecentResourceAliasCatalog catalog = LoadAliasCatalog();
+        for (int i = 0; i < catalog.items.Count; i++)
+        {
+            if (string.Equals(catalog.items[i].path, path, System.StringComparison.OrdinalIgnoreCase)
+                && !string.IsNullOrWhiteSpace(catalog.items[i].displayName))
+            {
+                return catalog.items[i].displayName;
+            }
+        }
+
+        return Path.GetFileNameWithoutExtension(path);
+    }
+
+    public void SetRecentDisplayName(string path, string displayName)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        string normalizedName = string.IsNullOrWhiteSpace(displayName)
+            ? Path.GetFileNameWithoutExtension(path)
+            : displayName.Trim();
+        if (normalizedName.Length > 24) normalizedName = normalizedName.Substring(0, 24);
+
+        RecentResourceAliasCatalog catalog = LoadAliasCatalog();
+        RecentResourceAlias item = catalog.items.Find(entry =>
+            string.Equals(entry.path, path, System.StringComparison.OrdinalIgnoreCase));
+        if (item == null)
+        {
+            item = new RecentResourceAlias { path = path };
+            catalog.items.Add(item);
+        }
+
+        item.displayName = normalizedName;
+        PlayerPrefs.SetString(RecentResourceAliasesPrefsKey, JsonUtility.ToJson(catalog));
+        PlayerPrefs.Save();
+    }
+
+    private static RecentResourceAliasCatalog LoadAliasCatalog()
+    {
+        string json = PlayerPrefs.GetString(RecentResourceAliasesPrefsKey, string.Empty);
+        RecentResourceAliasCatalog catalog = string.IsNullOrEmpty(json)
+            ? null
+            : JsonUtility.FromJson<RecentResourceAliasCatalog>(json);
+        return catalog ?? new RecentResourceAliasCatalog();
+    }
+
+    [System.Serializable]
+    private sealed class RecentResourceAliasCatalog
+    {
+        public List<RecentResourceAlias> items = new List<RecentResourceAlias>();
+    }
+
+    [System.Serializable]
+    private sealed class RecentResourceAlias
+    {
+        public string path;
+        public string displayName;
     }
 }

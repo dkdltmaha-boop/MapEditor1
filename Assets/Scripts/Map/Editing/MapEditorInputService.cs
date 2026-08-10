@@ -100,14 +100,7 @@ public class MapEditorInputService
             }
             else if (Input.GetKeyDown(KeyCode.E))
             {
-                if (Input.GetKey(KeyCode.LeftShift) || Input.GetKey(KeyCode.RightShift))
-                {
-                    manager.SetBrushEraserTool();
-                }
-                else
-                {
-                    manager.SetEraserTool();
-                }
+                manager.SetEraserTool();
             }
             else if (Input.GetKeyDown(KeyCode.S))
             {
@@ -177,6 +170,11 @@ public class MapEditorInputService
 
     private void HandleMapZoomInput()
     {
+        if (manager.GridGenerator != null && manager.GridGenerator.UsesChunkRendering)
+        {
+            return;
+        }
+
         float scroll = Input.mouseScrollDelta.y;
 
         if (Mathf.Approximately(scroll, 0f) || !IsPointerOverMapGrid())
@@ -229,7 +227,8 @@ public class MapEditorInputService
 
         foreach (RaycastResult result in results)
         {
-            if (result.gameObject.GetComponentInParent<GridCell>() != null)
+            if (result.gameObject.GetComponentInParent<GridCell>() != null
+                || result.gameObject.GetComponentInParent<MapEditorGridInputSurface>() != null)
             {
                 return true;
             }

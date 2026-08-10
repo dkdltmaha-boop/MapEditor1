@@ -60,7 +60,7 @@ public class MapEditorManager : MonoBehaviour
     public bool createToolToolbar = true;
     public bool removeLegacyToolButtons = true;
     public Vector2 toolToolbarOffset = new Vector2(-12f, -12f);
-    public int maxRecentPngFiles = 5;
+    public int maxRecentPngFiles = 10;
 
     [Header("미니맵")]
     public bool createMinimap = false;
@@ -127,6 +127,7 @@ public class MapEditorManager : MonoBehaviour
     private MapEditorMinimap minimap;
     private EditorToolController subscribedToolController;
     private GridCell hoveredCell;
+    private GridCell coordinateProxy;
     private int hoveredSubPixelX;
     private int hoveredSubPixelY;
     private int selectedRegionGridSize;
@@ -211,6 +212,12 @@ public class MapEditorManager : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeToolControllerChange();
+
+        if (coordinateProxy != null)
+        {
+            MapEditorObjectUtility.DestroyObject(coordinateProxy.gameObject);
+            coordinateProxy = null;
+        }
     }
 
     private void EnsureMapEditingService()
@@ -220,7 +227,15 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        mapEditing = new MapEditorMapEditingService(() => CurrentMapData, () => activeLayer, IsLayerVisible, cells, GetPngTileSprite, RefreshMinimap);
+        mapEditing = new MapEditorMapEditingService(
+            () => CurrentMapData,
+            () => activeLayer,
+            IsLayerVisible,
+            cells,
+            GetPngTileSprite,
+            RefreshMinimap,
+            MarkVisualCellDirty,
+            MarkAllVisualsDirty);
     }
 
     private MapEditorTilesetLibraryService EnsureTilesetLibrary()
@@ -347,7 +362,14 @@ public class MapEditorManager : MonoBehaviour
 
     private void NormalizeToolStateForTool(EditorToolType tool)
     {
-        useWallTileBrush = tool == EditorToolType.Wall;
+        bool isPaintTool = tool == EditorToolType.Brush
+            || tool == EditorToolType.Line
+            || tool == EditorToolType.RectangleFill
+            || tool == EditorToolType.Wall;
+        useWallTileBrush = isPaintTool
+            && (tool == EditorToolType.Wall
+                || brushLayerRole == MapEditorLayerType.WallCollision
+                || activeLayer == MapEditorLayerType.WallCollision);
 
         if (useWallTileBrush)
         {
@@ -360,7 +382,7 @@ public class MapEditorManager : MonoBehaviour
         return new MapEditorPaintSelection
         {
             useSelectedColor = useSelectedColor,
-            useWallTileBrush = useWallTileBrush,
+            useWallTileBrush = useWallTileBrush || activeLayer == MapEditorLayerType.WallCollision,
             selectedColor = selectedColor,
             selectedImageBrush = selectedImageBrush,
             selectedImagePath = selectedImagePath,
@@ -444,6 +466,7 @@ public class MapEditorManager : MonoBehaviour
 
         lastCanvasSize = currentSize;
         MapEditorSceneUiBuilder.ConfigureCanvasScaler(canvas);
+        colorWheelWindow?.RefreshLayout(colorPaletteOffset);
         MapEditorToolbarBuilder.RefreshLayout(toolToolbarOffset);
         MapEditorMapSizePanelBuilder.RefreshLayout(canvas.transform, toolToolbarOffset);
         MapEditorLayerPanelBuilder.RefreshLayout(toolToolbarOffset);
@@ -452,15 +475,9 @@ public class MapEditorManager : MonoBehaviour
 
     public void SetBrushTool()
     {
-        if (brushLayerRole == MapEditorLayerType.WallCollision)
-        {
-            SetWallTileTool();
-            return;
-        }
-
         CancelTransientToolState();
-        useWallTileBrush = false;
         ApplyBrushRoleToActiveLayer();
+        useWallTileBrush = activeLayer == MapEditorLayerType.WallCollision;
 
         if (EditorToolController.Instance != null)
         {
@@ -475,8 +492,8 @@ public class MapEditorManager : MonoBehaviour
     public void SetLineTool()
     {
         CancelTransientToolState();
-        useWallTileBrush = false;
         ApplyBrushRoleToActiveLayer();
+        useWallTileBrush = activeLayer == MapEditorLayerType.WallCollision;
 
         if (EditorToolController.Instance != null)
         {
@@ -491,8 +508,8 @@ public class MapEditorManager : MonoBehaviour
     public void SetRectangleFillTool()
     {
         CancelTransientToolState();
-        useWallTileBrush = false;
         ApplyBrushRoleToActiveLayer();
+        useWallTileBrush = activeLayer == MapEditorLayerType.WallCollision;
 
         if (EditorToolController.Instance != null)
         {
@@ -514,11 +531,10 @@ public class MapEditorManager : MonoBehaviour
 
         if (EditorToolController.Instance != null)
         {
-            EditorToolController.Instance.SetWallTool();
+            EditorToolController.Instance.SetBrushTool();
         }
 
-        RefreshToolToolbarSelection();
-        UpdateBrushPreview();
+        CreateToolToolbar();
         UpdateBrushCursorPreview();
     }
 
@@ -537,16 +553,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void SetBrushEraserTool()
     {
-        CancelTransientToolState();
-        useWallTileBrush = false;
-
-        if (EditorToolController.Instance != null)
-        {
-            EditorToolController.Instance.SetBrushEraserTool();
-        }
-
-        RefreshToolToolbarSelection();
-        UpdateBrushCursorPreview();
+        SetEraserTool();
     }
 
     public void SetSelectionTool()
@@ -679,8 +686,6 @@ public class MapEditorManager : MonoBehaviour
     {
         role = MapEditorLayerUtility.GetBaseLayer(role);
         if (role != MapEditorLayerType.Ground
-            && role != MapEditorLayerType.Object
-            && role != MapEditorLayerType.WallVisual
             && role != MapEditorLayerType.WallCollision)
         {
             role = MapEditorLayerType.Ground;
@@ -785,6 +790,73 @@ public class MapEditorManager : MonoBehaviour
         CreateToolToolbar();
     }
 
+    public void MoveCanvasLayer(int fromCanvasIndex, int toCanvasIndex)
+    {
+        fromCanvasIndex = Mathf.Clamp(fromCanvasIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        toCanvasIndex = Mathf.Clamp(toCanvasIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+
+        if (fromCanvasIndex == toCanvasIndex
+            || !IsCanvasEnabled(fromCanvasIndex)
+            || !IsCanvasEnabled(toCanvasIndex)
+            || CurrentMapData == null)
+        {
+            return;
+        }
+
+        int previousActiveCanvas = activeCanvasIndex;
+        int direction = fromCanvasIndex < toCanvasIndex ? 1 : -1;
+        for (int canvasIndex = fromCanvasIndex; canvasIndex != toCanvasIndex; canvasIndex += direction)
+        {
+            SwapCanvasLayerContents(canvasIndex, canvasIndex + direction);
+        }
+
+        if (previousActiveCanvas == fromCanvasIndex)
+        {
+            activeCanvasIndex = toCanvasIndex;
+        }
+        else if (fromCanvasIndex < toCanvasIndex
+            && previousActiveCanvas > fromCanvasIndex
+            && previousActiveCanvas <= toCanvasIndex)
+        {
+            activeCanvasIndex = previousActiveCanvas - 1;
+        }
+        else if (fromCanvasIndex > toCanvasIndex
+            && previousActiveCanvas >= toCanvasIndex
+            && previousActiveCanvas < fromCanvasIndex)
+        {
+            activeCanvasIndex = previousActiveCanvas + 1;
+        }
+
+        ApplyBrushRoleToActiveLayer();
+        selectionClipboard?.ClearSelection();
+        RefreshAllCells();
+        CreateToolToolbar();
+    }
+
+    private void SwapCanvasLayerContents(int fromCanvasIndex, int toCanvasIndex)
+    {
+        foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
+        {
+            MapEditorLayerType fromLayer = MapEditorLayerUtility.GetCanvasLayer(fromCanvasIndex, role);
+            MapEditorLayerType toLayer = MapEditorLayerUtility.GetCanvasLayer(toCanvasIndex, role);
+            CurrentMapData.SwapLayers(fromLayer, toLayer);
+
+            MapEditorLayerSetting fromSetting = FindLayerSetting(fromLayer);
+            MapEditorLayerSetting toSetting = FindLayerSetting(toLayer);
+            if (fromSetting == null || toSetting == null) continue;
+
+            string name = fromSetting.displayName;
+            bool visible = fromSetting.visible;
+            bool enabled = fromSetting.enabled;
+            fromSetting.displayName = toSetting.displayName;
+            fromSetting.visible = toSetting.visible;
+            fromSetting.enabled = toSetting.enabled;
+            toSetting.displayName = name;
+            toSetting.visible = visible;
+            toSetting.enabled = enabled;
+        }
+    }
+
     public void AddCanvasLayer()
     {
         EnsureLayerSettings();
@@ -852,7 +924,10 @@ public class MapEditorManager : MonoBehaviour
             return false;
         }
 
-        EnsureLayerSettings();
+        if (layerSettings == null || layerSettings.Count != (int)MapEditorLayerUtility.LastLayer + 1)
+        {
+            EnsureLayerSettings();
+        }
         MapEditorLayerSetting setting = FindLayerSetting(layerType);
 
         if (setting != null)
@@ -865,7 +940,10 @@ public class MapEditorManager : MonoBehaviour
 
     public bool IsLayerEnabled(MapEditorLayerType layerType)
     {
-        EnsureLayerSettings();
+        if (layerSettings == null || layerSettings.Count != (int)MapEditorLayerUtility.LastLayer + 1)
+        {
+            EnsureLayerSettings();
+        }
         MapEditorLayerSetting setting = FindLayerSetting(layerType);
         return setting == null ? !MapEditorLayerUtility.IsOptional(layerType) : setting.enabled;
     }
@@ -1113,6 +1191,14 @@ public class MapEditorManager : MonoBehaviour
 
         int layerValue = (int)layerType;
 
+        if (layerValue >= 0
+            && layerValue < layerSettings.Count
+            && layerSettings[layerValue] != null
+            && layerSettings[layerValue].layer == layerValue)
+        {
+            return layerSettings[layerValue];
+        }
+
         for (int i = 0; i < layerSettings.Count; i++)
         {
             if (layerSettings[i] != null && layerSettings[i].layer == layerValue)
@@ -1331,7 +1417,8 @@ public class MapEditorManager : MonoBehaviour
         {
             for (int x = 0; x < outputWidth; x++)
             {
-                if (!cells.TryGetValue(new Vector2Int(startMapX + x, startMapY + y), out GridCell targetCell))
+                GridCell targetCell = GetCellForEditing(startMapX + x, startMapY + y);
+                if (targetCell == null)
                 {
                     continue;
                 }
@@ -1477,7 +1564,8 @@ public class MapEditorManager : MonoBehaviour
         int mapX = Mathf.FloorToInt(point.x / (float)resolution);
         int mapY = Mathf.FloorToInt(point.y / (float)resolution);
 
-        if (!cells.TryGetValue(new Vector2Int(mapX, mapY), out GridCell targetCell))
+        GridCell targetCell = GetCellForEditing(mapX, mapY);
+        if (targetCell == null)
         {
             return;
         }
@@ -1537,19 +1625,12 @@ public class MapEditorManager : MonoBehaviour
                 }
                 else
                 {
-                    mapEditing.EraseLayerAssignment(cell, brushSize);
+                    mapEditing.EraseCell(cell, brushSize);
                 }
                 break;
 
             case EditorToolType.BrushEraser:
-                if (activeLayer == MapEditorLayerType.Spawn)
-                {
-                    RemovePixelChromaSpawnAtCell(cell);
-                }
-                else
-                {
-                    mapEditing.EraseCell(cell, brushSize);
-                }
+                mapEditing.EraseCell(cell, brushSize);
                 break;
 
             case EditorToolType.Spawn:
@@ -1707,8 +1788,8 @@ public class MapEditorManager : MonoBehaviour
             MaxMapSize,
             ClearSelection,
             mapEditing.ClearHistory,
-            RegenerateGrid,
-            RefreshMinimap,
+            null,
+            null,
             out MapData resizedMapData))
         {
             return;
@@ -1716,6 +1797,7 @@ public class MapEditorManager : MonoBehaviour
 
         CurrentMapData = resizedMapData;
         ClampPreviewRegionToMap();
+        RegenerateGrid();
 
         if (refreshToolbar && createToolToolbar)
         {
@@ -1898,18 +1980,9 @@ public class MapEditorManager : MonoBehaviour
         }
 
         EnsureSpawnPointList();
-        int existingIndex = FindSpawnPointIndex(cell.X, cell.Y);
-
-        if (existingIndex >= 0)
-        {
-            pixelChromaSpawnPoints.RemoveAt(existingIndex);
-            Debug.Log("PixelChroma 시작 위치 삭제: " + cell.X + ", " + cell.Y);
-        }
-        else
-        {
-            pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(GetNextSpawnPointId(), cell.X, cell.Y, "Any"));
-            Debug.Log("PixelChroma 시작 위치 추가: " + cell.X + ", " + cell.Y);
-        }
+        pixelChromaSpawnPoints.Clear();
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SpawnPoint_1", cell.X, cell.Y, "Any"));
+        Debug.Log("시작 위치를 새 위치로 변경했습니다: " + cell.X + ", " + cell.Y);
 
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
@@ -1959,7 +2032,7 @@ public class MapEditorManager : MonoBehaviour
 
         if (saveData.spawnPoints != null)
         {
-            for (int i = 0; i < saveData.spawnPoints.Length; i++)
+            for (int i = 0; i < saveData.spawnPoints.Length && pixelChromaSpawnPoints.Count == 0; i++)
             {
                 MapEditorSpawnPointData spawnPoint = saveData.spawnPoints[i];
 
@@ -2189,7 +2262,8 @@ public class MapEditorManager : MonoBehaviour
         {
             for (int x = minX; x <= maxX; x++)
             {
-                if (cells.TryGetValue(new Vector2Int(x, y), out GridCell targetCell))
+                GridCell targetCell = GetCellForEditing(x, y);
+                if (targetCell != null)
                 {
                     PaintRectangleFillCell(targetCell, x - minX, y - minY, selection);
                     paintedCellCount++;
@@ -2316,12 +2390,12 @@ public class MapEditorManager : MonoBehaviour
         linePreviewCells.Clear();
         MapEditorBrushGeometry.RasterizeLine(start, end, point =>
         {
-            if (cells.TryGetValue(point, out GridCell targetCell))
+            GridCell targetCell = GetCellForEditing(point.x, point.y);
+            if (targetCell != null)
             {
                 UseCurrentToolAt(targetCell, -1, -1, EditorToolType.Brush);
             }
         });
-        RefreshAllCells();
         UpdateBrushCursorPreview();
     }
 
@@ -2372,7 +2446,7 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        UpdatePreviewRegionDrag(cell);
+        UpdatePreviewRegionDrag(cell != null ? cell : hoveredCell);
         previewDragStart = null;
         UpdateBrushCursorPreview();
 
@@ -2409,6 +2483,40 @@ public class MapEditorManager : MonoBehaviour
         cell.SetSpawnMarkerVisible(IsSpawnPointAt(cell.X, cell.Y));
     }
 
+    public bool TryGetCellAtScreenPosition(Vector2 screenPosition, Camera eventCamera, out GridCell cell)
+    {
+        cell = null;
+
+        if (gridGenerator == null)
+        {
+            gridGenerator = GetComponent<GridGenerator>();
+        }
+
+        RectTransform gridRect = gridGenerator == null ? null : gridGenerator.gridParent as RectTransform;
+        if (gridRect == null
+            || gridGenerator.cellSize <= 0f
+            || !RectTransformUtility.ScreenPointToLocalPointInRectangle(gridRect, screenPosition, eventCamera, out Vector2 localPoint))
+        {
+            return false;
+        }
+
+        Rect rect = gridRect.rect;
+        int x = Mathf.FloorToInt((localPoint.x - rect.xMin) / gridGenerator.cellSize);
+        int y = Mathf.FloorToInt((rect.yMax - localPoint.y) / gridGenerator.cellSize);
+
+        if (CurrentMapData == null
+            || x < 0
+            || y < 0
+            || x >= CurrentMapData.width
+            || y >= CurrentMapData.height)
+        {
+            return false;
+        }
+
+        cell = GetCellForEditing(x, y);
+        return cell != null;
+    }
+
     public void ClearRegisteredCells()
     {
         cells.Clear();
@@ -2418,6 +2526,102 @@ public class MapEditorManager : MonoBehaviour
     {
         cells.TryGetValue(new Vector2Int(x, y), out GridCell cell);
         return cell;
+    }
+
+    private GridCell GetCellForEditing(int x, int y)
+    {
+        if (CurrentMapData == null || !CurrentMapData.IsInside(x, y))
+        {
+            return null;
+        }
+
+        if (cells.TryGetValue(new Vector2Int(x, y), out GridCell registeredCell) && registeredCell != null)
+        {
+            return registeredCell;
+        }
+
+        if (coordinateProxy == null)
+        {
+            GameObject proxyObject = new GameObject("MapEditor_CellCoordinateProxy", typeof(RectTransform), typeof(Image), typeof(GridCell));
+            proxyObject.hideFlags = HideFlags.HideAndDontSave;
+            Image proxyImage = proxyObject.GetComponent<Image>();
+            proxyImage.color = Color.clear;
+            proxyImage.raycastTarget = false;
+            coordinateProxy = proxyObject.GetComponent<GridCell>();
+        }
+
+        coordinateProxy.SetCoordinates(x, y);
+        return coordinateProxy;
+    }
+
+    public void HandleVirtualPointerDown(int x, int y, int subPixelX, int subPixelY)
+    {
+        GridCell cell = GetCellForEditing(x, y);
+        if (cell == null)
+        {
+            return;
+        }
+
+        SetHoveredCell(cell, subPixelX, subPixelY);
+        if (IsPointerDragToolActive())
+        {
+            BeginPointerDrag(cell);
+            return;
+        }
+
+        BeginEditTransaction();
+        UseCurrentTool(cell, subPixelX, subPixelY);
+    }
+
+    public void HandleVirtualPointerDrag(int x, int y, int subPixelX, int subPixelY)
+    {
+        GridCell cell = GetCellForEditing(x, y);
+        if (cell == null)
+        {
+            return;
+        }
+
+        SetHoveredCell(cell, subPixelX, subPixelY);
+        if (IsPointerDragToolActive())
+        {
+            UpdatePointerDrag(cell);
+            return;
+        }
+
+        UseCurrentTool(cell, subPixelX, subPixelY);
+    }
+
+    public void HandleVirtualPointerMove(int x, int y, int subPixelX, int subPixelY)
+    {
+        GridCell cell = GetCellForEditing(x, y);
+        if (cell != null)
+        {
+            SetHoveredCell(cell, subPixelX, subPixelY);
+        }
+    }
+
+    public void HandleVirtualPointerUp(int x, int y, int subPixelX, int subPixelY)
+    {
+        GridCell cell = GetCellForEditing(x, y);
+        if (cell != null)
+        {
+            SetHoveredCell(cell, subPixelX, subPixelY);
+        }
+
+        EndPointerDrag(cell);
+        CommitEditTransaction();
+    }
+
+    public void HandleVirtualPointerUpOutside()
+    {
+        EndPointerDrag(hoveredCell);
+        CommitEditTransaction();
+    }
+
+    public void HandleVirtualPointerExit()
+    {
+        hoveredCell = null;
+        UpdateBrushCursorPreview();
     }
 
     public void SetHoveredCell(GridCell cell)
@@ -2446,6 +2650,12 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureViewportService();
         viewportService.ZoomMap(direction);
+    }
+
+    public void ZoomMap(float direction, Vector2 screenPosition)
+    {
+        EnsureViewportService();
+        viewportService.ZoomMap(direction, screenPosition);
     }
 
     public void PanMap(Vector2 delta)
@@ -2513,7 +2723,7 @@ public class MapEditorManager : MonoBehaviour
 
     private void CreateToolToolbar()
     {
-        toolbarState.EnsureToolbar(this, toolToolbarOffset, pngFiles.GetRecentPaths());
+        toolbarState.EnsureToolbar(this, toolToolbarOffset, GetRecentResourcePaths());
         RefreshToolToolbarSelection();
         UpdateBrushPreview();
     }
@@ -2622,8 +2832,12 @@ public class MapEditorManager : MonoBehaviour
             hoveredCell,
             CurrentMapData,
             brushSize,
-            selectedColor,
-            selectedImageBrush,
+            activeLayer == MapEditorLayerType.WallCollision
+                ? new Color(0.18f, 0.18f, 0.18f, 1f)
+                : selectedColor,
+            activeLayer == MapEditorLayerType.WallCollision
+                ? null
+                : selectedImageBrush,
             selectedImageRotation,
             selectedImageFlipX,
             selectedImageFlipY,
@@ -2987,6 +3201,14 @@ public class MapEditorManager : MonoBehaviour
     // 성공 시 true, folderPath 에 그 폴더 경로가 담긴다.
     public bool ExportWorkshopPackageForUpload(out string folderPath)
     {
+        PixelChromaMapValidationReport validation = ValidateForWorkshop();
+        PublishValidationResult(validation);
+        if (!validation.isValid)
+        {
+            folderPath = string.Empty;
+            return false;
+        }
+
         ConfigureWorkshopPreview();
         EnsureSpawnPointList();
 
@@ -3096,7 +3318,52 @@ public class MapEditorManager : MonoBehaviour
 
     private void RefreshRecentPngList()
     {
-        toolbarState.RefreshRecentPngList(this, pngFiles.GetRecentPaths());
+        toolbarState.RefreshRecentPngList(this, GetRecentResourcePaths());
+    }
+
+    public IReadOnlyList<string> GetRecentResourcePaths()
+    {
+        List<string> result = pngFiles.GetRecentPaths();
+        EnsureTilesetLibrary();
+        IReadOnlyList<MapEditorTilesetDefinition> definitions = tilesetLibrary.Definitions;
+
+        for (int i = 0; i < definitions.Count; i++)
+        {
+            string path = definitions[i]?.atlasPath;
+            if (!string.IsNullOrEmpty(path) && System.IO.File.Exists(path) && !result.Contains(path))
+            {
+                result.Add(path);
+            }
+        }
+
+        return result;
+    }
+
+    public string GetRecentResourceDisplayName(string path)
+    {
+        return pngFiles.GetRecentDisplayName(path);
+    }
+
+    public void RenameRecentResource(string path, string displayName)
+    {
+        pngFiles.SetRecentDisplayName(path, displayName);
+        RefreshRecentPngList();
+    }
+
+    public bool IsRegisteredTilesetPath(string path)
+    {
+        EnsureTilesetLibrary();
+        IReadOnlyList<MapEditorTilesetDefinition> definitions = tilesetLibrary.Definitions;
+        for (int i = 0; i < definitions.Count; i++)
+        {
+            if (definitions[i] != null
+                && string.Equals(definitions[i].atlasPath, path, System.StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private void RefreshToolToolbarSelection()
@@ -3122,7 +3389,15 @@ public class MapEditorManager : MonoBehaviour
 
     public void UpdateBrushPreview()
     {
-        toolbarState.UpdateBrushPreview(selectedImageBrush, selectedColor, selectedImageRotation, brushSize, useWallTileBrush);
+        bool regionPreview = HasSelectedTileRegion();
+        toolbarState.UpdateBrushPreview(
+            selectedImageBrush,
+            selectedColor,
+            selectedImageRotation,
+            brushSize,
+            useWallTileBrush,
+            regionPreview && selectedImageFlipX,
+            regionPreview && selectedImageFlipY);
     }
 
     private void RegenerateGrid()
@@ -3154,12 +3429,52 @@ public class MapEditorManager : MonoBehaviour
                 cell.SetSpawnMarkerVisible(IsSpawnPointAt(cell.X, cell.Y));
             }
         }
+
+        MarkAllVisualsDirty();
     }
 
     private bool IsSpawnPointAt(int x, int y)
     {
         EnsureSpawnPointList();
         return FindSpawnPointIndex(x, y) >= 0;
+    }
+
+    public bool HasSpawnPointAt(int x, int y)
+    {
+        return IsSpawnPointAt(x, y);
+    }
+
+    public bool WriteCompositeCellPixels(
+        int mapX,
+        int mapY,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        EnsureMapEditingService();
+        return mapEditing.WriteCompositeCellPixels(mapX, mapY, resolution, target, targetWidth, offsetX, offsetY);
+    }
+
+    private void MarkVisualCellDirty(int x, int y)
+    {
+        if (gridGenerator == null)
+        {
+            gridGenerator = GetComponent<GridGenerator>();
+        }
+
+        gridGenerator?.ChunkRenderer?.MarkCellDirty(x, y);
+    }
+
+    private void MarkAllVisualsDirty()
+    {
+        if (gridGenerator == null)
+        {
+            gridGenerator = GetComponent<GridGenerator>();
+        }
+
+        gridGenerator?.ChunkRenderer?.MarkAllDirty();
     }
 
     private void RefreshMinimap()

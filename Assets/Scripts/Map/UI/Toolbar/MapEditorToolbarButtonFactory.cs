@@ -73,15 +73,27 @@ public static class MapEditorToolbarButtonFactory
 
     public static Button CreateRecentPngButton(Transform parent, MapEditorManager manager, string path)
     {
-        string label = Path.GetFileNameWithoutExtension(path);
+        string label = manager == null ? Path.GetFileNameWithoutExtension(path) : manager.GetRecentResourceDisplayName(path);
 
         if (string.IsNullOrEmpty(label))
         {
             label = "PNG";
         }
 
-        Button button = CreateActionButton(parent, manager, label, "최근", MapEditorToolbarAction.LoadRecentPng);
-        button.name = "Recent_" + label;
+        GameObject rowObject = new GameObject("RecentResource_" + Path.GetFileName(path), typeof(RectTransform), typeof(HorizontalLayoutGroup));
+        rowObject.transform.SetParent(parent, false);
+        rowObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, ToolbarButtonHeight);
+        HorizontalLayoutGroup row = rowObject.GetComponent<HorizontalLayoutGroup>();
+        row.spacing = 2f;
+        row.childControlWidth = false;
+        row.childControlHeight = true;
+        row.childForceExpandWidth = false;
+        row.childForceExpandHeight = true;
+
+        string typeLabel = manager != null && manager.IsRegisteredTilesetPath(path) ? "TILE" : "PNG";
+        Button button = CreateActionButton(rowObject.transform, manager, typeLabel, string.Empty, MapEditorToolbarAction.LoadRecentPng);
+        button.name = "RecentLoad_" + Path.GetFileName(path);
+        button.GetComponent<RectTransform>().sizeDelta = new Vector2(38f, ToolbarButtonHeight);
 
         MapEditorToolbarButton toolbarButton = button.GetComponent<MapEditorToolbarButton>();
 
@@ -91,12 +103,31 @@ public static class MapEditorToolbarButtonFactory
             toolbarButton.stringArgument = path;
         }
 
-        Text text = button.GetComponentInChildren<Text>();
-
-        if (text != null)
-        {
-            text.text = label;
-        }
+        GameObject inputObject = new GameObject("RecentName", typeof(RectTransform), typeof(Image), typeof(InputField));
+        inputObject.transform.SetParent(rowObject.transform, false);
+        inputObject.GetComponent<RectTransform>().sizeDelta = new Vector2(126f, ToolbarButtonHeight);
+        Image inputBackground = inputObject.GetComponent<Image>();
+        inputBackground.color = new Color(0.09f, 0.09f, 0.09f, 1f);
+        GameObject textObject = new GameObject("Text", typeof(RectTransform), typeof(Text));
+        textObject.transform.SetParent(inputObject.transform, false);
+        RectTransform textRect = textObject.GetComponent<RectTransform>();
+        textRect.anchorMin = Vector2.zero;
+        textRect.anchorMax = Vector2.one;
+        textRect.offsetMin = new Vector2(4f, 0f);
+        textRect.offsetMax = new Vector2(-4f, 0f);
+        Text inputText = textObject.GetComponent<Text>();
+        inputText.font = MapEditorFontProvider.Default;
+        inputText.fontSize = ToolbarShortcutFontSize;
+        inputText.alignment = TextAnchor.MiddleLeft;
+        inputText.color = Color.white;
+        InputField input = inputObject.GetComponent<InputField>();
+        input.targetGraphic = inputBackground;
+        input.textComponent = inputText;
+        input.text = label;
+        input.characterLimit = 24;
+        MapEditorRecentResourceNameInput rename = inputObject.AddComponent<MapEditorRecentResourceNameInput>();
+        rename.manager = manager;
+        rename.path = path;
 
         return button;
     }
@@ -133,6 +164,13 @@ public static class MapEditorToolbarButtonFactory
         toolbarButton.manager = manager;
         toolbarButton.action = action;
         toolbarButton.stringArgument = string.Empty;
+
+        Button button = toolbarButton.GetComponent<Button>();
+        if (button != null)
+        {
+            button.onClick.RemoveListener(toolbarButton.InvokeAction);
+            button.onClick.AddListener(toolbarButton.InvokeAction);
+        }
     }
 
     private static void EnsureButtonText(Transform buttonTransform, string label, string shortcut)

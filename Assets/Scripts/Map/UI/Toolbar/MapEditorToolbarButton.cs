@@ -1,4 +1,5 @@
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public enum MapEditorToolbarAction
@@ -86,7 +87,76 @@ public enum MapEditorLayerType
     WallVisualExtra5 = 26,
     WallVisualExtra6 = 27,
     WallVisualExtra7 = 28,
-    WallVisualExtra8 = 29
+    WallVisualExtra8 = 29,
+    GroundExtra9 = 30,
+    GroundExtra10 = 31,
+    GroundExtra11 = 32,
+    GroundExtra12 = 33,
+    GroundExtra13 = 34,
+    GroundExtra14 = 35,
+    GroundExtra15 = 36,
+    GroundExtra16 = 37,
+    GroundExtra17 = 38,
+    GroundExtra18 = 39,
+    GroundExtra19 = 40,
+    GroundExtra20 = 41,
+    GroundExtra21 = 42,
+    GroundExtra22 = 43,
+    GroundExtra23 = 44,
+    GroundExtra24 = 45,
+    GroundExtra25 = 46,
+    GroundExtra26 = 47,
+    GroundExtra27 = 48,
+    GroundExtra28 = 49,
+    GroundExtra29 = 50,
+    GroundExtra30 = 51,
+    GroundExtra31 = 52,
+    ObjectExtra9 = 53,
+    ObjectExtra10 = 54,
+    ObjectExtra11 = 55,
+    ObjectExtra12 = 56,
+    ObjectExtra13 = 57,
+    ObjectExtra14 = 58,
+    ObjectExtra15 = 59,
+    ObjectExtra16 = 60,
+    ObjectExtra17 = 61,
+    ObjectExtra18 = 62,
+    ObjectExtra19 = 63,
+    ObjectExtra20 = 64,
+    ObjectExtra21 = 65,
+    ObjectExtra22 = 66,
+    ObjectExtra23 = 67,
+    ObjectExtra24 = 68,
+    ObjectExtra25 = 69,
+    ObjectExtra26 = 70,
+    ObjectExtra27 = 71,
+    ObjectExtra28 = 72,
+    ObjectExtra29 = 73,
+    ObjectExtra30 = 74,
+    ObjectExtra31 = 75,
+    WallVisualExtra9 = 76,
+    WallVisualExtra10 = 77,
+    WallVisualExtra11 = 78,
+    WallVisualExtra12 = 79,
+    WallVisualExtra13 = 80,
+    WallVisualExtra14 = 81,
+    WallVisualExtra15 = 82,
+    WallVisualExtra16 = 83,
+    WallVisualExtra17 = 84,
+    WallVisualExtra18 = 85,
+    WallVisualExtra19 = 86,
+    WallVisualExtra20 = 87,
+    WallVisualExtra21 = 88,
+    WallVisualExtra22 = 89,
+    WallVisualExtra23 = 90,
+    WallVisualExtra24 = 91,
+    WallVisualExtra25 = 92,
+    WallVisualExtra26 = 93,
+    WallVisualExtra27 = 94,
+    WallVisualExtra28 = 95,
+    WallVisualExtra29 = 96,
+    WallVisualExtra30 = 97,
+    WallVisualExtra31 = 98
 }
 
 [RequireComponent(typeof(Button))]
@@ -308,6 +378,115 @@ public class MapEditorCanvasNameInput : MonoBehaviour
     {
         MapEditorManager target = manager != null ? manager : MapEditorManager.Instance;
         if (target != null) target.SetCanvasDisplayName(canvasIndex, value);
+    }
+}
+
+public sealed class MapEditorCanvasLayerDragHandle : MonoBehaviour, IBeginDragHandler, IDragHandler, IEndDragHandler
+{
+    public MapEditorManager manager;
+    public int canvasIndex;
+
+    private CanvasGroup rowCanvasGroup;
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        rowCanvasGroup = GetComponent<CanvasGroup>();
+        if (rowCanvasGroup == null) rowCanvasGroup = gameObject.AddComponent<CanvasGroup>();
+        rowCanvasGroup.alpha = 0.55f;
+        rowCanvasGroup.blocksRaycasts = false;
+    }
+
+    public void OnDrag(PointerEventData eventData)
+    {
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        MapEditorCanvasLayerDragHandle targetHandle = FindDropTarget(eventData);
+
+        if (rowCanvasGroup != null)
+        {
+            rowCanvasGroup.alpha = 1f;
+            rowCanvasGroup.blocksRaycasts = true;
+        }
+
+        if (manager != null && targetHandle != null)
+        {
+            manager.MoveCanvasLayer(canvasIndex, targetHandle.canvasIndex);
+        }
+    }
+
+    private MapEditorCanvasLayerDragHandle FindDropTarget(PointerEventData eventData)
+    {
+        GameObject raycastTarget = eventData.pointerCurrentRaycast.gameObject;
+        MapEditorCanvasLayerDragHandle raycastHandle = raycastTarget == null
+            ? null
+            : raycastTarget.GetComponentInParent<MapEditorCanvasLayerDragHandle>();
+        if (raycastHandle != null && raycastHandle != this)
+        {
+            return raycastHandle;
+        }
+
+        Transform list = transform.parent;
+        if (list == null)
+        {
+            return null;
+        }
+
+        MapEditorCanvasLayerDragHandle closest = null;
+        float closestDistance = float.MaxValue;
+        Camera eventCamera = eventData.pressEventCamera;
+
+        for (int i = 0; i < list.childCount; i++)
+        {
+            MapEditorCanvasLayerDragHandle candidate = list.GetChild(i).GetComponent<MapEditorCanvasLayerDragHandle>();
+            if (candidate == null || candidate == this)
+            {
+                continue;
+            }
+
+            RectTransform candidateRect = candidate.transform as RectTransform;
+            if (candidateRect == null)
+            {
+                continue;
+            }
+
+            Vector3 worldCenter = candidateRect.TransformPoint(candidateRect.rect.center);
+            float screenY = RectTransformUtility.WorldToScreenPoint(eventCamera, worldCenter).y;
+            float distance = Mathf.Abs(eventData.position.y - screenY);
+            if (distance < closestDistance)
+            {
+                closestDistance = distance;
+                closest = candidate;
+            }
+        }
+
+        return closest;
+    }
+}
+
+[RequireComponent(typeof(InputField))]
+public sealed class MapEditorRecentResourceNameInput : MonoBehaviour
+{
+    public MapEditorManager manager;
+    public string path;
+    private InputField input;
+
+    private void OnEnable()
+    {
+        input = GetComponent<InputField>();
+        input.onEndEdit.RemoveListener(ApplyName);
+        input.onEndEdit.AddListener(ApplyName);
+    }
+
+    private void OnDisable()
+    {
+        if (input != null) input.onEndEdit.RemoveListener(ApplyName);
+    }
+
+    private void ApplyName(string value)
+    {
+        MapEditorManager target = manager != null ? manager : MapEditorManager.Instance;
+        if (target != null) target.RenameRecentResource(path, value);
     }
 }
 

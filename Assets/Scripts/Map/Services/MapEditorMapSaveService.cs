@@ -119,9 +119,7 @@ public class MapEditorMapSaveService
         saveData.layerSettings = layerSettings;
         saveData.spawnX = Mathf.Clamp(spawnX, 0, mapData.width - 1);
         saveData.spawnY = Mathf.Clamp(spawnY, 0, mapData.height - 1);
-        saveData.spawnPoints = spawnPoints == null || spawnPoints.Length == 0
-            ? new[] { new MapEditorSpawnPointData("SpawnPoint_1", saveData.spawnX, saveData.spawnY, "Any") }
-            : spawnPoints;
+        saveData.spawnPoints = spawnPoints ?? System.Array.Empty<MapEditorSpawnPointData>();
         if (previewRegion.HasValue)
         {
             RectInt region = previewRegion.Value;

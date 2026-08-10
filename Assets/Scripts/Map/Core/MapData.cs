@@ -16,6 +16,7 @@ public class MapData
     public MapTilePixelData[,] pixelMap;
     public int[,] layerMap;
     public MapLayerTileData[] layerTiles;
+    [System.NonSerialized] private bool initializationComplete;
 
     public MapData(int width, int height)
     {
@@ -29,6 +30,11 @@ public class MapData
     {
         width = Mathf.Max(1, width);
         height = Mathf.Max(1, height);
+
+        if (initializationComplete)
+        {
+            return;
+        }
 
         bool baseMapsValid = tileMap != null
             && colorMap != null
@@ -94,6 +100,7 @@ public class MapData
             && layerMap.GetLength(1) == height
             && AreLayerTilesValid())
         {
+            initializationComplete = true;
             return;
         }
 
@@ -107,6 +114,7 @@ public class MapData
         pixelMap = new MapTilePixelData[width, height];
         layerMap = new int[width, height];
 
+        initializationComplete = true;
         Clear();
     }
 
@@ -229,7 +237,8 @@ public class MapData
 
         if (!IsInside(x, y)) return -1;
 
-        return GetLayerData(layerType).tiles[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? -1 : layer.tiles[ToIndex(x, y)];
     }
 
     public Color GetColor(int x, int y, MapEditorLayerType layerType)
@@ -238,7 +247,8 @@ public class MapData
 
         if (!IsInside(x, y)) return Color.white;
 
-        return GetLayerData(layerType).colors[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? Color.white : layer.colors[ToIndex(x, y)];
     }
 
     public string GetImagePath(int x, int y, MapEditorLayerType layerType)
@@ -247,7 +257,8 @@ public class MapData
 
         if (!IsInside(x, y)) return string.Empty;
 
-        return GetLayerData(layerType).imagePaths[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? string.Empty : layer.imagePaths[ToIndex(x, y)];
     }
 
     public int GetImageIndex(int x, int y, MapEditorLayerType layerType)
@@ -256,7 +267,8 @@ public class MapData
 
         if (!IsInside(x, y)) return -1;
 
-        return GetLayerData(layerType).imageIndices[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? -1 : layer.imageIndices[ToIndex(x, y)];
     }
 
     public int GetImageRotation(int x, int y, MapEditorLayerType layerType)
@@ -265,7 +277,8 @@ public class MapData
 
         if (!IsInside(x, y)) return 0;
 
-        return GetLayerData(layerType).imageRotations[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? 0 : layer.imageRotations[ToIndex(x, y)];
     }
 
     public bool GetImageFlipX(int x, int y, MapEditorLayerType layerType)
@@ -274,7 +287,8 @@ public class MapData
 
         if (!IsInside(x, y)) return false;
 
-        return GetLayerData(layerType).imageFlipXs[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer != null && layer.imageFlipXs[ToIndex(x, y)];
     }
 
     public bool GetImageFlipY(int x, int y, MapEditorLayerType layerType)
@@ -283,7 +297,8 @@ public class MapData
 
         if (!IsInside(x, y)) return false;
 
-        return GetLayerData(layerType).imageFlipYs[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer != null && layer.imageFlipYs[ToIndex(x, y)];
     }
 
     public MapTilePixelData GetPixelData(int x, int y, MapEditorLayerType layerType)
@@ -292,7 +307,8 @@ public class MapData
 
         if (!IsInside(x, y)) return null;
 
-        return GetLayerData(layerType).pixelData[ToIndex(x, y)];
+        MapLayerTileData layer = TryGetLayerData(layerType);
+        return layer == null ? null : layer.pixelData[ToIndex(x, y)];
     }
 
     public MapEditorLayerType GetLayer(int x, int y)
@@ -408,7 +424,26 @@ public class MapData
     public void ClearLayer(MapEditorLayerType layerType)
     {
         EnsureInitialized();
-        GetLayerData(layerType).Clear();
+        TryGetLayerData(layerType)?.Clear();
+        SyncAllFlatCellsFromLayers();
+    }
+
+    public void SwapLayers(MapEditorLayerType first, MapEditorLayerType second)
+    {
+        EnsureInitialized();
+        int firstIndex = Mathf.Clamp((int)first, 0, (int)MapEditorLayerUtility.LastLayer);
+        int secondIndex = Mathf.Clamp((int)second, 0, (int)MapEditorLayerUtility.LastLayer);
+
+        if (firstIndex == secondIndex)
+        {
+            return;
+        }
+
+        MapLayerTileData firstData = layerTiles[firstIndex];
+        layerTiles[firstIndex] = layerTiles[secondIndex];
+        layerTiles[secondIndex] = firstData;
+        if (layerTiles[firstIndex] != null) layerTiles[firstIndex].layer = firstIndex;
+        if (layerTiles[secondIndex] != null) layerTiles[secondIndex].layer = secondIndex;
         SyncAllFlatCellsFromLayers();
     }
 
@@ -520,39 +555,38 @@ public class MapData
         int copyWidth = Mathf.Min(width, resized.width);
         int copyHeight = Mathf.Min(height, resized.height);
 
-        for (int y = 0; y < copyHeight; y++)
+        for (int layerIndex = 0; layerIndex < layerTiles.Length; layerIndex++)
         {
-            for (int x = 0; x < copyWidth; x++)
+            MapLayerTileData sourceLayer = layerTiles[layerIndex];
+            if (sourceLayer == null || !sourceLayer.IsValid(width, height))
             {
-                resized.SetTile(
-                    x,
-                    y,
-                    GetTile(x, y),
-                    GetColor(x, y),
-                    GetImagePath(x, y),
-                    GetImageIndex(x, y),
-                    GetImageRotation(x, y),
-                    GetImageFlipX(x, y),
-                    GetImageFlipY(x, y)
-                );
-                resized.SetPixelData(x, y, GetPixelData(x, y));
-                resized.SetLayer(x, y, GetLayer(x, y));
+                continue;
+            }
 
-                foreach (MapEditorLayerType layerType in GetSerializableLayers())
+            MapEditorLayerType layerType = (MapEditorLayerType)layerIndex;
+            for (int y = 0; y < copyHeight; y++)
+            {
+                for (int x = 0; x < copyWidth; x++)
                 {
+                    int sourceIndex = y * width + x;
+                    if (sourceLayer.tiles[sourceIndex] == -1 && sourceLayer.pixelData[sourceIndex] == null)
+                    {
+                        continue;
+                    }
+
                     resized.SetTileOnLayer(
                         x,
                         y,
                         layerType,
-                        GetTile(x, y, layerType),
-                        GetColor(x, y, layerType),
-                        GetImagePath(x, y, layerType),
-                        GetImageIndex(x, y, layerType),
-                        GetImageRotation(x, y, layerType),
-                        GetImageFlipX(x, y, layerType),
-                        GetImageFlipY(x, y, layerType)
+                        sourceLayer.tiles[sourceIndex],
+                        sourceLayer.colors[sourceIndex],
+                        sourceLayer.imagePaths[sourceIndex],
+                        sourceLayer.imageIndices[sourceIndex],
+                        sourceLayer.imageRotations[sourceIndex],
+                        sourceLayer.imageFlipXs[sourceIndex],
+                        sourceLayer.imageFlipYs[sourceIndex]
                     );
-                    resized.SetPixelDataOnLayer(x, y, layerType, GetPixelData(x, y, layerType));
+                    resized.SetPixelDataOnLayer(x, y, layerType, sourceLayer.pixelData[sourceIndex]);
                 }
             }
         }
@@ -605,11 +639,6 @@ public class MapData
 
         layerTiles = new MapLayerTileData[(int)MapEditorLayerUtility.LastLayer + 1];
 
-        for (int i = 0; i < layerTiles.Length; i++)
-        {
-            layerTiles[i] = new MapLayerTileData(width, height);
-        }
-
         if (canMigrateFlatMaps)
         {
             MigrateFlatMapsToLayers();
@@ -625,7 +654,7 @@ public class MapData
 
         for (int i = 0; i < layerTiles.Length; i++)
         {
-            if (layerTiles[i] == null || !layerTiles[i].IsValid(width, height))
+            if (layerTiles[i] != null && !layerTiles[i].IsValid(width, height))
             {
                 return false;
             }
@@ -681,12 +710,28 @@ public class MapData
     {
         int index = Mathf.Clamp((int)layerType, 0, (int)MapEditorLayerUtility.LastLayer);
 
-        if (layerTiles == null || layerTiles.Length <= index || layerTiles[index] == null || !layerTiles[index].IsValid(width, height))
+        if (layerTiles == null || layerTiles.Length <= index)
         {
             EnsureLayerTiles(false);
         }
 
+        if (layerTiles[index] == null || !layerTiles[index].IsValid(width, height))
+        {
+            layerTiles[index] = new MapLayerTileData(width, height) { layer = index };
+        }
+
         return layerTiles[index];
+    }
+
+    private MapLayerTileData TryGetLayerData(MapEditorLayerType layerType)
+    {
+        int index = Mathf.Clamp((int)layerType, 0, (int)MapEditorLayerUtility.LastLayer);
+        return layerTiles != null
+            && index < layerTiles.Length
+            && layerTiles[index] != null
+            && layerTiles[index].IsValid(width, height)
+            ? layerTiles[index]
+            : null;
     }
 
     private int ToIndex(int x, int y)
@@ -719,7 +764,8 @@ public class MapData
         {
             MapEditorLayerType layerType = priority[i];
 
-            if (GetLayerData(layerType).tiles[ToIndex(x, y)] != -1)
+            MapLayerTileData layer = TryGetLayerData(layerType);
+            if (layer != null && layer.tiles[ToIndex(x, y)] != -1)
             {
                 return layerType;
             }
@@ -732,15 +778,22 @@ public class MapData
     {
         EnsureInitialized();
         MapEditorLayerType[] layers = GetSerializableLayers();
-        MapLayerTileData[] clones = new MapLayerTileData[layers.Length];
+        System.Collections.Generic.List<MapLayerTileData> clones = new System.Collections.Generic.List<MapLayerTileData>(layers.Length);
 
         for (int i = 0; i < layers.Length; i++)
         {
-            clones[i] = GetLayerData(layers[i]).Clone();
-            clones[i].layer = (int)layers[i];
+            MapLayerTileData layer = TryGetLayerData(layers[i]);
+            if (layer == null)
+            {
+                continue;
+            }
+
+            MapLayerTileData clone = layer.Clone();
+            clone.layer = (int)layers[i];
+            clones.Add(clone);
         }
 
-        return clones;
+        return clones.ToArray();
     }
 
     private void ApplySavedLayerTiles(MapLayerTileData[] savedLayers)

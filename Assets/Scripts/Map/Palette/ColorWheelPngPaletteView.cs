@@ -15,10 +15,11 @@ public sealed class ColorWheelPngPaletteView
     private const string PngPaletteSizeSelectorObjectName = "PngPaletteSizeSelector";
     private const int LogicalPixelsPerPaletteTile = 16;
     private const int PngPaletteCellSize = 10;
-    private const float PngPaletteDisplaySize = 176f;
+    private const float PngPaletteDisplaySize = 200f;
+    private const float ContentVerticalOffset = 10f;
     private const float SelectionBorderThickness = 2f;
-    private static readonly Vector2 PngPaletteLabelPosition = new Vector2(0f, -334f);
-    private static readonly Vector2 PngPaletteViewportPosition = new Vector2(0f, -382f);
+    private static readonly Vector2 PngPaletteLabelPosition = new Vector2(0f, -334f + ContentVerticalOffset);
+    private static readonly Vector2 PngPaletteViewportPosition = new Vector2(0f, -382f + ContentVerticalOffset);
 
     private static readonly Color SelectedPngTileOutlineColor = new Color(1f, 0.86f, 0.08f, 1f);
     private static readonly Color SelectionPreviewFillColor = new Color(0f, 0.55f, 1f, 0.03f);
@@ -205,7 +206,7 @@ public sealed class ColorWheelPngPaletteView
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(1f, 1f);
         rect.pivot = new Vector2(0.5f, 1f);
-        rect.anchoredPosition = new Vector2(0f, -358f);
+        rect.anchoredPosition = new Vector2(0f, -358f + ContentVerticalOffset);
         rect.sizeDelta = new Vector2(-16f, 20f);
 
         HorizontalLayoutGroup layout = selectorObject.GetComponent<HorizontalLayoutGroup>();

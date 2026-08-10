@@ -54,6 +54,8 @@ public class MapEditorBrushCursorPreview
             return;
         }
 
+        overlay.SetAsLastSibling();
+
         if (selectionPreviewCells != null && selectionPreviewCells.Count > 0)
         {
             UpdateCellSetPreview(gridGenerator, mapData, selectionPreviewCells, SelectionFillColor, SelectionOutlineColor);
@@ -95,7 +97,15 @@ public class MapEditorBrushCursorPreview
 
         if (paintWholeTile && selectedImageBrush != null && (tileRegionWidth > 1 || tileRegionHeight > 1))
         {
-            UpdateTileRegionPreview(gridGenerator, hoveredCell, selectedImageBrush, tileRegionWidth, tileRegionHeight, alpha);
+            UpdateTileRegionPreview(
+                gridGenerator,
+                hoveredCell,
+                selectedImageBrush,
+                tileRegionWidth,
+                tileRegionHeight,
+                selectedImageFlipX,
+                selectedImageFlipY,
+                alpha);
             return;
         }
 
@@ -223,6 +233,8 @@ public class MapEditorBrushCursorPreview
         Sprite sprite,
         int width,
         int height,
+        bool flipX,
+        bool flipY,
         float alpha)
     {
         while (images.Count < 1)
@@ -239,7 +251,16 @@ public class MapEditorBrushCursorPreview
         int startY = hoveredCell.Y - height / 2;
         Image image = images[0];
         ConfigureCursorImage(image, gridGenerator.cellSize, startX, startY, Color.white, sprite, 0, false, false, alpha);
-        image.rectTransform.sizeDelta = new Vector2(width * gridGenerator.cellSize, height * gridGenerator.cellSize);
+        RectTransform rect = image.rectTransform;
+        float previewWidth = width * gridGenerator.cellSize;
+        float previewHeight = height * gridGenerator.cellSize;
+        rect.sizeDelta = new Vector2(previewWidth, previewHeight);
+        rect.localScale = new Vector3(flipX ? -1f : 1f, flipY ? -1f : 1f, 1f);
+
+        Vector2 position = rect.anchoredPosition;
+        if (flipX) position.x += previewWidth;
+        if (flipY) position.y -= previewHeight;
+        rect.anchoredPosition = position;
     }
 
     public void Hide()

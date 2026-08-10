@@ -112,6 +112,113 @@ public sealed class MapEditorCellRenderService
         return Color.white;
     }
 
+    public bool WriteCompositeCellPixels(
+        MapData mapData,
+        int mapX,
+        int mapY,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        if (mapData == null || target == null || resolution <= 0 || targetWidth <= 0)
+        {
+            return false;
+        }
+
+        bool hasAnimation = false;
+
+        for (int y = 0; y < resolution; y++)
+        {
+            int row = (offsetY + y) * targetWidth + offsetX;
+            for (int x = 0; x < resolution; x++)
+            {
+                target[row + x] = Color.white;
+            }
+        }
+
+        for (int layerIndex = LayerPriority.Length - 1; layerIndex >= 0; layerIndex--)
+        {
+            MapEditorLayerType layerType = LayerPriority[layerIndex];
+            if (layerType == MapEditorLayerType.WallCollision
+                || layerType == MapEditorLayerType.Spawn
+                || layerType == MapEditorLayerType.Zone
+                || (isLayerVisible != null && !isLayerVisible(layerType))
+                || mapData.GetTile(mapX, mapY, layerType) == -1)
+            {
+                continue;
+            }
+
+            MapTilePixelData pixels = mapData.GetPixelData(mapX, mapY, layerType);
+            Sprite sprite = null;
+            int tileId = mapData.GetTile(mapX, mapY, layerType);
+            if (tileId == MapEditorManager.CustomImageTileId || tileId == MapEditorManager.WallTileId)
+            {
+                string imagePath = mapData.GetImagePath(mapX, mapY, layerType);
+                int imageIndex = mapData.GetImageIndex(mapX, mapY, layerType);
+                int rotation = mapData.GetImageRotation(mapX, mapY, layerType);
+                bool flipX = mapData.GetImageFlipX(mapX, mapY, layerType);
+                bool flipY = mapData.GetImageFlipY(mapX, mapY, layerType);
+                Sprite[] animationFrames = GetAnimationFrames(imagePath, imageIndex, rotation, flipX, flipY, out MapEditorTilesetAnimationDefinition animation);
+
+                if (animation != null && animationFrames != null && animationFrames.Length > 1)
+                {
+                    float elapsedFrames = Time.realtimeSinceStartup * Mathf.Max(0.1f, animation.framesPerSecond);
+                    int frameIndex = animation.loop
+                        ? Mathf.FloorToInt(elapsedFrames) % animationFrames.Length
+                        : Mathf.Min(Mathf.FloorToInt(elapsedFrames), animationFrames.Length - 1);
+                    sprite = animationFrames[frameIndex];
+                    hasAnimation = animation.loop || frameIndex < animationFrames.Length - 1;
+                }
+                else
+                {
+                    sprite = getPngTileSprite(imagePath, imageIndex, rotation, flipX, flipY);
+                }
+            }
+
+            Color fallback = mapData.GetColor(mapX, mapY, layerType);
+            for (int y = 0; y < resolution; y++)
+            {
+                int row = (offsetY + y) * targetWidth + offsetX;
+                for (int x = 0; x < resolution; x++)
+                {
+                    Color below = target[row + x];
+                    Color above = SampleLayerColor(fallback, pixels, sprite, x, resolution - 1 - y, resolution);
+                    target[row + x] = AlphaBlend(below, above);
+                }
+            }
+        }
+
+        bool collisionVisible = isLayerVisible == null || isLayerVisible(MapEditorLayerType.WallCollision);
+        if (!collisionVisible || !IsWallCollision(mapData, mapX, mapY))
+        {
+            return hasAnimation;
+        }
+
+        Color collisionFill = new Color(0.18f, 0.18f, 0.18f, 0.38f);
+        Color collisionBorder = new Color(0.05f, 0.05f, 0.05f, 0.9f);
+        bool top = !IsWallCollision(mapData, mapX, mapY - 1);
+        bool right = !IsWallCollision(mapData, mapX + 1, mapY);
+        bool bottom = !IsWallCollision(mapData, mapX, mapY + 1);
+        bool left = !IsWallCollision(mapData, mapX - 1, mapY);
+
+        for (int y = 0; y < resolution; y++)
+        {
+            int row = (offsetY + y) * targetWidth + offsetX;
+            for (int x = 0; x < resolution; x++)
+            {
+                bool border = (top && y == resolution - 1)
+                    || (right && x == resolution - 1)
+                    || (bottom && y == 0)
+                    || (left && x == 0);
+                target[row + x] = AlphaBlend(target[row + x], border ? collisionBorder : collisionFill);
+            }
+        }
+
+        return hasAnimation;
+    }
+
     public void ApplyTileToCell(GridCell cell, MapData mapData, MapEditorLayerType layerType, int tileId, Color color, Sprite sprite, Sprite[] animationFrames, MapEditorTilesetAnimationDefinition animation, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)
     {
         if (tileId == MapEditorManager.CustomImageTileId)

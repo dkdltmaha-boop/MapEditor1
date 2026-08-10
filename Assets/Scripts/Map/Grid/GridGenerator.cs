@@ -4,6 +4,7 @@ using UnityEngine.UI;
 public class GridGenerator : MonoBehaviour
 {
     private const string GridLineOverlayObjectName = "MapEditor_GridLineOverlay";
+    private const int ChunkRenderingCellThreshold = 0;
 
     [Header("Grid")]
     public int width = 16;
@@ -14,6 +15,9 @@ public class GridGenerator : MonoBehaviour
     public Transform gridParent;
     public GridCell cellPrefab;
     public MapEditorManager mapEditorManager;
+
+    public bool UsesChunkRendering { get; private set; }
+    public MapEditorChunkRenderer ChunkRenderer { get; private set; }
 
     private void Start()
     {
@@ -57,6 +61,17 @@ public class GridGenerator : MonoBehaviour
         }
 
         ApplyLayoutSize();
+
+        UsesChunkRendering = (long)width * height > ChunkRenderingCellThreshold;
+
+        if (UsesChunkRendering)
+        {
+            EnsureChunkRendering();
+            EnsureGridLineOverlay();
+            return;
+        }
+
+        DisableChunkRendering();
 
         for (int y = 0; y < height; y++)
         {
@@ -110,7 +125,52 @@ public class GridGenerator : MonoBehaviour
             }
         }
 
+        ChunkRenderer?.RefreshLayout();
+
         EnsureGridLineOverlay();
+    }
+
+    private void EnsureChunkRendering()
+    {
+        ChunkRenderer = gridParent.GetComponent<MapEditorChunkRenderer>();
+
+        if (ChunkRenderer == null)
+        {
+            ChunkRenderer = gridParent.gameObject.AddComponent<MapEditorChunkRenderer>();
+        }
+
+        MapEditorGridInputSurface inputSurface = gridParent.GetComponent<MapEditorGridInputSurface>();
+        if (inputSurface == null)
+        {
+            inputSurface = gridParent.gameObject.AddComponent<MapEditorGridInputSurface>();
+        }
+
+        Image raycastImage = gridParent.GetComponent<Image>();
+        if (raycastImage == null)
+        {
+            raycastImage = gridParent.gameObject.AddComponent<Image>();
+            raycastImage.color = Color.clear;
+        }
+
+        raycastImage.raycastTarget = true;
+        inputSurface.Configure(this, mapEditorManager);
+        ChunkRenderer.Configure(this, mapEditorManager, width, height);
+    }
+
+    private void DisableChunkRendering()
+    {
+        if (ChunkRenderer == null && gridParent != null)
+        {
+            ChunkRenderer = gridParent.GetComponent<MapEditorChunkRenderer>();
+        }
+
+        ChunkRenderer?.Deactivate();
+
+        MapEditorGridInputSurface inputSurface = gridParent == null ? null : gridParent.GetComponent<MapEditorGridInputSurface>();
+        if (inputSurface != null)
+        {
+            inputSurface.enabled = false;
+        }
     }
 
     public void EnsureGridContentMask()

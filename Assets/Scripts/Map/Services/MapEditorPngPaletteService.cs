@@ -89,4 +89,14 @@ public class MapEditorPngPaletteService
     {
         return tilesets.GetRecentPaths();
     }
+
+    public string GetRecentDisplayName(string path)
+    {
+        return tilesets.GetRecentDisplayName(path);
+    }
+
+    public void SetRecentDisplayName(string path, string displayName)
+    {
+        tilesets.SetRecentDisplayName(path, displayName);
+    }
 }

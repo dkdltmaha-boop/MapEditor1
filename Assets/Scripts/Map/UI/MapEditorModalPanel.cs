@@ -31,6 +31,7 @@ public static class MapEditorModalPanel
             .Append("  |  바닥 ").Append(report.groundTileCount)
             .Append("  |  오브젝트 ").Append(report.objectTileCount)
             .Append("  |  Wall ").Append(report.wallTileCount)
+            .Append("  |  ").Append(MapEditorLocalization.Choose("애니메이션 ", "Animation ")).Append(report.animatedTileCount)
             .Append("  |  스폰 ").Append(report.spawnPointCount);
 
         string title = MapEditorLocalization.Choose(
@@ -106,11 +107,11 @@ public static class MapEditorModalPanel
             "마우스 휠       맵 확대 / 축소\n" +
             "휠 버튼 드래그  맵 화면 이동\n\n" +
             "창작마당 패키지\n" +
-            "1. 맵 검사를 실행하고 불합격 요소를 수정합니다.\n" +
-            "2. 창작마당 내보내기에서 저장할 상위 폴더를 선택합니다.\n" +
-            "3. 생성된 맵 ID 폴더 전체를 하나의 패키지로 사용합니다.\n\n" +
-            "manifest.json, map.json, preview.png, package_report.json,\n" +
-            "steam_upload.json은 서로 분리하지 말고 함께 배포해야 합니다.";
+            "1. 검사 후 창작마당 업로드 버튼을 누릅니다.\n" +
+            "2. 맵 검사에 합격하면 패키지를 만들고 Steam으로 전송합니다.\n" +
+            "3. 완료 창의 게시물 열기로 업로드 결과를 확인합니다.\n\n" +
+            "테스트 App ID 480은 Spacewar의 미등록 게시물로 업로드됩니다.\n" +
+            "PixelChroma 창작마당에는 실제 게임 App ID 설정이 필요합니다.";
         const string englishGuide =
             "Tools\n" +
             "B  Brush                  W  Wall\n" +
@@ -135,11 +136,11 @@ public static class MapEditorModalPanel
             "Middle drag      Pan map\n" +
             "F1               Open this help\n\n" +
             "Workshop package\n" +
-            "1. Run map validation and fix failed checks.\n" +
-            "2. Choose the parent folder in Workshop Export.\n" +
-            "3. Distribute the complete generated map ID folder.\n\n" +
-            "Keep manifest.json, map.json, preview.png, package_report.json,\n" +
-            "and steam_upload.json together.";
+            "1. Click Validate & Upload Workshop.\n" +
+            "2. After validation passes, the package is sent to Steam.\n" +
+            "3. Open the Workshop item from the completion dialog.\n\n" +
+            "Test App ID 480 creates an unlisted Spacewar item.\n" +
+            "The real game App ID is required for the PixelChroma Workshop.";
 
         Show(
             manager,
@@ -168,6 +169,17 @@ public static class MapEditorModalPanel
     public static void Show(MapEditorManager manager, string title, string body, Color accentColor)
     {
         Show(manager, title, body, accentColor, string.Empty, null, string.Empty, null);
+    }
+
+    public static void ShowAction(
+        MapEditorManager manager,
+        string title,
+        string body,
+        Color accentColor,
+        string actionLabel,
+        System.Action action)
+    {
+        Show(manager, title, body, accentColor, actionLabel, action, string.Empty, null);
     }
 
     private static void Show(

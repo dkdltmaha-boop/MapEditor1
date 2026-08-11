@@ -162,6 +162,9 @@ public sealed class PixelChromaMapValidationReport
     public int wallTileCount;
     public int colorTileCount;
     public int imageTileCount;
+    public int animatedTileCount;
+    public int animationDefinitionCount;
+    public int invalidAnimationCount;
     public int tilesetCount;
     public int missingTilesetCount;
     public int spawnPointCount;

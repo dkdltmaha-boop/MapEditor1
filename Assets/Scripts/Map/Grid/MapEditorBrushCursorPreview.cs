@@ -23,6 +23,9 @@ public class MapEditorBrushCursorPreview
         int brushSize,
         Color selectedColor,
         Sprite selectedImageBrush,
+        Sprite[] selectedAnimationFrames,
+        float selectedAnimationFps,
+        bool selectedAnimationLoop,
         int selectedImageRotation,
         bool selectedImageFlipX,
         bool selectedImageFlipY,
@@ -70,6 +73,9 @@ public class MapEditorBrushCursorPreview
                 linePreviewCells,
                 selectedColor,
                 selectedImageBrush,
+                selectedAnimationFrames,
+                selectedAnimationFps,
+                selectedAnimationLoop,
                 selectedImageRotation,
                 selectedImageFlipX,
                 selectedImageFlipY,
@@ -151,7 +157,20 @@ public class MapEditorBrushCursorPreview
                     continue;
                 }
 
-                ConfigureCursorImage(image, gridGenerator.cellSize, mapX, mapY, selectedColor, selectedImageBrush, selectedImageRotation, selectedImageFlipX, selectedImageFlipY, alpha);
+                ConfigureCursorImage(
+                    image,
+                    gridGenerator.cellSize,
+                    mapX,
+                    mapY,
+                    selectedColor,
+                    selectedImageBrush,
+                    selectedImageRotation,
+                    selectedImageFlipX,
+                    selectedImageFlipY,
+                    alpha,
+                    selectedAnimationFrames,
+                    selectedAnimationFps,
+                    selectedAnimationLoop);
             }
         }
     }
@@ -188,6 +207,9 @@ public class MapEditorBrushCursorPreview
         IReadOnlyCollection<Vector2Int> points,
         Color selectedColor,
         Sprite selectedImageBrush,
+        Sprite[] selectedAnimationFrames,
+        float selectedAnimationFps,
+        bool selectedAnimationLoop,
         int selectedImageRotation,
         bool selectedImageFlipX,
         bool selectedImageFlipY,
@@ -217,7 +239,10 @@ public class MapEditorBrushCursorPreview
                     selectedImageRotation,
                     selectedImageFlipX,
                     selectedImageFlipY,
-                    Mathf.Max(alpha, 0.5f));
+                    Mathf.Max(alpha, 0.5f),
+                    selectedAnimationFrames,
+                    selectedAnimationFps,
+                    selectedAnimationLoop);
             }
         }
 
@@ -368,6 +393,7 @@ public class MapEditorBrushCursorPreview
 
     private void ConfigureRectPreviewImage(Image image, float cellSize, int mapX, int mapY, Color fillColor, Color outlineColor)
     {
+        StopCursorAnimation(image);
         RectTransform rect = image.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0f, 1f);
         rect.anchorMax = new Vector2(0f, 1f);
@@ -383,7 +409,20 @@ public class MapEditorBrushCursorPreview
         ConfigureOutline(image, outlineColor, 1.5f);
     }
 
-    private void ConfigureCursorImage(Image image, float cellSize, int mapX, int mapY, Color selectedColor, Sprite selectedImageBrush, int selectedImageRotation, bool selectedImageFlipX, bool selectedImageFlipY, float alpha)
+    private void ConfigureCursorImage(
+        Image image,
+        float cellSize,
+        int mapX,
+        int mapY,
+        Color selectedColor,
+        Sprite selectedImageBrush,
+        int selectedImageRotation,
+        bool selectedImageFlipX,
+        bool selectedImageFlipY,
+        float alpha,
+        Sprite[] animationFrames = null,
+        float animationFps = 8f,
+        bool animationLoop = true)
     {
         RectTransform rect = image.GetComponent<RectTransform>();
         rect.anchorMin = new Vector2(0f, 1f);
@@ -394,6 +433,7 @@ public class MapEditorBrushCursorPreview
 
         if (EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.BrushEraser)
         {
+            StopCursorAnimation(image);
             image.sprite = null;
             image.color = new Color(1f, 0.1f, 0.1f, 0.28f);
             rect.localEulerAngles = Vector3.zero;
@@ -404,6 +444,7 @@ public class MapEditorBrushCursorPreview
 
         if (EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.Eraser)
         {
+            StopCursorAnimation(image);
             image.sprite = null;
             image.color = new Color(1f, 0.75f, 0.1f, 0.12f);
             rect.localEulerAngles = Vector3.zero;
@@ -420,14 +461,43 @@ public class MapEditorBrushCursorPreview
             rect.localEulerAngles = Vector3.zero;
             rect.localScale = Vector3.one;
             ConfigureOutline(image, BrushOutlineColor, 2f);
+            ConfigureCursorAnimation(image, animationFrames, animationFps, animationLoop);
             return;
         }
 
+        StopCursorAnimation(image);
         image.sprite = null;
         image.color = new Color(selectedColor.r, selectedColor.g, selectedColor.b, alpha);
         rect.localEulerAngles = Vector3.zero;
         rect.localScale = Vector3.one;
         ConfigureOutline(image, BrushOutlineColor, 2f);
+    }
+
+    private static void ConfigureCursorAnimation(Image image, Sprite[] frames, float fps, bool loop)
+    {
+        if (image == null)
+        {
+            return;
+        }
+
+        MapEditorAnimatedTilePlayer player = image.GetComponent<MapEditorAnimatedTilePlayer>();
+        if (frames == null || frames.Length <= 1)
+        {
+            player?.Stop();
+            return;
+        }
+
+        if (player == null)
+        {
+            player = image.gameObject.AddComponent<MapEditorAnimatedTilePlayer>();
+        }
+
+        player.Configure(image, frames, fps, loop);
+    }
+
+    private static void StopCursorAnimation(Image image)
+    {
+        image?.GetComponent<MapEditorAnimatedTilePlayer>()?.Stop();
     }
 
     private void UpdateSubPixelPreview(GridGenerator gridGenerator, MapData mapData, GridCell hoveredCell, Color selectedColor, int pixelsPerTile, int brushSide, int subPixelX, int subPixelY, float alpha)
@@ -474,6 +544,7 @@ public class MapEditorBrushCursorPreview
 
     private void ConfigureSpriteSubPixelPreviewImage(Image image, float cellSize, int mapX, int mapY, Sprite sprite, int pixelsPerTile, int subPixelX, int subPixelY, float alpha)
     {
+        StopCursorAnimation(image);
         int pointerResolution = Mathf.Max(1, pixelsPerTile);
         float unitSize = cellSize / 16f;
         float startX = mapX * cellSize + subPixelX * cellSize / pointerResolution;
@@ -498,6 +569,7 @@ public class MapEditorBrushCursorPreview
 
     private void ConfigureSubPixelPreviewImage(Image image, float cellSize, int mapX, int mapY, Color selectedColor, int pixelsPerTile, int brushSide, int subPixelX, int subPixelY, float alpha)
     {
+        StopCursorAnimation(image);
         int resolution = Mathf.Max(1, pixelsPerTile);
         float pixelSize = cellSize / resolution;
         brushSide = Mathf.Clamp(brushSide, 1, resolution);

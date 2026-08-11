@@ -920,14 +920,52 @@ public sealed class MapEditorAnimatedTilePlayer : MonoBehaviour
 
     public void Configure(Image image, Sprite[] animationFrames, float fps, bool shouldLoop)
     {
+        float normalizedFps = Mathf.Clamp(fps, 0.1f, 60f);
+        if (target == image
+            && FramesMatch(frames, animationFrames)
+            && Mathf.Approximately(framesPerSecond, normalizedFps)
+            && loop == shouldLoop)
+        {
+            enabled = target != null && frames != null && frames.Length > 1;
+            if (lastFrame < 0)
+            {
+                ApplyFrame(0);
+            }
+
+            return;
+        }
+
         target = image;
         frames = animationFrames;
-        framesPerSecond = Mathf.Clamp(fps, 0.1f, 60f);
+        framesPerSecond = normalizedFps;
         loop = shouldLoop;
         startedAt = GetTime();
         lastFrame = -1;
         enabled = target != null && frames != null && frames.Length > 1;
         ApplyFrame(0);
+    }
+
+    private static bool FramesMatch(Sprite[] left, Sprite[] right)
+    {
+        if (ReferenceEquals(left, right))
+        {
+            return true;
+        }
+
+        if (left == null || right == null || left.Length != right.Length)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < left.Length; i++)
+        {
+            if (left[i] != right[i])
+            {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     public void Stop()

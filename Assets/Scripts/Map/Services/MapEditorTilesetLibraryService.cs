@@ -8,6 +8,10 @@ public sealed class MapEditorTilesetLibraryService
     private const string CatalogPrefsKey = "MapEditor.ImportedTilesets.v1";
     private const int MaxTilePixelSize = 256;
     private const int MaxAtlasPixelSize = 8192;
+    public const int MinAnimationFrameCount = 2;
+    public const int MaxAnimationFrameCount = 32;
+    public const float MinAnimationFramesPerSecond = 1f;
+    public const float MaxAnimationFramesPerSecond = 30f;
 
     private static readonly Dictionary<string, MapEditorTilesetDefinition> RegisteredByAtlasPath =
         new Dictionary<string, MapEditorTilesetDefinition>(StringComparer.OrdinalIgnoreCase);
@@ -204,42 +208,130 @@ public sealed class MapEditorTilesetLibraryService
         bool loop,
         out string error)
     {
-        error = string.Empty;
-        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        return AddAnimation(
+            tilesetId,
+            displayName,
+            startTileId,
+            frameCount,
+            framesPerSecond,
+            loop,
+            out _,
+            out error);
+    }
 
-        if (definition == null)
+    public bool AddAnimation(
+        string tilesetId,
+        string displayName,
+        int startTileId,
+        int frameCount,
+        float framesPerSecond,
+        bool loop,
+        out MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        animation = null;
+        if (!TryCreateContiguousFrameIds(startTileId, frameCount, out int[] sourceFrameTileIds, out error))
         {
-            error = "Tileset was not found.";
             return false;
         }
 
-        int tileCount = Mathf.Max(0, definition.columns * definition.rows);
-        startTileId = Mathf.Clamp(startTileId, 0, Mathf.Max(0, tileCount - 1));
-        frameCount = Mathf.Clamp(frameCount, 1, Mathf.Max(1, tileCount - startTileId));
-        framesPerSecond = Mathf.Clamp(framesPerSecond, 0.1f, 60f);
-        int[] frameTileIds = new int[frameCount];
-        for (int i = 0; i < frameCount; i++)
+        return AddAnimation(
+            tilesetId,
+            displayName,
+            sourceFrameTileIds,
+            framesPerSecond,
+            loop,
+            out animation,
+            out error);
+    }
+
+    public bool AddAnimation(
+        string tilesetId,
+        string displayName,
+        IReadOnlyList<int> sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        animation = null;
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        if (!TryBuildAnimation(
+                definition,
+                null,
+                displayName,
+                sourceFrameTileIds,
+                framesPerSecond,
+                loop,
+                out animation,
+                out error))
         {
-            frameTileIds[i] = ToAtlasTileId(definition, startTileId + i);
+            return false;
         }
 
-        definition.animations = new[]
-        {
-            new MapEditorTilesetAnimationDefinition
-            {
-                id = definition.id + "_animation_0",
-                displayName = string.IsNullOrWhiteSpace(displayName) ? "Animation" : displayName.Trim(),
-                startTileId = startTileId,
-                frameCount = frameCount,
-                frameTileIds = frameTileIds,
-                framesPerSecond = framesPerSecond,
-                loop = loop
-            }
-        };
-
-        Register(definition);
-        SaveCatalog();
+        List<MapEditorTilesetAnimationDefinition> animations = GetMutableAnimations(definition);
+        animations.Add(animation);
+        definition.animations = animations.ToArray();
+        SaveAnimationChanges(definition);
         return true;
+    }
+
+    public bool UpdateAnimation(
+        string tilesetId,
+        string animationId,
+        string displayName,
+        IReadOnlyList<int> sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out string error)
+    {
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        int animationIndex = FindAnimationIndex(definition, animationId);
+        if (animationIndex < 0)
+        {
+            error = definition == null ? "Tileset was not found." : "Animation was not found.";
+            return false;
+        }
+
+        if (!TryBuildAnimation(
+                definition,
+                animationId,
+                displayName,
+                sourceFrameTileIds,
+                framesPerSecond,
+                loop,
+                out MapEditorTilesetAnimationDefinition updated,
+                out error))
+        {
+            return false;
+        }
+
+        definition.animations[animationIndex] = updated;
+        SaveAnimationChanges(definition);
+        return true;
+    }
+
+    public bool RemoveAnimation(string tilesetId, string animationId)
+    {
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        int animationIndex = FindAnimationIndex(definition, animationId);
+        if (animationIndex < 0)
+        {
+            return false;
+        }
+
+        List<MapEditorTilesetAnimationDefinition> animations = GetMutableAnimations(definition);
+        animations.RemoveAt(animationIndex);
+        definition.animations = animations.ToArray();
+        SaveAnimationChanges(definition);
+        return true;
+    }
+
+    public MapEditorTilesetAnimationDefinition FindAnimation(string tilesetId, string animationId)
+    {
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        int animationIndex = FindAnimationIndex(definition, animationId);
+        return animationIndex >= 0 ? definition.animations[animationIndex] : null;
     }
 
     public static bool TryGetAnimation(
@@ -268,6 +360,190 @@ public sealed class MapEditorTilesetLibraryService
         }
 
         return false;
+    }
+
+    private static bool TryCreateContiguousFrameIds(int startTileId, int frameCount, out int[] frameTileIds, out string error)
+    {
+        frameTileIds = null;
+        error = string.Empty;
+
+        if (startTileId < 0)
+        {
+            error = "Animation start tile must be zero or greater.";
+            return false;
+        }
+
+        if (frameCount < MinAnimationFrameCount || frameCount > MaxAnimationFrameCount)
+        {
+            error = "Animation frame count must be between 2 and 32.";
+            return false;
+        }
+
+        frameTileIds = new int[frameCount];
+        for (int i = 0; i < frameCount; i++)
+        {
+            frameTileIds[i] = startTileId + i;
+        }
+
+        return true;
+    }
+
+    private static bool TryBuildAnimation(
+        MapEditorTilesetDefinition definition,
+        string existingAnimationId,
+        string displayName,
+        IReadOnlyList<int> sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        animation = null;
+        error = string.Empty;
+
+        if (definition == null)
+        {
+            error = "Tileset was not found.";
+            return false;
+        }
+
+        int frameCount = sourceFrameTileIds?.Count ?? 0;
+        if (frameCount < MinAnimationFrameCount || frameCount > MaxAnimationFrameCount)
+        {
+            error = "Animation frame count must be between 2 and 32.";
+            return false;
+        }
+
+        if (float.IsNaN(framesPerSecond)
+            || float.IsInfinity(framesPerSecond)
+            || framesPerSecond < MinAnimationFramesPerSecond
+            || framesPerSecond > MaxAnimationFramesPerSecond)
+        {
+            error = "Animation speed must be between 1 and 30 FPS.";
+            return false;
+        }
+
+        int tileCount = Mathf.Max(0, definition.columns * definition.rows);
+        int[] atlasFrameTileIds = new int[frameCount];
+        HashSet<int> uniqueFrames = new HashSet<int>();
+
+        for (int i = 0; i < frameCount; i++)
+        {
+            int sourceTileId = sourceFrameTileIds[i];
+            if (sourceTileId < 0 || sourceTileId >= tileCount)
+            {
+                error = "Animation frame tile is outside the imported tileset: " + sourceTileId;
+                return false;
+            }
+
+            int atlasTileId = ToAtlasTileId(definition, sourceTileId);
+            if (!uniqueFrames.Add(atlasTileId))
+            {
+                error = "An animation cannot use the same frame more than once.";
+                return false;
+            }
+
+            if (IsFrameUsedByAnotherAnimation(definition, existingAnimationId, atlasTileId))
+            {
+                error = "Tile " + sourceTileId + " is already used by another animation.";
+                return false;
+            }
+
+            atlasFrameTileIds[i] = atlasTileId;
+        }
+
+        string animationId = string.IsNullOrEmpty(existingAnimationId)
+            ? CreateAnimationId(definition)
+            : existingAnimationId;
+        int existingIndex = FindAnimationIndex(definition, animationId);
+        string fallbackName = existingIndex >= 0
+            ? definition.animations[existingIndex].displayName
+            : "Animation " + ((definition.animations?.Length ?? 0) + 1);
+
+        animation = new MapEditorTilesetAnimationDefinition
+        {
+            id = animationId,
+            displayName = string.IsNullOrWhiteSpace(displayName) ? fallbackName : displayName.Trim(),
+            startTileId = sourceFrameTileIds[0],
+            frameCount = frameCount,
+            frameTileIds = atlasFrameTileIds,
+            framesPerSecond = framesPerSecond,
+            loop = loop
+        };
+        return true;
+    }
+
+    private static bool IsFrameUsedByAnotherAnimation(
+        MapEditorTilesetDefinition definition,
+        string ignoredAnimationId,
+        int atlasTileId)
+    {
+        if (definition.animations == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < definition.animations.Length; i++)
+        {
+            MapEditorTilesetAnimationDefinition candidate = definition.animations[i];
+            if (candidate == null || string.Equals(candidate.id, ignoredAnimationId, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (candidate.ContainsTile(atlasTileId))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static List<MapEditorTilesetAnimationDefinition> GetMutableAnimations(MapEditorTilesetDefinition definition)
+    {
+        return definition.animations == null
+            ? new List<MapEditorTilesetAnimationDefinition>()
+            : new List<MapEditorTilesetAnimationDefinition>(definition.animations);
+    }
+
+    private static int FindAnimationIndex(MapEditorTilesetDefinition definition, string animationId)
+    {
+        if (definition?.animations == null || string.IsNullOrEmpty(animationId))
+        {
+            return -1;
+        }
+
+        for (int i = 0; i < definition.animations.Length; i++)
+        {
+            MapEditorTilesetAnimationDefinition animation = definition.animations[i];
+            if (animation != null && string.Equals(animation.id, animationId, StringComparison.Ordinal))
+            {
+                return i;
+            }
+        }
+
+        return -1;
+    }
+
+    private static string CreateAnimationId(MapEditorTilesetDefinition definition)
+    {
+        int index = 0;
+        string candidate;
+        do
+        {
+            candidate = definition.id + "_animation_" + index;
+            index++;
+        }
+        while (FindAnimationIndex(definition, candidate) >= 0);
+
+        return candidate;
+    }
+
+    private void SaveAnimationChanges(MapEditorTilesetDefinition definition)
+    {
+        Register(definition);
+        SaveCatalog();
     }
 
     private static int ToAtlasTileId(MapEditorTilesetDefinition definition, int sourceTileId)
@@ -336,7 +612,90 @@ public sealed class MapEditorTilesetLibraryService
             return;
         }
 
+        NormalizeAnimationDefinitions(definition);
         RegisteredByAtlasPath[NormalizePath(definition.atlasPath)] = definition;
+    }
+
+    private static void NormalizeAnimationDefinitions(MapEditorTilesetDefinition definition)
+    {
+        if (definition.animations == null || definition.animations.Length == 0)
+        {
+            definition.animations = Array.Empty<MapEditorTilesetAnimationDefinition>();
+            return;
+        }
+
+        List<MapEditorTilesetAnimationDefinition> normalized = new List<MapEditorTilesetAnimationDefinition>();
+        HashSet<string> usedIds = new HashSet<string>(StringComparer.Ordinal);
+
+        for (int i = 0; i < definition.animations.Length; i++)
+        {
+            MapEditorTilesetAnimationDefinition animation = definition.animations[i];
+            if (animation == null)
+            {
+                continue;
+            }
+
+            string animationId = animation.id;
+            if (string.IsNullOrWhiteSpace(animationId) || usedIds.Contains(animationId))
+            {
+                int suffix = i;
+                do
+                {
+                    animationId = definition.id + "_animation_" + suffix;
+                    suffix++;
+                }
+                while (usedIds.Contains(animationId));
+
+                animation.id = animationId;
+            }
+
+            usedIds.Add(animation.id);
+
+            if (string.IsNullOrWhiteSpace(animation.displayName))
+            {
+                animation.displayName = "Animation " + (normalized.Count + 1);
+            }
+
+            if (animation.frameTileIds == null || animation.frameTileIds.Length == 0)
+            {
+                int tileCount = Mathf.Max(1, definition.columns * definition.rows);
+                int legacyStartTileId = Mathf.Clamp(animation.startTileId, 0, tileCount - 1);
+                int legacyFrameCount = Mathf.Clamp(
+                    Mathf.Max(1, animation.frameCount),
+                    1,
+                    tileCount - legacyStartTileId);
+                animation.startTileId = legacyStartTileId;
+                animation.frameTileIds = new int[legacyFrameCount];
+                for (int frameIndex = 0; frameIndex < legacyFrameCount; frameIndex++)
+                {
+                    animation.frameTileIds[frameIndex] = ToAtlasTileId(
+                        definition,
+                        legacyStartTileId + frameIndex);
+                }
+
+                animation.frameCount = legacyFrameCount;
+            }
+            else
+            {
+                animation.frameCount = animation.frameTileIds.Length;
+            }
+
+            if (animation.frameCount < 1)
+            {
+                animation.frameCount = 1;
+            }
+
+            if (animation.framesPerSecond <= 0f
+                || float.IsNaN(animation.framesPerSecond)
+                || float.IsInfinity(animation.framesPerSecond))
+            {
+                animation.framesPerSecond = 8f;
+            }
+
+            normalized.Add(animation);
+        }
+
+        definition.animations = normalized.ToArray();
     }
 
     private static Texture2D LoadTexture(string path)

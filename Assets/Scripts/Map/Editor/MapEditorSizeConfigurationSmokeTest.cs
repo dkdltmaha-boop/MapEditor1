@@ -90,11 +90,14 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(FindDescendant(toolbar, "WallToolButton") == null,
                 "Legacy standalone Wall tool is still visible.");
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
+            RequireToolbarButton(toolbar, "AnimationTileButton", "애니메이션 타일", MapEditorToolbarAction.OpenAnimationTileEditor);
             Require(toolbar.Find("ValidateButton") == null,
                 "Standalone Validate Map button is still visible.");
             Require(toolbar.Find("PNGOutButton") == null,
                 "Removed PNG export button is still visible.");
-            RequireToolbarButton(toolbar, "WorkshopButton", "창작마당 내보내기", MapEditorToolbarAction.ExportWorkshop);
+            RequireToolbarButton(toolbar, "WorkshopButton", "검사 후 창작마당 업로드", MapEditorToolbarAction.UploadWorkshop);
+            Require(toolbar.Find("WorkshopUploadButton") == null,
+                "A duplicate Workshop upload button is still visible.");
             RequireToolbarButton(toolbar, "HelpButton", "도움말", MapEditorToolbarAction.PackageGuide);
             Require(toolbar.Find("ClearButton") == null,
                 "Legacy current-layer clear button is still visible.");
@@ -102,6 +105,22 @@ public static class MapEditorSizeConfigurationSmokeTest
                     == MapEditorToolbarAction.ClearAll,
                 "Clear All button is missing or connected to the wrong action.");
             Require(toolbar.Find("CharacterTestToolButton") == null, "Removed character test tool is still visible.");
+
+            MapEditorAnimationTileWindow animationWindow = MapEditorAnimationTileWindow.Open(manager);
+            Transform animationRoot = canvas.transform.Find("MapEditor_AnimationTileWindow");
+            Require(animationWindow != null && animationRoot != null,
+                "Runtime animation tile editor was not created.");
+            Require(FindDescendant(animationRoot, "SaveButton")?.GetComponent<Button>() != null
+                && FindDescendant(animationRoot, "DeleteButton")?.GetComponent<Button>() != null
+                && FindDescendant(animationRoot, "ImportTilesetButton")?.GetComponent<Button>() != null,
+                "Animation tile editor actions are missing.");
+            Require(FindDescendant(animationRoot, "AnimationListContent") != null
+                && FindDescendant(animationRoot, "AnimationPreviewImage")?.GetComponent<Image>() != null
+                && FindDescendant(animationRoot, "AnimationPreviewImage")?.GetComponent<MapEditorAnimatedTilePlayer>() != null,
+                "Animation tile editor list or playback preview is missing.");
+            Require(FindDescendant(animationRoot, "UseAnimationBrushButton")?.GetComponent<Button>() != null,
+                "Animation tile editor is missing the Use as Brush action.");
+            MapEditorObjectUtility.DestroyObject(animationRoot.gameObject);
 
             MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
             Transform layerPanel = canvas.transform.Find("MapEditor_LayerPanel");

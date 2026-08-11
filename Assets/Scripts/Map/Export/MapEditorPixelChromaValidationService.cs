@@ -4,6 +4,8 @@ using UnityEngine;
 
 public static class MapEditorPixelChromaValidationService
 {
+    private static readonly MapEditorPngTilesetService PngTilesets = new MapEditorPngTilesetService();
+
     public static PixelChromaMapValidationReport Validate(MapData mapData, int spawnX, int spawnY)
     {
         return Validate(mapData, spawnX, spawnY, null);
@@ -39,9 +41,22 @@ public static class MapEditorPixelChromaValidationService
 
         HashSet<string> usedTilesets = new HashSet<string>();
         HashSet<string> missingTilesets = new HashSet<string>();
-        CountMapContents(mapData, report, usedTilesets, missingTilesets);
+        HashSet<string> validatedAnimations = new HashSet<string>();
+        HashSet<string> validatedImageTiles = new HashSet<string>();
+        CountMapContents(
+            mapData,
+            report,
+            usedTilesets,
+            missingTilesets,
+            validatedAnimations,
+            validatedImageTiles);
         report.tilesetCount = usedTilesets.Count;
         report.missingTilesetCount = missingTilesets.Count;
+
+        if (report.animatedTileCount > 0 && report.invalidAnimationCount == 0)
+        {
+            Pass(report, "애니메이션 타일: " + report.animatedTileCount + "개 / 정의 " + report.animationDefinitionCount + "개");
+        }
 
         if (report.paintedTileCount == 0)
         {
@@ -107,7 +122,9 @@ public static class MapEditorPixelChromaValidationService
         MapData mapData,
         PixelChromaMapValidationReport report,
         HashSet<string> usedTilesets,
-        HashSet<string> missingTilesets)
+        HashSet<string> missingTilesets,
+        HashSet<string> validatedAnimations,
+        HashSet<string> validatedImageTiles)
     {
         foreach (MapEditorLayerType layerType in MapData.GetSerializableLayers())
         {
@@ -151,10 +168,135 @@ public static class MapEditorPixelChromaValidationService
                     if (!File.Exists(imagePath))
                     {
                         missingTilesets.Add(imagePath);
+                        continue;
+                    }
+
+                    int imageIndex = mapData.GetImageIndex(x, y, layerType);
+                    if (MapEditorTilesetLibraryService.TryGetAnimation(
+                            imagePath,
+                            imageIndex,
+                            out MapEditorTilesetDefinition tileset,
+                            out MapEditorTilesetAnimationDefinition animation))
+                    {
+                        report.animatedTileCount++;
+                        string animationKey = imagePath + "#" + animation.id;
+                        if (validatedAnimations.Add(animationKey))
+                        {
+                            report.animationDefinitionCount++;
+                            if (!TryValidateAnimation(tileset, animation, out string animationError))
+                            {
+                                report.invalidAnimationCount++;
+                                Fail(report, "애니메이션 타일을 내보낼 수 없습니다: " + animationError);
+                            }
+                        }
+
+                        continue;
+                    }
+
+                    string imageTileKey = imagePath + "#" + imageIndex;
+                    if (validatedImageTiles.Add(imageTileKey) && !CanCreateImageTile(imagePath, imageIndex))
+                    {
+                        Fail(report, "이미지 타일을 만들 수 없습니다: " + imagePath + " #" + imageIndex);
                     }
                 }
             }
         }
+    }
+
+    private static bool TryValidateAnimation(
+        MapEditorTilesetDefinition tileset,
+        MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        error = string.Empty;
+
+        if (tileset == null || animation == null)
+        {
+            error = "타일셋 또는 애니메이션 정의가 없습니다.";
+            return false;
+        }
+
+        int frameCount = animation.frameTileIds != null && animation.frameTileIds.Length > 0
+            ? animation.frameTileIds.Length
+            : animation.frameCount;
+        if (frameCount < MapEditorTilesetLibraryService.MinAnimationFrameCount
+            || frameCount > MapEditorTilesetLibraryService.MaxAnimationFrameCount)
+        {
+            error = GetAnimationLabel(tileset, animation) + "의 프레임 수가 2~32 범위를 벗어났습니다.";
+            return false;
+        }
+
+        if (float.IsNaN(animation.framesPerSecond)
+            || float.IsInfinity(animation.framesPerSecond)
+            || animation.framesPerSecond < MapEditorTilesetLibraryService.MinAnimationFramesPerSecond
+            || animation.framesPerSecond > MapEditorTilesetLibraryService.MaxAnimationFramesPerSecond)
+        {
+            error = GetAnimationLabel(tileset, animation) + "의 재생 속도가 1~30 FPS 범위를 벗어났습니다.";
+            return false;
+        }
+
+        int gridSize = tileset.atlasGridSize;
+        if (gridSize <= 0 || tileset.columns <= 0 || tileset.rows <= 0)
+        {
+            error = GetAnimationLabel(tileset, animation) + "의 타일셋 격자 정보가 올바르지 않습니다.";
+            return false;
+        }
+
+        HashSet<int> uniqueFrames = new HashSet<int>();
+        for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+        {
+            int frameTileId = animation.GetFrameTileId(frameIndex);
+            int column = frameTileId % gridSize;
+            int rowFromBottom = frameTileId / gridSize;
+            int sourceRowFromTop = gridSize - 1 - rowFromBottom;
+
+            if (frameTileId < 0
+                || frameTileId >= gridSize * gridSize
+                || column < 0
+                || column >= tileset.columns
+                || sourceRowFromTop < 0
+                || sourceRowFromTop >= tileset.rows)
+            {
+                error = GetAnimationLabel(tileset, animation) + "의 " + (frameIndex + 1) + "번째 프레임이 타일셋 범위 밖입니다.";
+                return false;
+            }
+
+            if (!uniqueFrames.Add(frameTileId))
+            {
+                error = GetAnimationLabel(tileset, animation) + "에 중복 프레임이 있습니다.";
+                return false;
+            }
+
+            int frameImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(gridSize, frameTileId);
+            if (!CanCreateImageTile(tileset.atlasPath, frameImageIndex))
+            {
+                error = GetAnimationLabel(tileset, animation) + "의 " + (frameIndex + 1) + "번째 프레임을 읽을 수 없습니다.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static bool CanCreateImageTile(string imagePath, int imageIndex)
+    {
+        try
+        {
+            return PngTilesets.GetTileSprite(imagePath, imageIndex) != null;
+        }
+        catch (System.Exception)
+        {
+            return false;
+        }
+    }
+
+    private static string GetAnimationLabel(
+        MapEditorTilesetDefinition tileset,
+        MapEditorTilesetAnimationDefinition animation)
+    {
+        string tilesetName = string.IsNullOrWhiteSpace(tileset.displayName) ? tileset.id : tileset.displayName;
+        string animationName = string.IsNullOrWhiteSpace(animation.displayName) ? animation.id : animation.displayName;
+        return tilesetName + " / " + animationName;
     }
 
     private static List<MapEditorSpawnPointData> NormalizeSpawnPoints(

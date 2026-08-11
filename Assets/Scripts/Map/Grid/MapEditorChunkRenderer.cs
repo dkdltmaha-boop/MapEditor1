@@ -26,6 +26,7 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
     private readonly Dictionary<Vector2Int, ChunkVisual> chunks = new Dictionary<Vector2Int, ChunkVisual>();
     private readonly Queue<Vector2Int> dirtyQueue = new Queue<Vector2Int>();
     private readonly HashSet<Vector2Int> dirtySet = new HashSet<Vector2Int>();
+    private readonly HashSet<Vector2Int> animatedChunks = new HashSet<Vector2Int>();
 
     private GridGenerator generator;
     private MapEditorManager manager;
@@ -142,12 +143,9 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
 
         if (Time.unscaledTime >= nextAnimationRefreshTime)
         {
-            foreach (ChunkVisual chunk in chunks.Values)
+            foreach (Vector2Int coordinate in animatedChunks)
             {
-                if (chunk.hasAnimation)
-                {
-                    EnqueueDirty(chunk.coordinate);
-                }
+                EnqueueDirty(coordinate);
             }
 
             nextAnimationRefreshTime = Time.unscaledTime + AnimationRefreshInterval;
@@ -260,6 +258,15 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
         chunk.texture.SetPixels32(chunk.pixels);
         chunk.texture.Apply(false, false);
         chunk.hasAnimation = hasAnimation;
+
+        if (hasAnimation)
+        {
+            animatedChunks.Add(coordinate);
+        }
+        else
+        {
+            animatedChunks.Remove(coordinate);
+        }
     }
 
     private static void DrawSpawnMarker(Color32[] pixels, int width, int offsetX, int offsetY)
@@ -287,6 +294,7 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
         chunks.Clear();
         dirtyQueue.Clear();
         dirtySet.Clear();
+        animatedChunks.Clear();
 
         if (root != null)
         {

@@ -15,6 +15,7 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
     private RectTransform previewRect;
     private Image previewImage;
     private Outline previewOutline;
+    private GameObject animationBadge;
 
     public void Initialize(Sprite sprite, string imagePath, int imageIndex)
     {
@@ -31,6 +32,7 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
         if (manager != null
             && MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out _, out MapEditorTilesetAnimationDefinition animation))
         {
+            EnsureAnimationBadge();
             Sprite[] frames = manager.GetAnimationFrames(imagePath, imageIndex);
             if (frames != null && frames.Length > 1)
             {
@@ -41,6 +43,15 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
                 }
 
                 player.Configure(GetComponent<Image>(), frames, animation.framesPerSecond, animation.loop);
+            }
+        }
+        else
+        {
+            HideAnimationBadge();
+            MapEditorAnimatedTilePlayer player = GetComponent<MapEditorAnimatedTilePlayer>();
+            if (player != null)
+            {
+                player.Stop();
             }
         }
     }
@@ -226,6 +237,54 @@ public class PngPaletteTile : MonoBehaviour, IPointerMoveHandler, IPointerEnterH
         previewImage.raycastTarget = false;
         previewOutline = previewObject.GetComponent<Outline>();
         previewObject.SetActive(false);
+    }
+
+    private void EnsureAnimationBadge()
+    {
+        if (animationBadge == null)
+        {
+            animationBadge = new GameObject("AnimationBadge", typeof(RectTransform), typeof(Image));
+            animationBadge.transform.SetParent(transform, false);
+
+            RectTransform badgeRect = animationBadge.GetComponent<RectTransform>();
+            badgeRect.anchorMin = new Vector2(0.56f, 0.56f);
+            badgeRect.anchorMax = Vector2.one;
+            badgeRect.offsetMin = Vector2.zero;
+            badgeRect.offsetMax = Vector2.zero;
+
+            Image badgeBackground = animationBadge.GetComponent<Image>();
+            badgeBackground.color = new Color(0.08f, 0.46f, 0.95f, 0.94f);
+            badgeBackground.raycastTarget = false;
+
+            GameObject labelObject = new GameObject("Label", typeof(RectTransform), typeof(Text));
+            labelObject.transform.SetParent(animationBadge.transform, false);
+            RectTransform labelRect = labelObject.GetComponent<RectTransform>();
+            labelRect.anchorMin = Vector2.zero;
+            labelRect.anchorMax = Vector2.one;
+            labelRect.offsetMin = Vector2.zero;
+            labelRect.offsetMax = Vector2.zero;
+
+            Text label = labelObject.GetComponent<Text>();
+            label.text = "A";
+            label.font = MapEditorFontProvider.Default;
+            label.fontSize = 9;
+            label.fontStyle = FontStyle.Bold;
+            label.alignment = TextAnchor.MiddleCenter;
+            label.color = Color.white;
+            label.raycastTarget = false;
+        }
+
+        animationBadge.name = "AnimationBadge";
+        animationBadge.SetActive(true);
+        animationBadge.transform.SetAsLastSibling();
+    }
+
+    private void HideAnimationBadge()
+    {
+        if (animationBadge != null)
+        {
+            animationBadge.SetActive(false);
+        }
     }
 
     private Sprite CreateSubSprite(int resolution, int subX, int subY)

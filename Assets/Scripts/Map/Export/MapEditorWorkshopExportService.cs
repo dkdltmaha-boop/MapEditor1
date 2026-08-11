@@ -184,6 +184,12 @@ public sealed class MapEditorWorkshopExportService
         AddFileInventory(folderPath, report);
         WritePackageReport(paths.Report, report);
 
+        if (!report.isValid)
+        {
+            Debug.LogError("PixelChroma Workshop package validation failed after export: " + folderPath);
+            return false;
+        }
+
         Debug.Log("PixelChroma 창작마당 패키지를 내보냈습니다: " + folderPath);
         return true;
     }
@@ -216,6 +222,9 @@ public sealed class MapEditorWorkshopExportService
         report.wallTileCount = validation.wallTileCount;
         report.colorTileCount = validation.colorTileCount;
         report.imageTileCount = validation.imageTileCount;
+        report.animatedTileCount = validation.animatedTileCount;
+        report.animationDefinitionCount = validation.animationDefinitionCount;
+        report.invalidAnimationCount = validation.invalidAnimationCount;
         report.tilesetCount = validation.tilesetCount;
         report.spawnPointCount = validation.spawnPointCount;
         report.zoneCount = validation.zoneCount;
@@ -276,8 +285,75 @@ public sealed class MapEditorWorkshopExportService
         ValidateFileContains(paths.Manifest, ManifestFileName, "\"tilesetFolder\": \"" + TilesetFolderName + "\"", report);
         ValidateFileContains(paths.Map, MapFileName, "\"format\": \"PixelChromaMap\"", report);
         ValidateFileContains(paths.Map, MapFileName, "\"loaderStrategy\": \"RuntimeTilemapLoader\"", report);
+        ValidateAnimatedMapData(paths.Map, report);
 
-        report.isValid = report.errors.Count == 0 && report.warnings.Count == 0 && report.paintedTileCount > 0;
+        report.isValid = report.errors.Count == 0 && report.paintedTileCount > 0;
+    }
+
+    private static void ValidateAnimatedMapData(string mapPath, PixelChromaWorkshopPackageReport report)
+    {
+        if (!File.Exists(mapPath))
+        {
+            return;
+        }
+
+        try
+        {
+            PixelChromaMapExportData map = JsonUtility.FromJson<PixelChromaMapExportData>(File.ReadAllText(mapPath));
+            int exportedAnimationCount = 0;
+
+            if (map?.layers != null)
+            {
+                for (int layerIndex = 0; layerIndex < map.layers.Count; layerIndex++)
+                {
+                    PixelChromaMapLayerExportData layer = map.layers[layerIndex];
+                    if (layer?.tiles == null)
+                    {
+                        continue;
+                    }
+
+                    for (int tileIndex = 0; tileIndex < layer.tiles.Count; tileIndex++)
+                    {
+                        PixelChromaTileExportData tile = layer.tiles[tileIndex];
+                        if (tile == null || tile.kind != PixelChromaExportContract.AnimatedPixelTileKind)
+                        {
+                            continue;
+                        }
+
+                        exportedAnimationCount++;
+                        if (tile.animationFrames == null
+                            || tile.animationFrames.Length < MapEditorTilesetLibraryService.MinAnimationFrameCount)
+                        {
+                            report.errors.Add("Animated map tile has fewer than two embedded frames at (" + tile.x + ", " + tile.y + ").");
+                            continue;
+                        }
+
+                        for (int frameIndex = 0; frameIndex < tile.animationFrames.Length; frameIndex++)
+                        {
+                            PixelChromaAnimationFrameExportData frame = tile.animationFrames[frameIndex];
+                            int expectedPixelCount = PixelChromaExportContract.TilePixelSize * PixelChromaExportContract.TilePixelSize;
+                            if (frame == null
+                                || frame.pixelResolution != PixelChromaExportContract.TilePixelSize
+                                || frame.pixelHexes == null
+                                || frame.pixelHexes.Length != expectedPixelCount)
+                            {
+                                report.errors.Add("Animated map tile has an invalid embedded frame at (" + tile.x + ", " + tile.y + ").");
+                                break;
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (report.animatedTileCount > 0 && exportedAnimationCount == 0)
+            {
+                report.errors.Add("Animated tiles were used by the editor map but none were embedded in map.json.");
+            }
+        }
+        catch (Exception exception)
+        {
+            report.errors.Add("Could not validate animated map data: " + exception.Message);
+        }
     }
 
     private static bool ValidateRequiredFile(string path, string packagePath, PixelChromaWorkshopPackageReport report)
@@ -363,7 +439,7 @@ public sealed class MapEditorWorkshopExportService
             }
         }
 
-        report.isValid = report.errors.Count == 0 && report.warnings.Count == 0 && report.paintedTileCount > 0;
+        report.isValid = report.errors.Count == 0 && report.paintedTileCount > 0;
     }
 
     private static void WriteSteamUploadConfig(
@@ -409,6 +485,7 @@ public sealed class MapEditorWorkshopExportService
             "5. Load PNG files from manifest.tilesetFolder when map.tilesets references them.\n" +
             "6. Create spawn objects from map.spawnPoints.\n" +
             "7. Create optional zone metadata objects from map.zones.\n" +
+            "8. Animated tile frames are embedded in map.json; source PNG files are not required at runtime.\n" +
             "\n" +
             "Do not rename files inside this folder unless the manifest and map data are updated together.\n";
 

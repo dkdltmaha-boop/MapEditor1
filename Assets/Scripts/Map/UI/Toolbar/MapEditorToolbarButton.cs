@@ -53,7 +53,8 @@ public enum MapEditorToolbarAction
     SetCanvas,
     ToggleCanvasVisible,
     AddCanvas,
-    DeleteCanvas
+    DeleteCanvas,
+    OpenAnimationTileEditor
 }
 
 public enum MapEditorLayerType
@@ -314,20 +315,13 @@ public class MapEditorToolbarButton : MonoBehaviour
                 target.ClearMap();
                 break;
             case MapEditorToolbarAction.UploadWorkshop:
-                PixelChromaRuntimeWorkshopUploader uploader =
-                    Object.FindFirstObjectByType<PixelChromaRuntimeWorkshopUploader>();
-
-                if (uploader != null)
-                {
-                    uploader.ValidateAndUpload();
-                }
-                else
-                {
-                    Debug.LogWarning("창작마당 업로더를 찾을 수 없습니다.");
-                }
+                target.UploadWorkshopToSteam();
                 break;
             case MapEditorToolbarAction.OpenTileCreator:
                 target.OpenTileCreator();
+                break;
+            case MapEditorToolbarAction.OpenAnimationTileEditor:
+                target.OpenAnimationTileEditor();
                 break;
             case MapEditorToolbarAction.Line:
                 target.SetLineTool();

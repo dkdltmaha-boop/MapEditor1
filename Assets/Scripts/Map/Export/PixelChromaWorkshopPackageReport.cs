@@ -20,6 +20,9 @@ public sealed class PixelChromaWorkshopPackageReport
     public int wallTileCount;
     public int colorTileCount;
     public int imageTileCount;
+    public int animatedTileCount;
+    public int animationDefinitionCount;
+    public int invalidAnimationCount;
     public int tilesetCount;
     public int spawnPointCount;
     public int zoneCount;

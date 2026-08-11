@@ -490,18 +490,44 @@ public sealed class MapEditorPixelChromaExportService
         PixelChromaTileExportData above)
     {
         const int resolution = PixelChromaExportContract.TilePixelSize;
-        string[] pixels = new string[resolution * resolution];
+        bool belowAnimated = HasAnimationFrames(below);
+        bool aboveAnimated = HasAnimationFrames(above);
 
-        for (int y = 0; y < resolution; y++)
+        if (belowAnimated || aboveAnimated)
         {
-            for (int x = 0; x < resolution; x++)
+            float outputFps = Mathf.Max(GetAnimationFps(below), GetAnimationFps(above));
+            int outputFrameCount = ResolveCompositeAnimationFrameCount(below, above, outputFps);
+            PixelChromaAnimationFrameExportData[] frames = new PixelChromaAnimationFrameExportData[outputFrameCount];
+
+            for (int frameIndex = 0; frameIndex < outputFrameCount; frameIndex++)
             {
-                Color belowColor = SampleExportTile(below, x, y, resolution);
-                Color aboveColor = SampleExportTile(above, x, y, resolution);
-                Color result = AlphaBlend(belowColor, aboveColor);
-                pixels[y * resolution + x] = "#" + ColorUtility.ToHtmlStringRGBA(result);
+                float time = frameIndex / outputFps;
+                frames[frameIndex] = new PixelChromaAnimationFrameExportData
+                {
+                    pixelResolution = resolution,
+                    pixelHexes = CompositePixels(below, above, resolution, time)
+                };
             }
+
+            return new PixelChromaTileExportData
+            {
+                x = above.x,
+                y = above.y,
+                kind = PixelChromaExportContract.AnimatedPixelTileKind,
+                tilesetId = string.Empty,
+                tileId = -1,
+                colorHex = "#" + ColorUtility.ToHtmlStringRGBA(AveragePixels(frames[0].pixelHexes)),
+                rotation = 0,
+                flipX = false,
+                flipY = false,
+                collision = below.collision || above.collision,
+                animationFps = outputFps,
+                animationLoop = (!belowAnimated || below.animationLoop) && (!aboveAnimated || above.animationLoop),
+                animationFrames = frames
+            };
         }
+
+        string[] pixels = CompositePixels(below, above, resolution, 0f);
 
         return new PixelChromaTileExportData
         {
@@ -520,17 +546,147 @@ public sealed class MapEditorPixelChromaExportService
         };
     }
 
-    private static Color SampleExportTile(PixelChromaTileExportData tile, int x, int y, int targetResolution)
+    private static string[] CompositePixels(
+        PixelChromaTileExportData below,
+        PixelChromaTileExportData above,
+        int resolution,
+        float time)
     {
+        string[] pixels = new string[resolution * resolution];
+
+        for (int y = 0; y < resolution; y++)
+        {
+            for (int x = 0; x < resolution; x++)
+            {
+                Color belowColor = SampleExportTile(below, x, y, resolution, time);
+                Color aboveColor = SampleExportTile(above, x, y, resolution, time);
+                Color result = AlphaBlend(belowColor, aboveColor);
+                pixels[y * resolution + x] = "#" + ColorUtility.ToHtmlStringRGBA(result);
+            }
+        }
+
+        return pixels;
+    }
+
+    private static bool HasAnimationFrames(PixelChromaTileExportData tile)
+    {
+        return tile != null
+            && tile.animationFrames != null
+            && tile.animationFrames.Length > 0;
+    }
+
+    private static float GetAnimationFps(PixelChromaTileExportData tile)
+    {
+        return HasAnimationFrames(tile) && tile.animationFps > 0f
+            ? tile.animationFps
+            : 1f;
+    }
+
+    private static int ResolveCompositeAnimationFrameCount(
+        PixelChromaTileExportData below,
+        PixelChromaTileExportData above,
+        float outputFps)
+    {
+        float duration = 0f;
+
+        if (HasAnimationFrames(below))
+        {
+            duration = Mathf.Max(duration, below.animationFrames.Length / GetAnimationFps(below));
+        }
+
+        if (HasAnimationFrames(above))
+        {
+            duration = Mathf.Max(duration, above.animationFrames.Length / GetAnimationFps(above));
+        }
+
+        return Mathf.Clamp(
+            Mathf.CeilToInt(Mathf.Max(1f / outputFps, duration) * outputFps),
+            MapEditorTilesetLibraryService.MinAnimationFrameCount,
+            MapEditorTilesetLibraryService.MaxAnimationFrameCount);
+    }
+
+    private static Color SampleExportTile(
+        PixelChromaTileExportData tile,
+        int x,
+        int y,
+        int targetResolution,
+        float time)
+    {
+        if (HasAnimationFrames(tile))
+        {
+            int frameIndex = Mathf.FloorToInt(Mathf.Max(0f, time) * GetAnimationFps(tile));
+            frameIndex = tile.animationLoop
+                ? frameIndex % tile.animationFrames.Length
+                : Mathf.Clamp(frameIndex, 0, tile.animationFrames.Length - 1);
+            PixelChromaAnimationFrameExportData frame = tile.animationFrames[frameIndex];
+            return SamplePixels(
+                frame?.pixelHexes,
+                frame?.pixelResolution ?? 0,
+                tile,
+                x,
+                y,
+                targetResolution);
+        }
+
         if (tile.pixelHexes != null && tile.pixelHexes.Length > 0 && tile.pixelResolution > 0)
         {
-            int sourceX = Mathf.Clamp(Mathf.FloorToInt((x + 0.5f) / targetResolution * tile.pixelResolution), 0, tile.pixelResolution - 1);
-            int sourceY = Mathf.Clamp(Mathf.FloorToInt((y + 0.5f) / targetResolution * tile.pixelResolution), 0, tile.pixelResolution - 1);
-            int index = sourceY * tile.pixelResolution + sourceX;
-            return index < tile.pixelHexes.Length ? ParseHex(tile.pixelHexes[index], Color.clear) : Color.clear;
+            return SamplePixels(tile.pixelHexes, tile.pixelResolution, tile, x, y, targetResolution);
         }
 
         return ParseHex(tile.colorHex, Color.white);
+    }
+
+    private static Color SamplePixels(
+        string[] pixels,
+        int pixelResolution,
+        PixelChromaTileExportData tile,
+        int x,
+        int y,
+        int targetResolution)
+    {
+        if (pixels == null || pixels.Length == 0 || pixelResolution <= 0)
+        {
+            return Color.clear;
+        }
+
+        float u = (x + 0.5f) / targetResolution;
+        float v = (y + 0.5f) / targetResolution;
+        ApplyExportTransform(tile, ref u, ref v);
+        int sourceX = Mathf.Clamp(Mathf.FloorToInt(u * pixelResolution), 0, pixelResolution - 1);
+        int sourceY = Mathf.Clamp(Mathf.FloorToInt(v * pixelResolution), 0, pixelResolution - 1);
+        int index = sourceY * pixelResolution + sourceX;
+        return index < pixels.Length ? ParseHex(pixels[index], Color.clear) : Color.clear;
+    }
+
+    private static void ApplyExportTransform(PixelChromaTileExportData tile, ref float u, ref float v)
+    {
+        if (tile.flipX)
+        {
+            u = 1f - u;
+        }
+
+        if (tile.flipY)
+        {
+            v = 1f - v;
+        }
+
+        float originalU = u;
+        float originalV = v;
+        switch ((tile.rotation % 4 + 4) % 4)
+        {
+            case 1:
+                u = originalV;
+                v = 1f - originalU;
+                break;
+            case 2:
+                u = 1f - originalU;
+                v = 1f - originalV;
+                break;
+            case 3:
+                u = 1f - originalV;
+                v = originalU;
+                break;
+        }
     }
 
     private static Color AveragePixels(string[] pixels)
@@ -643,6 +799,9 @@ public sealed class MapEditorPixelChromaExportService
                 tile.colorHex = tile.animationFrames.Length > 0 && tile.animationFrames[0].pixelHexes.Length > 0
                     ? tile.animationFrames[0].pixelHexes[0]
                     : "#FFFFFFFF";
+                tile.rotation = 0;
+                tile.flipX = false;
+                tile.flipY = false;
                 return tile;
             }
 

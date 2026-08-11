@@ -224,14 +224,14 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("시작 위치", "Start Point"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일 만들기", "Create Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenTileCreator, "TileCreatorButton");
+        EnsureToolbarActionButton(toolbar, manager, L("애니메이션 타일", "Animated Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenAnimationTileEditor, "AnimationTileButton");
         EnsureToolbarDivider(toolbar);
         CreateToolbarLabel(toolbar, L("파일과 검사", "Files & Validation"));
         EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일셋", "Tilesets"), L("클릭", "Click"), MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
         EnsureToolbarActionButton(toolbar, manager, L("PNG 불러오기", "Load PNG"), L("클릭", "Click"), MapEditorToolbarAction.PngLoad, "LoadPNGButton");
         EnsureToolbarActionButton(toolbar, manager, L("게임용 내보내기", "Export Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
-        EnsureToolbarActionButton(toolbar, manager, L("창작마당 내보내기", "Export Workshop"), L("클릭", "Click"), MapEditorToolbarAction.ExportWorkshop, "WorkshopButton");
-        EnsureToolbarActionButton(toolbar, manager, L("창작마당 업로드", "Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopUploadButton");
+        EnsureToolbarActionButton(toolbar, manager, L("검사 후 창작마당 업로드", "Validate & Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopButton");
         EnsureToolbarActionButton(toolbar, manager, L("도움말", "Help"), "F1", MapEditorToolbarAction.PackageGuide, "HelpButton");
         EnsureToolbarActionButton(toolbar, manager, L("전체 지우기", "Clear All"), L("클릭", "Click"), MapEditorToolbarAction.ClearAll, "ClearAllButton");
         EnsureValidationStatus(toolbar);

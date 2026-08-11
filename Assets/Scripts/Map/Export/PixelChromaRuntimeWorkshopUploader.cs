@@ -37,7 +37,9 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     private Phase phase = Phase.Idle;
 
     private bool   steamStartedByUs;
+    private bool   usingExternalSteamManager;
     private string exportFolder = string.Empty;
+    private string lastStatus = string.Empty;
 
     private PublishedFileId_t publishedFileId;
     private UGCUpdateHandle_t updateHandle;
@@ -48,12 +50,15 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     private CallResult<SubmitItemUpdateResult_t>  submitItemCallResult;
 
     public bool IsBusy => phase == Phase.Creating || phase == Phase.Submitting;
+    public uint EffectiveAppId => mapEditor != null && mapEditor.steamAppId > 0
+        ? mapEditor.steamAppId
+        : (testAppId > 0 ? testAppId : 480u);
 
     // ── Steam 콜백 펌핑 ───────────────────────────────
     // 왜: 이걸 매 프레임 돌리지 않으면 CreateItem/Submit 결과 콜백이 영원히 안 온다.
     private void Update()
     {
-        if (manageSteamLifecycle && steamStartedByUs)
+        if (manageSteamLifecycle && steamStartedByUs && !usingExternalSteamManager)
         {
             SteamAPI.RunCallbacks();
         }
@@ -70,7 +75,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     private void OnDestroy()
     {
         // 왜: 우리가 켠 Steam 연결은 우리가 닫아야 다음 Play 에서 깨끗이 다시 열린다.
-        if (steamStartedByUs)
+        if (steamStartedByUs && !usingExternalSteamManager)
         {
             try { SteamAPI.Shutdown(); } catch (Exception e) { Debug.LogWarning("Steam Shutdown: " + e.Message); }
             steamStartedByUs = false;
@@ -103,7 +108,14 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         }
 
         // (3) 업로드 시작
-        BeginCreateItem();
+        try
+        {
+            BeginCreateItem();
+        }
+        catch (Exception e)
+        {
+            Fail("Steam 창작마당 업로드 시작 중 예외가 발생했습니다: " + e.Message);
+        }
     }
 
     // ── Steam 연결 ───────────────────────────────────
@@ -116,22 +128,46 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
             submitItemCallResult = CallResult<SubmitItemUpdateResult_t>.Create(OnSubmitItemUpdate);
         }
 
-        if (!manageSteamLifecycle) return true;  // 외부 SteamManager 가 이미 Init/RunCallbacks 담당
-        if (steamStartedByUs)      return true;
+        SteamManager externalManager = UnityEngine.Object.FindFirstObjectByType<SteamManager>();
+        if (externalManager != null)
+        {
+            if (!SteamManager.Initialized)
+            {
+                Fail("씬의 SteamManager가 SteamAPI 초기화에 실패했습니다. Steam 실행, 로그인, App ID와 계정 라이선스를 확인하세요.");
+                return false;
+            }
 
-        EnsureSteamAppIdFile();   // 480 을 Steam 에 알림(아래 함수 참고)
+            usingExternalSteamManager = true;
+            return true;
+        }
+
+        if (!manageSteamLifecycle)
+        {
+            Fail("Steam 콜백 관리자가 없습니다. manageSteamLifecycle을 켜거나 씬에 SteamManager를 추가하세요.");
+            return false;
+        }
+
+        if (steamStartedByUs) return true;
+
+        uint appId = EffectiveAppId;
+        EnsureSteamAppIdFile(appId);
 
         try
         {
             if (!SteamAPI.Init())
             {
-                Fail("SteamAPI.Init 실패. Steam 실행/로그인 및 steam_appid.txt(=" + testAppId + ") 확인.");
+                Fail("SteamAPI.Init 실패. Steam 실행/로그인 및 steam_appid.txt(=" + appId + ")를 확인하세요.");
                 return false;
             }
         }
         catch (DllNotFoundException e)
         {
             Fail("Steam 네이티브 DLL 없음. Steamworks.NET 설치 확인.\n" + e.Message);
+            return false;
+        }
+        catch (Exception e)
+        {
+            Fail("SteamAPI 초기화 중 예외가 발생했습니다: " + e.Message);
             return false;
         }
 
@@ -141,15 +177,31 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
     // 왜: SteamAPI.Init 은 실행 폴더의 steam_appid.txt 를 읽어 "어떤 앱으로 붙을지" 판단한다.
     // 이 파일이 480 이어야 SpaceWar 로 연결된다. (에디터에선 working dir = 프로젝트 루트)
-    private void EnsureSteamAppIdFile()
+    private void EnsureSteamAppIdFile(uint appId)
     {
-        string path = Path.Combine(Directory.GetCurrentDirectory(), "steam_appid.txt");
+        Environment.SetEnvironmentVariable("SteamAppId", appId.ToString());
+        WriteSteamAppIdFile(Path.Combine(Directory.GetCurrentDirectory(), "steam_appid.txt"), appId);
+
+        string executableFolder = Path.GetDirectoryName(Application.dataPath);
+        if (!string.IsNullOrWhiteSpace(executableFolder))
+        {
+            WriteSteamAppIdFile(Path.Combine(executableFolder, "steam_appid.txt"), appId);
+        }
+    }
+
+    private static void WriteSteamAppIdFile(string path, uint appId)
+    {
         try
         {
-            if (!File.Exists(path) || File.ReadAllText(path).Trim() != testAppId.ToString())
-                File.WriteAllText(path, testAppId.ToString());
+            if (!File.Exists(path) || File.ReadAllText(path).Trim() != appId.ToString())
+            {
+                File.WriteAllText(path, appId.ToString());
+            }
         }
-        catch (Exception e) { Debug.LogWarning("steam_appid.txt 쓰기 실패: " + e.Message); }
+        catch (Exception e)
+        {
+            Debug.LogWarning("steam_appid.txt 쓰기 실패 (" + path + "): " + e.Message);
+        }
     }
 
     // ── 업로드 3단계 ─────────────────────────────────
@@ -158,7 +210,13 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     {
         phase = Phase.Creating;
         SetStatus("창작마당 아이템 생성 중...");
-        SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(testAppId), EWorkshopFileType.k_EWorkshopFileTypeCommunity);
+        SteamAPICall_t call = SteamUGC.CreateItem(new AppId_t(EffectiveAppId), EWorkshopFileType.k_EWorkshopFileTypeCommunity);
+        if (call == SteamAPICall_t.Invalid)
+        {
+            Fail("Steam이 창작마당 아이템 생성 요청을 시작하지 못했습니다. App ID의 창작마당 기능 설정을 확인하세요.");
+            return;
+        }
+
         createItemCallResult.Set(call);   // 결과는 OnCreateItem 으로
     }
 
@@ -179,7 +237,14 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
             Application.OpenURL("https://steamcommunity.com/sharedfiles/filedetails/?id=" + publishedFileId.m_PublishedFileId);
         }
 
-        SubmitContent();
+        try
+        {
+            SubmitContent();
+        }
+        catch (Exception e)
+        {
+            Fail("창작마당 콘텐츠 제출 준비 중 예외가 발생했습니다: " + e.Message);
+        }
     }
 
     // 2) 메타데이터 + 콘텐츠 폴더 붙여서 제출
@@ -188,25 +253,55 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         phase = Phase.Submitting;
         SetStatus("콘텐츠 업로드 준비 중...");
 
-        updateHandle = SteamUGC.StartItemUpdate(new AppId_t(testAppId), publishedFileId);
+        updateHandle = SteamUGC.StartItemUpdate(new AppId_t(EffectiveAppId), publishedFileId);
+        if (updateHandle == UGCUpdateHandle_t.Invalid)
+        {
+            Fail("Steam이 아이템 업데이트를 시작하지 못했습니다. App ID와 게시물 소유권을 확인하세요.");
+            return;
+        }
 
         // steam_upload.json(우리 export 가 만든 파일)에서 제목/설명/태그를 읽어 채운다.
         PixelChromaSteamWorkshopUploadConfig cfg = ReadConfig();
-        SteamUGC.SetItemTitle(updateHandle,       cfg?.title ?? cfg?.mapId ?? "map");
-        SteamUGC.SetItemDescription(updateHandle, cfg?.description ?? string.Empty);
-        SteamUGC.SetItemVisibility(updateHandle,  ResolveVisibility(cfg));
+        if (!SteamUGC.SetItemTitle(updateHandle, cfg?.title ?? cfg?.mapId ?? "map")
+            || !SteamUGC.SetItemDescription(updateHandle, cfg?.description ?? string.Empty)
+            || !SteamUGC.SetItemVisibility(updateHandle, ResolveVisibility(cfg)))
+        {
+            Fail("Steam 창작마당 제목, 설명 또는 공개 범위를 설정하지 못했습니다.");
+            return;
+        }
+
         if (cfg?.tags != null && cfg.tags.Length > 0)
-            SteamUGC.SetItemTags(updateHandle, cfg.tags);
+        {
+            if (!SteamUGC.SetItemTags(updateHandle, cfg.tags))
+            {
+                Fail("Steam 창작마당 태그를 설정하지 못했습니다.");
+                return;
+            }
+        }
 
         // 미리보기 이미지(≤1MB). 왜: 창작마당/메뉴 썸네일로 쓰임.
         string preview = Path.GetFullPath(Path.Combine(exportFolder, "preview.png"));
-        if (File.Exists(preview) && new FileInfo(preview).Length <= 1024 * 1024)
-            SteamUGC.SetItemPreview(updateHandle, preview);
+        if (File.Exists(preview) && new FileInfo(preview).Length <= 1024 * 1024
+            && !SteamUGC.SetItemPreview(updateHandle, preview))
+        {
+            Fail("Steam 창작마당 미리보기 이미지를 설정하지 못했습니다.");
+            return;
+        }
 
         // 핵심: 업로드할 "폴더" 지정. Steam 이 이 폴더 전체를 압축/전송한다.
-        SteamUGC.SetItemContent(updateHandle, Path.GetFullPath(exportFolder));
+        if (!SteamUGC.SetItemContent(updateHandle, Path.GetFullPath(exportFolder)))
+        {
+            Fail("Steam에 업로드할 콘텐츠 폴더를 설정하지 못했습니다: " + exportFolder);
+            return;
+        }
 
         SteamAPICall_t call = SteamUGC.SubmitItemUpdate(updateHandle, "In-game map upload");
+        if (call == SteamAPICall_t.Invalid)
+        {
+            Fail("Steam이 콘텐츠 제출 요청을 시작하지 못했습니다.");
+            return;
+        }
+
         submitItemCallResult.Set(call);   // 결과는 OnSubmitItemUpdate 으로
     }
 
@@ -215,7 +310,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     {
         if (ioFailure || r.m_eResult != EResult.k_EResultOK)
         {
-            Fail("업로드 실패: " + (ioFailure ? "IO 오류" : r.m_eResult.ToString()));
+            Fail("업로드 실패: " + DescribeFailure(r.m_eResult, ioFailure));
             return;
         }
 
@@ -261,11 +356,44 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         }
     }
 
-    private void SetStatus(string m) => StatusChanged?.Invoke(m);
+    private static string DescribeFailure(EResult result, bool ioFailure)
+    {
+        if (ioFailure)
+        {
+            return "Steam 네트워크 IO 오류";
+        }
+
+        switch (result)
+        {
+            case EResult.k_EResultAccessDenied:
+                return "접근 거부. App ID의 창작마당 설정과 계정 권한을 확인하세요.";
+            case EResult.k_EResultInsufficientPrivilege:
+                return "권한 부족. Steam 계정 제한 또는 창작마당 약관 동의를 확인하세요.";
+            case EResult.k_EResultTimeout:
+                return "Steam 서버 응답 시간 초과. 네트워크를 확인하고 다시 시도하세요.";
+            case EResult.k_EResultNotLoggedOn:
+                return "Steam에 로그인되어 있지 않습니다.";
+            default:
+                return result.ToString();
+        }
+    }
+
+    private void SetStatus(string message)
+    {
+        if (string.Equals(lastStatus, message, StringComparison.Ordinal))
+        {
+            return;
+        }
+
+        lastStatus = message;
+        Debug.Log("[RuntimeWorkshopUploader] " + message);
+        StatusChanged?.Invoke(message);
+    }
 
     private void Fail(string m)
     {
         phase = Phase.Error;
+        SetStatus(m);
         Debug.LogError("[RuntimeWorkshopUploader] " + m);
         UploadFailed?.Invoke(m);
     }
@@ -285,6 +413,9 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     public event Action<string> UploadFailed;
 
     public bool IsBusy => false;
+    public uint EffectiveAppId => mapEditor != null && mapEditor.steamAppId > 0
+        ? mapEditor.steamAppId
+        : (testAppId > 0 ? testAppId : 480u);
 
     public void ValidateAndUpload()
     {

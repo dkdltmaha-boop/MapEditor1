@@ -4,10 +4,67 @@ using UnityEngine;
 
 public sealed class MapEditorCellRenderService
 {
+    private readonly struct AnimationFrameCacheKey : IEquatable<AnimationFrameCacheKey>
+    {
+        private readonly string imagePath;
+        private readonly int imageIndex;
+        private readonly int rotation;
+        private readonly bool flipX;
+        private readonly bool flipY;
+        private readonly int frameSignature;
+
+        public AnimationFrameCacheKey(
+            string path,
+            int index,
+            int imageRotation,
+            bool imageFlipX,
+            bool imageFlipY,
+            int signature)
+        {
+            imagePath = path;
+            imageIndex = index;
+            rotation = imageRotation;
+            flipX = imageFlipX;
+            flipY = imageFlipY;
+            frameSignature = signature;
+        }
+
+        public bool Equals(AnimationFrameCacheKey other)
+        {
+            return imageIndex == other.imageIndex
+                && rotation == other.rotation
+                && flipX == other.flipX
+                && flipY == other.flipY
+                && frameSignature == other.frameSignature
+                && string.Equals(imagePath, other.imagePath, StringComparison.OrdinalIgnoreCase);
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is AnimationFrameCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = StringComparer.OrdinalIgnoreCase.GetHashCode(imagePath ?? string.Empty);
+                hash = hash * 397 ^ imageIndex;
+                hash = hash * 397 ^ rotation;
+                hash = hash * 397 ^ (flipX ? 1 : 0);
+                hash = hash * 397 ^ (flipY ? 1 : 0);
+                hash = hash * 397 ^ frameSignature;
+                return hash;
+            }
+        }
+    }
+
     private static readonly MapEditorLayerType[] LayerPriority = MapEditorLayerUtility.RenderPriority;
 
     private readonly Func<string, int, int, bool, bool, Sprite> getPngTileSprite;
     private readonly Func<MapEditorLayerType, bool> isLayerVisible;
+    private readonly Dictionary<AnimationFrameCacheKey, Sprite[]> animationFrameCache =
+        new Dictionary<AnimationFrameCacheKey, Sprite[]>();
 
     public MapEditorCellRenderService(Func<string, int, int, bool, bool, Sprite> getPngTileSprite, Func<MapEditorLayerType, bool> isLayerVisible)
     {
@@ -311,6 +368,19 @@ public sealed class MapEditorCellRenderService
         }
 
         int frameCount = Mathf.Max(1, animation.frameCount);
+        AnimationFrameCacheKey cacheKey = new AnimationFrameCacheKey(
+            imagePath,
+            imageIndex,
+            rotation,
+            flipX,
+            flipY,
+            CalculateFrameSignature(tileset, animation, frameCount));
+
+        if (animationFrameCache.TryGetValue(cacheKey, out Sprite[] cachedFrames))
+        {
+            return cachedFrames;
+        }
+
         Sprite[] frames = new Sprite[frameCount];
 
         for (int i = 0; i < frameCount; i++)
@@ -324,7 +394,26 @@ public sealed class MapEditorCellRenderService
             }
         }
 
+        animationFrameCache[cacheKey] = frames;
         return frames;
+    }
+
+    private static int CalculateFrameSignature(
+        MapEditorTilesetDefinition tileset,
+        MapEditorTilesetAnimationDefinition animation,
+        int frameCount)
+    {
+        unchecked
+        {
+            int hash = tileset == null ? 0 : tileset.atlasGridSize;
+            hash = hash * 397 ^ frameCount;
+            for (int i = 0; i < frameCount; i++)
+            {
+                hash = hash * 397 ^ animation.GetFrameTileId(i);
+            }
+
+            return hash;
+        }
     }
 
     private static bool IsSameWallTile(MapData mapData, MapEditorLayerType layerType, int x, int y, Color color, string imagePath, int imageIndex, int imageRotation, bool imageFlipX, bool imageFlipY)

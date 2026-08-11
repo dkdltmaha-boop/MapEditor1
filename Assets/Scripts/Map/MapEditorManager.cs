@@ -117,6 +117,7 @@ public class MapEditorManager : MonoBehaviour
     private readonly MapEditorMapLoadApplyService mapLoadApplyService = new MapEditorMapLoadApplyService();
     private readonly MapEditorEyedropperService eyedropperService = new MapEditorEyedropperService();
     private MapEditorBrushSelectionService brushSelection;
+    private PixelChromaRuntimeWorkshopUploader subscribedWorkshopUploader;
 
     private GridGenerator gridGenerator;
     private MapEditorMapEditingService mapEditing;
@@ -135,6 +136,16 @@ public class MapEditorManager : MonoBehaviour
     private int selectedRegionStartYFromTop;
     private int selectedRegionWidth = 1;
     private int selectedRegionHeight = 1;
+    private string selectedAnimationPreviewPath = string.Empty;
+    private int selectedAnimationPreviewIndex = int.MinValue;
+    private int selectedAnimationPreviewRotation;
+    private bool selectedAnimationPreviewFlipX;
+    private bool selectedAnimationPreviewFlipY;
+    private string selectedAnimationPreviewId = string.Empty;
+    private int selectedAnimationPreviewFrameCount;
+    private Sprite[] selectedAnimationPreviewFrames;
+    private float selectedAnimationPreviewFps = 8f;
+    private bool selectedAnimationPreviewLoop = true;
     private bool hasPaintStrokeSample;
     private Vector2Int lastPaintStrokePoint;
     private int lastPaintStrokeResolution;
@@ -212,6 +223,7 @@ public class MapEditorManager : MonoBehaviour
     private void OnDisable()
     {
         UnsubscribeToolControllerChange();
+        UnsubscribeWorkshopUploader();
 
         if (coordinateProxy != null)
         {
@@ -1313,6 +1325,7 @@ public class MapEditorManager : MonoBehaviour
     {
         ClearSelectedTileRegion();
         CancelTransientToolState();
+        InvalidateSelectedAnimationPreview();
         EnsureBrushSelectionService();
 
         if (MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out MapEditorTilesetDefinition animationTileset, out MapEditorTilesetAnimationDefinition animation))
@@ -2826,6 +2839,15 @@ public class MapEditorManager : MonoBehaviour
             areaFillPreviewRect = rect;
         }
 
+        Sprite previewImage = activeLayer == MapEditorLayerType.WallCollision
+            ? null
+            : selectedImageBrush;
+        float previewAnimationFps = 8f;
+        bool previewAnimationLoop = true;
+        Sprite[] previewAnimationFrames = previewImage == null
+            ? null
+            : GetSelectedAnimationPreviewFrames(out previewAnimationFps, out previewAnimationLoop);
+
         brushCursorPreview.Update(
             showBrushCursorPreview && !showPlayerScaleGuide,
             gridGenerator,
@@ -2835,9 +2857,10 @@ public class MapEditorManager : MonoBehaviour
             activeLayer == MapEditorLayerType.WallCollision
                 ? new Color(0.18f, 0.18f, 0.18f, 1f)
                 : selectedColor,
-            activeLayer == MapEditorLayerType.WallCollision
-                ? null
-                : selectedImageBrush,
+            previewImage,
+            previewAnimationFrames,
+            previewAnimationFps,
+            previewAnimationLoop,
             selectedImageRotation,
             selectedImageFlipX,
             selectedImageFlipY,
@@ -2899,6 +2922,74 @@ public class MapEditorManager : MonoBehaviour
         MapEditorTileCreatorWindow.Open(this);
     }
 
+    public void OpenAnimationTileEditor()
+    {
+        MapEditorAnimationTileWindow.Open(this);
+    }
+
+    public bool AddTilesetAnimation(
+        string tilesetId,
+        string displayName,
+        int[] sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        bool success = EnsureTilesetLibrary().AddAnimation(
+            tilesetId,
+            displayName,
+            sourceFrameTileIds,
+            framesPerSecond,
+            loop,
+            out animation,
+            out error);
+        if (success)
+        {
+            InvalidateSelectedAnimationPreview();
+        }
+
+        return success;
+    }
+
+    public bool UpdateTilesetAnimation(
+        string tilesetId,
+        string animationId,
+        string displayName,
+        int[] sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out string error)
+    {
+        bool success = EnsureTilesetLibrary().UpdateAnimation(
+            tilesetId,
+            animationId,
+            displayName,
+            sourceFrameTileIds,
+            framesPerSecond,
+            loop,
+            out error);
+        if (success)
+        {
+            InvalidateSelectedAnimationPreview();
+            UpdateBrushCursorPreview();
+        }
+
+        return success;
+    }
+
+    public bool RemoveTilesetAnimation(string tilesetId, string animationId)
+    {
+        bool success = EnsureTilesetLibrary().RemoveAnimation(tilesetId, animationId);
+        if (success)
+        {
+            InvalidateSelectedAnimationPreview();
+            UpdateBrushCursorPreview();
+        }
+
+        return success;
+    }
+
     public void ImportPixelChromaDefaultTilesets()
     {
         int imported = MapEditorDefaultTilesetService.ImportPixelChromaTilesets(EnsureTilesetLibrary());
@@ -2922,7 +3013,7 @@ public class MapEditorManager : MonoBehaviour
         bool animated = false,
         string animationName = "Animation",
         int animationStartTile = 0,
-        int animationFrameCount = 1,
+        int animationFrameCount = 2,
         float animationFps = 8f,
         bool animationLoop = true)
     {
@@ -2980,6 +3071,71 @@ public class MapEditorManager : MonoBehaviour
         }
 
         return frames;
+    }
+
+    private Sprite[] GetSelectedAnimationPreviewFrames(out float framesPerSecond, out bool loop)
+    {
+        framesPerSecond = 8f;
+        loop = true;
+
+        if (selectedImageBrush == null
+            || !MapEditorTilesetLibraryService.TryGetAnimation(
+                selectedImagePath,
+                selectedImageIndex,
+                out _,
+                out MapEditorTilesetAnimationDefinition animation))
+        {
+            InvalidateSelectedAnimationPreview();
+            return null;
+        }
+
+        bool cacheMatches = selectedAnimationPreviewFrames != null
+            && selectedAnimationPreviewPath == selectedImagePath
+            && selectedAnimationPreviewIndex == selectedImageIndex
+            && selectedAnimationPreviewRotation == selectedImageRotation
+            && selectedAnimationPreviewFlipX == selectedImageFlipX
+            && selectedAnimationPreviewFlipY == selectedImageFlipY
+            && selectedAnimationPreviewId == animation.id
+            && selectedAnimationPreviewFrameCount == animation.frameCount
+            && Mathf.Approximately(selectedAnimationPreviewFps, animation.framesPerSecond)
+            && selectedAnimationPreviewLoop == animation.loop;
+
+        if (!cacheMatches)
+        {
+            selectedAnimationPreviewFrames = GetAnimationFrames(
+                selectedImagePath,
+                selectedImageIndex,
+                selectedImageRotation,
+                selectedImageFlipX,
+                selectedImageFlipY);
+            selectedAnimationPreviewPath = selectedImagePath;
+            selectedAnimationPreviewIndex = selectedImageIndex;
+            selectedAnimationPreviewRotation = selectedImageRotation;
+            selectedAnimationPreviewFlipX = selectedImageFlipX;
+            selectedAnimationPreviewFlipY = selectedImageFlipY;
+            selectedAnimationPreviewId = animation.id;
+            selectedAnimationPreviewFrameCount = animation.frameCount;
+            selectedAnimationPreviewFps = animation.framesPerSecond;
+            selectedAnimationPreviewLoop = animation.loop;
+        }
+
+        framesPerSecond = animation.framesPerSecond;
+        loop = animation.loop;
+        return selectedAnimationPreviewFrames;
+    }
+
+    private void InvalidateSelectedAnimationPreview()
+    {
+        selectedAnimationPreviewPath = string.Empty;
+        selectedAnimationPreviewIndex = int.MinValue;
+        selectedAnimationPreviewRotation = 0;
+        selectedAnimationPreviewFlipX = false;
+        selectedAnimationPreviewFlipY = false;
+        selectedAnimationPreviewId = string.Empty;
+        selectedAnimationPreviewFrameCount = 0;
+        selectedAnimationPreviewFrames = null;
+        selectedAnimationPreviewFps = 8f;
+        selectedAnimationPreviewLoop = true;
     }
 
     public void UseImportedTileset(string id)
@@ -3146,10 +3302,119 @@ public class MapEditorManager : MonoBehaviour
 
     public void OpenSteamWorkshopPage()
     {
-        string url = steamAppId == 0
-            ? "https://steamcommunity.com/workshop/"
-            : "https://steamcommunity.com/app/" + steamAppId + "/workshop/";
+        uint appId = steamAppId > 0 ? steamAppId : 480u;
+        string url = "https://steamcommunity.com/app/" + appId + "/workshop/";
         Application.OpenURL(url);
+    }
+
+    public void UploadWorkshopToSteam()
+    {
+        PixelChromaRuntimeWorkshopUploader uploader =
+            Object.FindFirstObjectByType<PixelChromaRuntimeWorkshopUploader>();
+
+        if (uploader == null)
+        {
+            GameObject uploaderObject = new GameObject("MapEditor_WorkshopUploader");
+            uploader = uploaderObject.AddComponent<PixelChromaRuntimeWorkshopUploader>();
+        }
+
+        if (uploader.IsBusy)
+        {
+            MapEditorModalPanel.Show(
+                this,
+                MapEditorLocalization.Choose("창작마당 업로드 중", "Workshop Upload In Progress"),
+                MapEditorLocalization.Choose(
+                    "이미 업로드를 진행하고 있습니다. 완료 메시지가 나올 때까지 잠시 기다려 주세요.",
+                    "An upload is already in progress. Please wait for the completion message."),
+                new Color(0.95f, 0.66f, 0.18f, 1f));
+            return;
+        }
+
+        BindWorkshopUploader(uploader);
+
+        uint appId = uploader.EffectiveAppId;
+        bool isTestUpload = appId == 480;
+        string targetDescription = isTestUpload
+            ? MapEditorLocalization.Choose(
+                "현재 테스트 App ID 480(Spacewar)에 미등록 상태로 업로드합니다. PixelChroma 전용 창작마당에 올리려면 맵 에디터의 Steam App ID를 실제 게임 App ID로 설정해야 합니다.",
+                "This uploads an unlisted item to test App ID 480 (Spacewar). Set the map editor Steam App ID to the real game App ID to publish to the PixelChroma Workshop.")
+            : MapEditorLocalization.Choose(
+                "Steam App ID " + appId + " 창작마당으로 업로드합니다.",
+                "Uploading to the Workshop for Steam App ID " + appId + ".");
+
+        MapEditorModalPanel.Show(
+            this,
+            MapEditorLocalization.Choose("창작마당 업로드 시작", "Workshop Upload Started"),
+            targetDescription + "\n\n" +
+            MapEditorLocalization.Choose(
+                "맵 검사, 패키지 생성, Steam 전송을 차례로 진행합니다.",
+                "The editor will validate the map, create the package, and submit it to Steam."),
+            new Color(0.18f, 0.48f, 0.95f, 1f));
+
+        uploader.ValidateAndUpload();
+    }
+
+    private void BindWorkshopUploader(PixelChromaRuntimeWorkshopUploader uploader)
+    {
+        UnsubscribeWorkshopUploader();
+        subscribedWorkshopUploader = uploader;
+        subscribedWorkshopUploader.mapEditor = this;
+
+        if (steamAppId > 0)
+        {
+            subscribedWorkshopUploader.testAppId = steamAppId;
+            subscribedWorkshopUploader.forceUnlistedForTest = steamAppId == 480;
+        }
+        else if (subscribedWorkshopUploader.testAppId == 0)
+        {
+            subscribedWorkshopUploader.testAppId = 480;
+            subscribedWorkshopUploader.forceUnlistedForTest = true;
+        }
+
+        subscribedWorkshopUploader.UploadSucceeded += OnWorkshopUploadSucceeded;
+        subscribedWorkshopUploader.UploadFailed += OnWorkshopUploadFailed;
+    }
+
+    private void UnsubscribeWorkshopUploader()
+    {
+        if (subscribedWorkshopUploader == null)
+        {
+            return;
+        }
+
+        subscribedWorkshopUploader.UploadSucceeded -= OnWorkshopUploadSucceeded;
+        subscribedWorkshopUploader.UploadFailed -= OnWorkshopUploadFailed;
+        subscribedWorkshopUploader = null;
+    }
+
+    private void OnWorkshopUploadSucceeded(ulong publishedFileId)
+    {
+        string itemUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=" + publishedFileId;
+        MapEditorModalPanel.ShowAction(
+            this,
+            MapEditorLocalization.Choose("창작마당 업로드 완료", "Workshop Upload Complete"),
+            MapEditorLocalization.Choose(
+                "Steam 전송이 완료되었습니다.\n게시물 ID: " + publishedFileId +
+                "\n\n테스트 App ID 480을 사용한 경우 PixelChroma 창작마당이 아니라 Spacewar의 미등록 게시물로 생성됩니다.",
+                "Steam upload completed.\nPublished File ID: " + publishedFileId +
+                "\n\nWhen test App ID 480 is used, the item is created as an unlisted Spacewar item, not in the PixelChroma Workshop."),
+            new Color(0.22f, 0.72f, 0.38f, 1f),
+            MapEditorLocalization.Choose("게시물 열기", "Open Workshop Item"),
+            () => Application.OpenURL(itemUrl));
+    }
+
+    private void OnWorkshopUploadFailed(string reason)
+    {
+        MapEditorModalPanel.ShowAction(
+            this,
+            MapEditorLocalization.Choose("창작마당 업로드 실패", "Workshop Upload Failed"),
+            reason + "\n\n" +
+            MapEditorLocalization.Choose(
+                "Steam 실행 및 로그인, steam_appid.txt, 계정의 게임 라이선스와 창작마당 약관 동의를 확인하세요.",
+                "Check that Steam is running and signed in, steam_appid.txt is correct, the account owns the app, and the Workshop legal agreement is accepted."),
+            new Color(0.92f, 0.3f, 0.26f, 1f),
+            MapEditorLocalization.Choose("Steam 창작마당 열기", "Open Steam Workshop"),
+            OpenSteamWorkshopPage);
     }
 
     public void ExportWorkshopPackage(string folderPath)

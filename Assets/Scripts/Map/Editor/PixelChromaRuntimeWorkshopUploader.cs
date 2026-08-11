@@ -173,7 +173,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         if (r.m_bUserNeedsToAcceptWorkshopLegalAgreement)
         {
             SetStatus("창작마당 약관 동의 필요. 아이템 페이지에서 동의 후 재시도.");
-            Application.OpenURL("https://steamcommunity.com/sharedfiles/filedetails/?id=" + publishedFileId.m_PublishedFileId);
+            Application.OpenURL("steam://url/CommunityFilePage/" + publishedFileId.m_PublishedFileId);
         }
 
         SubmitContent();

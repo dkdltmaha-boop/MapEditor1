@@ -3354,7 +3354,7 @@ public class MapEditorManager : MonoBehaviour
     public void OpenSteamWorkshopPage()
     {
         uint appId = steamAppId > 0 ? steamAppId : 480u;
-        string url = "https://steamcommunity.com/app/" + appId + "/workshop/";
+        string url = "steam://openurl/https://steamcommunity.com/app/" + appId + "/workshop/";
         Application.OpenURL(url);
     }
 
@@ -3440,7 +3440,7 @@ public class MapEditorManager : MonoBehaviour
 
     private void OnWorkshopUploadSucceeded(ulong publishedFileId)
     {
-        string itemUrl = "https://steamcommunity.com/sharedfiles/filedetails/?id=" + publishedFileId;
+        string itemUrl = "steam://url/CommunityFilePage/" + publishedFileId;
         MapEditorModalPanel.ShowAction(
             this,
             MapEditorLocalization.Choose("창작마당 업로드 완료", "Workshop Upload Complete"),

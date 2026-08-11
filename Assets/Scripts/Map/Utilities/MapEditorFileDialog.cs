@@ -22,6 +22,24 @@ public static class MapEditorFileDialog
 #endif
     }
 
+    public static string[] OpenFiles(string title, string extension)
+    {
+#if UNITY_EDITOR
+        string path = EditorUtility.OpenFilePanel(title, GetInitialDirectory(), extension);
+        return string.IsNullOrEmpty(path) ? System.Array.Empty<string>() : new[] { path };
+#elif UNITY_STANDALONE_WIN
+        string[] paths = WindowsFileDialog.OpenMultiple(title, extension);
+        if (paths.Length > 0)
+        {
+            RememberDirectory(paths[0]);
+        }
+        return paths;
+#else
+        Debug.LogWarning("This platform does not provide a multi-file picker.");
+        return System.Array.Empty<string>();
+#endif
+    }
+
     public static string SaveFile(string title, string defaultFileName, string extension)
     {
 #if UNITY_EDITOR
@@ -91,6 +109,29 @@ public static class MapEditorFileDialog
             return path;
         }
 
+        public static string[] OpenMultiple(string title, string extension)
+        {
+            string output = RunPowerShellDialog("OpenMultiple", title, string.Empty, extension);
+            if (string.IsNullOrWhiteSpace(output))
+            {
+                return System.Array.Empty<string>();
+            }
+
+            string[] lines = output.Split(new[] { '\r', '\n' }, System.StringSplitOptions.RemoveEmptyEntries);
+            System.Collections.Generic.List<string> paths = new System.Collections.Generic.List<string>();
+            System.Collections.Generic.HashSet<string> seen = new System.Collections.Generic.HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < lines.Length; i++)
+            {
+                string path = lines[i].Trim();
+                if (!string.IsNullOrEmpty(path) && seen.Add(path))
+                {
+                    paths.Add(path);
+                }
+            }
+
+            return paths.ToArray();
+        }
+
         public static string SelectFolder(string title, string defaultFolderName)
         {
             string selectedFolder = RunPowerShellDialog("Folder", title, string.Empty, string.Empty);
@@ -142,6 +183,7 @@ try {
         } else {
             $dialog = New-Object System.Windows.Forms.OpenFileDialog
             $dialog.CheckFileExists = $true
+            $dialog.Multiselect = ($mode -eq 'OpenMultiple')
         }
         $dialog.Title = $title
         $dialog.InitialDirectory = $initial
@@ -149,7 +191,13 @@ try {
         $dialog.AddExtension = $true
         $dialog.Filter = $extension.ToUpperInvariant() + ' files (*.' + $extension + ')|*.' + $extension + '|All files (*.*)|*.*'
         if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
-            [Console]::Out.Write($dialog.FileName)
+            if ($mode -eq 'OpenMultiple') {
+                foreach ($file in $dialog.FileNames) {
+                    [Console]::Out.WriteLine($file)
+                }
+            } else {
+                [Console]::Out.Write($dialog.FileName)
+            }
         }
     }
 } finally {

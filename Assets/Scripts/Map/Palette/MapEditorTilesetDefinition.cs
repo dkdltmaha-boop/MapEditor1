@@ -6,6 +6,7 @@ public sealed class MapEditorTilesetDefinition
     public string id;
     public string displayName;
     public string sourcePath;
+    public string[] sourcePaths = Array.Empty<string>();
     public string atlasPath;
     public int tileWidth = 16;
     public int tileHeight = 16;
@@ -13,6 +14,7 @@ public sealed class MapEditorTilesetDefinition
     public int spacing;
     public int columns;
     public int rows;
+    public int tileCount;
     public int atlasGridSize = 16;
     public MapEditorLayerType defaultLayer = MapEditorLayerType.Ground;
     public bool defaultCollision;
@@ -23,6 +25,12 @@ public sealed class MapEditorTilesetDefinition
         && !string.IsNullOrEmpty(atlasPath)
         && columns > 0
         && rows > 0;
+
+    public int TileCount => tileCount > 0 ? tileCount : Math.Max(0, columns * rows);
+
+    public int SourceCount => sourcePaths != null && sourcePaths.Length > 0
+        ? sourcePaths.Length
+        : string.IsNullOrEmpty(sourcePath) ? 0 : 1;
 }
 
 [Serializable]

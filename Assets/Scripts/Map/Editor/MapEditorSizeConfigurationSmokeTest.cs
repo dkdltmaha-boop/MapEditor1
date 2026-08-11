@@ -271,6 +271,13 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(panel.Find("PlayerScaleGuideButton")?.GetComponent<Button>() != null,
                 "Player scale comparison button is missing.");
 
+            MapEditorTilesetLibraryWindow runtimeTilesetWindow = MapEditorTilesetLibraryWindow.Open(manager);
+            Require(runtimeTilesetWindow != null
+                && canvas.transform.Find("MapEditor_TilesetLibraryWindow/Panel/ImportCollectionButton")?.GetComponent<Button>() != null
+                && canvas.transform.Find("MapEditor_TilesetLibraryWindow/Panel/LibraryList")?.GetComponent<ScrollRect>() != null,
+                "The runtime tileset library UI was not created for builds.");
+            MapEditorObjectUtility.DestroyObject(runtimeTilesetWindow.gameObject);
+
             collisionLineRoot = new GameObject("CollisionLineRegressionCells", typeof(RectTransform));
             manager.ClearRegisteredCells();
             GridCell collisionLineStart = null;
@@ -350,6 +357,28 @@ public static class MapEditorSizeConfigurationSmokeTest
 
             manager.pixelChromaSpawnPoints.Clear();
             manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"));
+            manager.CurrentMapData.SetTileOnLayer(
+                1, 1, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId,
+                Color.green, string.Empty, -1, 0, false, false);
+            manager.CurrentMapData.SetTileOnLayer(
+                1, 1, MapEditorLayerType.Object, MapEditorManager.CustomColorTileId,
+                Color.yellow, string.Empty, -1, 0, false, false);
+            manager.ClearMap();
+            Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == -1
+                && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == -1
+                && manager.pixelChromaSpawnPoints.Count == 0,
+                "Clear All did not clear overlapping layers and start points.");
+            manager.Undo();
+            Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == MapEditorManager.CustomColorTileId
+                && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == MapEditorManager.CustomColorTileId
+                && manager.pixelChromaSpawnPoints.Count == 1,
+                "Undo did not restore every layer and the start point after Clear All.");
+            manager.Redo();
+            Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == -1
+                && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == -1
+                && manager.pixelChromaSpawnPoints.Count == 0,
+                "Redo did not clear the map again after Clear All undo.");
+
             manager.SetActiveLayer(MapEditorLayerType.Spawn);
             manager.ClearActiveLayer();
             Require(manager.pixelChromaSpawnPoints.Count == 0,

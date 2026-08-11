@@ -9,6 +9,7 @@ public static class MapEditorTilesetImportSmokeTest
     public static void Run()
     {
         string sourcePath = Path.Combine(Application.temporaryCachePath, "mapeditor_tileset_import_test.png");
+        string collectionSourcePath = Path.Combine(Application.temporaryCachePath, "mapeditor_tileset_collection_test.png");
         string exportPath = Path.Combine(Application.temporaryCachePath, "mapeditor_animated_tile_export_test.json");
         string saveFileName = "mapeditor_animated_tile_save_test_" + System.Guid.NewGuid().ToString("N") + ".json";
         string savePath = Path.Combine(Application.persistentDataPath, saveFileName);
@@ -17,9 +18,14 @@ public static class MapEditorTilesetImportSmokeTest
         Texture2D source = CreateSourceTexture();
         File.WriteAllBytes(sourcePath, source.EncodeToPNG());
         Object.DestroyImmediate(source);
+        Texture2D collectionSource = CreateCollectionSourceTexture();
+        File.WriteAllBytes(collectionSourcePath, collectionSource.EncodeToPNG());
+        Object.DestroyImmediate(collectionSource);
 
         MapEditorTilesetLibraryService library = new MapEditorTilesetLibraryService();
+        MapEditorTilesetLibraryService collectionLibrary = new MapEditorTilesetLibraryService();
         MapEditorTilesetDefinition definition = null;
+        MapEditorTilesetDefinition collectionDefinition = null;
 
         try
         {
@@ -111,6 +117,40 @@ public static class MapEditorTilesetImportSmokeTest
             Require(IsApproximately(red.texture.GetPixel(4, red.texture.height - 8), Color.red), "First imported tile color changed.");
             Require(IsApproximately(green.texture.GetPixel(24, green.texture.height - 8), Color.green), "Second imported tile color changed.");
             Require(red.texture.GetPixel(8, red.texture.height - 8).a < 0.01f, "Transparent tileset pixels became opaque during import.");
+
+            Require(collectionLibrary.ImportCollection(
+                    new[] { sourcePath, collectionSourcePath },
+                    "Runtime Collection",
+                    16,
+                    16,
+                    1,
+                    1,
+                    MapEditorLayerType.Ground,
+                    false,
+                    out collectionDefinition,
+                    out string collectionError),
+                collectionError);
+            Require(collectionDefinition.SourceCount == 2 && collectionDefinition.TileCount == 8,
+                "Multiple PNG files were not stored as one collection item.");
+            Require(collectionDefinition.sourcePaths.Length == 2,
+                "The runtime collection did not retain its source list.");
+            int collectionFirstIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                collectionDefinition.atlasGridSize,
+                (collectionDefinition.atlasGridSize - 1) * collectionDefinition.atlasGridSize);
+            int collectionSecondSourceIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                collectionDefinition.atlasGridSize,
+                (collectionDefinition.atlasGridSize - 1) * collectionDefinition.atlasGridSize + 4);
+            Sprite collectionFirst = tiles.GetTileSprite(collectionDefinition.atlasPath, collectionFirstIndex);
+            Sprite collectionSecond = tiles.GetTileSprite(collectionDefinition.atlasPath, collectionSecondSourceIndex);
+            Require(collectionFirst != null && collectionSecond != null,
+                "Combined runtime tileset sprites were not created.");
+            Require(IsApproximately(collectionFirst.texture.GetPixel(4, collectionFirst.texture.height - 8), Color.red),
+                "The first PNG changed while combining tilesets.");
+            Require(IsApproximately(collectionSecond.texture.GetPixel(68, collectionSecond.texture.height - 8), Color.magenta),
+                "The second PNG was not packed after the first PNG.");
+            Require(collectionLibrary.Rename(collectionDefinition.id, "Renamed Collection")
+                && collectionDefinition.displayName == "Renamed Collection",
+                "A runtime tileset collection could not be renamed.");
 
             MapSaveData saveData = new MapSaveData(1, 1)
             {
@@ -239,9 +279,23 @@ public static class MapEditorTilesetImportSmokeTest
                 }
             }
 
+            if (collectionDefinition != null)
+            {
+                collectionLibrary.Remove(collectionDefinition.id);
+                if (File.Exists(collectionDefinition.atlasPath))
+                {
+                    File.Delete(collectionDefinition.atlasPath);
+                }
+            }
+
             if (File.Exists(sourcePath))
             {
                 File.Delete(sourcePath);
+            }
+
+            if (File.Exists(collectionSourcePath))
+            {
+                File.Delete(collectionSourcePath);
             }
 
             if (File.Exists(exportPath))
@@ -280,6 +334,25 @@ public static class MapEditorTilesetImportSmokeTest
         Fill(texture, 18, 1, 16, 16, Color.green);
         Fill(texture, 35, 1, 16, 16, Color.blue);
         Fill(texture, 52, 1, 16, 16, Color.yellow);
+        texture.SetPixel(9, 9, Color.clear);
+        texture.Apply(false, false);
+        return texture;
+    }
+
+    private static Texture2D CreateCollectionSourceTexture()
+    {
+        Texture2D texture = new Texture2D(69, 18, TextureFormat.RGBA32, false);
+        Color[] pixels = new Color[texture.width * texture.height];
+        for (int i = 0; i < pixels.Length; i++)
+        {
+            pixels[i] = Color.clear;
+        }
+        texture.SetPixels(pixels);
+
+        Fill(texture, 1, 1, 16, 16, Color.magenta);
+        Fill(texture, 18, 1, 16, 16, Color.cyan);
+        Fill(texture, 35, 1, 16, 16, Color.gray);
+        Fill(texture, 52, 1, 16, 16, Color.white);
         texture.SetPixel(9, 9, Color.clear);
         texture.Apply(false, false);
         return texture;

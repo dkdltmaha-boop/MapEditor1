@@ -491,7 +491,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         }
 
         tilesetValueText.text = tileset.displayName;
-        int tileCount = Mathf.Max(0, tileset.columns * tileset.rows);
+        int tileCount = tileset.TileCount;
         tilesetInfoText.text = string.Format(
             L(
                 "타일 {0}개 ({1}x{2})\n프레임 번호는 왼쪽 위부터 0으로 시작합니다. 2~32개, 1~30 FPS",

@@ -62,6 +62,11 @@ public class MapEditorMapEditingService
         history.CommitTransaction(refreshMinimap);
     }
 
+    public void RecordTransactionSideEffect(Action undo, Action redo)
+    {
+        history.RecordSideEffect(undo, redo);
+    }
+
     public void PaintCell(GridCell cell, MapEditorPaintSelection selection)
     {
         paintOperations.PaintCell(cell, selection);
@@ -269,6 +274,82 @@ public class MapEditorMapEditingService
         }
 
         CommitTransaction();
+    }
+
+    public void ClearAllLayers()
+    {
+        MapData mapData = getMapData();
+        if (mapData == null)
+        {
+            return;
+        }
+
+        bool ownsTransaction = !history.HasActiveTransaction;
+        if (ownsTransaction)
+        {
+            BeginTransaction();
+        }
+
+        MapEditorLayerType[] layers = MapData.GetSerializableLayers();
+        for (int layerIndex = 0; layerIndex < layers.Length; layerIndex++)
+        {
+            MapEditorLayerType layer = layers[layerIndex];
+            for (int y = 0; y < mapData.height; y++)
+            {
+                for (int x = 0; x < mapData.width; x++)
+                {
+                    MapEditorTileSnapshot before = CaptureSnapshot(mapData, x, y, layer);
+                    if (before.tileId == -1 && before.pixelData == null)
+                    {
+                        continue;
+                    }
+
+                    Sprite beforeSprite = GetSnapshotSprite(before);
+                    mapData.SetTileOnLayer(
+                        x,
+                        y,
+                        layer,
+                        -1,
+                        Color.white,
+                        string.Empty,
+                        -1,
+                        0,
+                        false,
+                        false);
+                    mapData.SetPixelDataOnLayer(x, y, layer, null);
+                    history.Record(new TileEditAction(
+                        x,
+                        y,
+                        before.tileId,
+                        -1,
+                        before.color,
+                        Color.white,
+                        beforeSprite,
+                        null,
+                        before.imagePath,
+                        string.Empty,
+                        before.imageIndex,
+                        -1,
+                        before.imageRotation,
+                        0,
+                        before.imageFlipX,
+                        false,
+                        before.imageFlipY,
+                        false,
+                        layer,
+                        layer,
+                        before.pixelData,
+                        null));
+                }
+            }
+        }
+
+        markAllVisualsDirty?.Invoke();
+        if (ownsTransaction)
+        {
+            CommitTransaction();
+            RefreshAllCells();
+        }
     }
 
     public void HandleAreaFill(GridCell cell, MapEditorPaintSelection selection)

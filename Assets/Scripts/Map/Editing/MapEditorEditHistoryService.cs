@@ -56,6 +56,20 @@ public sealed class MapEditorEditHistoryService
         redoStack.Clear();
     }
 
+    public void RecordSideEffect(Action undo, Action redo)
+    {
+        if (activeTransaction != null)
+        {
+            activeTransaction.AddSideEffect(undo, redo);
+            return;
+        }
+
+        MapEditTransaction transaction = new MapEditTransaction();
+        transaction.AddSideEffect(undo, redo);
+        undoStack.Push(transaction);
+        redoStack.Clear();
+    }
+
     public void Undo(Action<TileEditAction, bool> applyAction, Action refresh)
     {
         if (undoStack.Count == 0)

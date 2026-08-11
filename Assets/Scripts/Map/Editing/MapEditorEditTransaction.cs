@@ -76,13 +76,14 @@ public struct TileEditAction
 public class MapEditTransaction
 {
     private readonly List<TileEditAction> orderedActions = new List<TileEditAction>();
-    private readonly Dictionary<Vector2Int, int> actionIndices = new Dictionary<Vector2Int, int>();
+    private readonly Dictionary<TileActionKey, int> actionIndices = new Dictionary<TileActionKey, int>();
+    private readonly List<TransactionSideEffect> sideEffects = new List<TransactionSideEffect>();
 
-    public int Count => orderedActions.Count;
+    public int Count => orderedActions.Count + sideEffects.Count;
 
     public void AddOrUpdate(TileEditAction action)
     {
-        Vector2Int key = new Vector2Int(action.x, action.y);
+        TileActionKey key = new TileActionKey(action.x, action.y, action.afterLayer);
 
         if (actionIndices.TryGetValue(key, out int index))
         {
@@ -118,11 +119,27 @@ public class MapEditTransaction
         orderedActions.Add(action);
     }
 
+    public void AddSideEffect(Action undo, Action redo)
+    {
+        if (undo == null && redo == null)
+        {
+            return;
+        }
+
+        sideEffects.Add(new TransactionSideEffect(undo, redo));
+    }
+
     public void ApplyBefore(Action<TileEditAction, bool> apply)
     {
         for (int i = orderedActions.Count - 1; i >= 0; i--)
         {
             apply(orderedActions[i], false);
+        }
+
+
+        for (int i = sideEffects.Count - 1; i >= 0; i--)
+        {
+            sideEffects[i].undo?.Invoke();
         }
     }
 
@@ -131,6 +148,59 @@ public class MapEditTransaction
         for (int i = 0; i < orderedActions.Count; i++)
         {
             apply(orderedActions[i], true);
+        }
+
+
+        for (int i = 0; i < sideEffects.Count; i++)
+        {
+            sideEffects[i].redo?.Invoke();
+        }
+    }
+
+    private readonly struct TileActionKey : IEquatable<TileActionKey>
+    {
+        private readonly int x;
+        private readonly int y;
+        private readonly MapEditorLayerType layer;
+
+        public TileActionKey(int x, int y, MapEditorLayerType layer)
+        {
+            this.x = x;
+            this.y = y;
+            this.layer = layer;
+        }
+
+        public bool Equals(TileActionKey other)
+        {
+            return x == other.x && y == other.y && layer == other.layer;
+        }
+
+        public override bool Equals(object obj)
+        {
+            return obj is TileActionKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                int hash = x;
+                hash = (hash * 397) ^ y;
+                hash = (hash * 397) ^ (int)layer;
+                return hash;
+            }
+        }
+    }
+
+    private readonly struct TransactionSideEffect
+    {
+        public readonly Action undo;
+        public readonly Action redo;
+
+        public TransactionSideEffect(Action undo, Action redo)
+        {
+            this.undo = undo;
+            this.redo = redo;
         }
     }
 }

@@ -107,6 +107,7 @@ public sealed class MapEditorTilesetLibraryService
             id = id,
             displayName = string.IsNullOrWhiteSpace(displayName) ? Path.GetFileNameWithoutExtension(sourcePath) : displayName.Trim(),
             sourcePath = sourcePath,
+            sourcePaths = new[] { sourcePath },
             atlasPath = atlasPath,
             tileWidth = tileWidth,
             tileHeight = tileHeight,
@@ -114,6 +115,7 @@ public sealed class MapEditorTilesetLibraryService
             spacing = spacing,
             columns = columns,
             rows = rows,
+            tileCount = columns * rows,
             atlasGridSize = gridSize,
             defaultLayer = defaultCollision ? MapEditorLayerType.WallCollision : defaultLayer,
             defaultCollision = defaultCollision
@@ -121,6 +123,152 @@ public sealed class MapEditorTilesetLibraryService
 
         definitions.Add(definition);
         Register(definition);
+        SaveCatalog();
+        return true;
+    }
+
+    public bool ImportCollection(
+        IReadOnlyList<string> sourcePaths,
+        string displayName,
+        int tileWidth,
+        int tileHeight,
+        int margin,
+        int spacing,
+        MapEditorLayerType defaultLayer,
+        bool defaultCollision,
+        out MapEditorTilesetDefinition definition,
+        out string error)
+    {
+        definition = null;
+        error = string.Empty;
+
+        List<string> validPaths = NormalizeSourcePaths(sourcePaths);
+        if (validPaths.Count == 0)
+        {
+            error = "Tileset PNG files were not found.";
+            return false;
+        }
+
+        if (validPaths.Count == 1)
+        {
+            return Import(
+                validPaths[0],
+                displayName,
+                tileWidth,
+                tileHeight,
+                margin,
+                spacing,
+                defaultLayer,
+                defaultCollision,
+                out definition,
+                out error);
+        }
+
+        tileWidth = Mathf.Clamp(tileWidth, 1, MaxTilePixelSize);
+        tileHeight = Mathf.Clamp(tileHeight, 1, MaxTilePixelSize);
+        margin = Mathf.Max(0, margin);
+        spacing = Mathf.Max(0, spacing);
+        defaultLayer = NormalizeDefaultLayer(defaultLayer);
+
+        List<TilesetSource> sources = new List<TilesetSource>(validPaths.Count);
+        int totalTileCount = 0;
+
+        try
+        {
+            for (int i = 0; i < validPaths.Count; i++)
+            {
+                Texture2D texture = LoadTexture(validPaths[i]);
+                if (texture == null)
+                {
+                    error = "Tileset PNG could not be decoded: " + Path.GetFileName(validPaths[i]);
+                    return false;
+                }
+
+                int usableWidth = texture.width - margin * 2;
+                int usableHeight = texture.height - margin * 2;
+                int columns = (usableWidth + spacing) / (tileWidth + spacing);
+                int rows = (usableHeight + spacing) / (tileHeight + spacing);
+                if (columns <= 0 || rows <= 0)
+                {
+                    MapEditorObjectUtility.DestroyObject(texture);
+                    error = "Tile size and margin leave no tiles inside: " + Path.GetFileName(validPaths[i]);
+                    return false;
+                }
+
+                sources.Add(new TilesetSource(texture, columns, rows));
+                totalTileCount += columns * rows;
+            }
+
+            int requiredGrid = Mathf.CeilToInt(Mathf.Sqrt(totalTileCount));
+            int gridSize = ResolveAtlasGridSize(requiredGrid);
+            if (gridSize <= 0)
+            {
+                error = "Combined tileset exceeds the supported 128x128 tile grid.";
+                return false;
+            }
+
+            if (gridSize * tileWidth > MaxAtlasPixelSize || gridSize * tileHeight > MaxAtlasPixelSize)
+            {
+                error = "Generated combined tileset atlas would exceed 8192 pixels.";
+                return false;
+            }
+
+            string id = CreateId(displayName, validPaths[0]);
+            string atlasDirectory = Path.Combine(Application.persistentDataPath, "ImportedTilesets");
+            Directory.CreateDirectory(atlasDirectory);
+            string atlasPath = Path.Combine(atlasDirectory, "tileset_atlas_" + id + ".png");
+            Texture2D atlas = BuildCollectionAtlas(
+                sources,
+                tileWidth,
+                tileHeight,
+                margin,
+                spacing,
+                gridSize);
+            File.WriteAllBytes(atlasPath, atlas.EncodeToPNG());
+            MapEditorObjectUtility.DestroyObject(atlas);
+
+            definition = new MapEditorTilesetDefinition
+            {
+                id = id,
+                displayName = string.IsNullOrWhiteSpace(displayName) ? "타일셋 묶음" : displayName.Trim(),
+                sourcePath = validPaths[0],
+                sourcePaths = validPaths.ToArray(),
+                atlasPath = atlasPath,
+                tileWidth = tileWidth,
+                tileHeight = tileHeight,
+                margin = margin,
+                spacing = spacing,
+                columns = gridSize,
+                rows = Mathf.CeilToInt(totalTileCount / (float)gridSize),
+                tileCount = totalTileCount,
+                atlasGridSize = gridSize,
+                defaultLayer = defaultCollision ? MapEditorLayerType.WallCollision : defaultLayer,
+                defaultCollision = defaultCollision
+            };
+
+            definitions.Add(definition);
+            Register(definition);
+            SaveCatalog();
+            return true;
+        }
+        finally
+        {
+            for (int i = 0; i < sources.Count; i++)
+            {
+                MapEditorObjectUtility.DestroyObject(sources[i].texture);
+            }
+        }
+    }
+
+    public bool Rename(string id, string displayName)
+    {
+        MapEditorTilesetDefinition definition = FindById(id);
+        if (definition == null || string.IsNullOrWhiteSpace(displayName))
+        {
+            return false;
+        }
+
+        definition.displayName = displayName.Trim();
         SaveCatalog();
         return true;
     }
@@ -158,10 +306,7 @@ public sealed class MapEditorTilesetLibraryService
         }
 
         string normalized = NormalizePath(sourcePath);
-        return definitions.Exists(item =>
-            item != null
-            && !string.IsNullOrEmpty(item.sourcePath)
-            && string.Equals(NormalizePath(item.sourcePath), normalized, StringComparison.OrdinalIgnoreCase));
+        return definitions.Exists(item => ContainsSourcePath(item, normalized));
     }
 
     public MapEditorTilesetDefinition[] GetDefinitionsForSave()
@@ -423,7 +568,7 @@ public sealed class MapEditorTilesetLibraryService
             return false;
         }
 
-        int tileCount = Mathf.Max(0, definition.columns * definition.rows);
+        int tileCount = definition.TileCount;
         int[] atlasFrameTileIds = new int[frameCount];
         HashSet<int> uniqueFrames = new HashSet<int>();
 
@@ -612,6 +757,17 @@ public sealed class MapEditorTilesetLibraryService
             return;
         }
 
+        if ((definition.sourcePaths == null || definition.sourcePaths.Length == 0)
+            && !string.IsNullOrEmpty(definition.sourcePath))
+        {
+            definition.sourcePaths = new[] { definition.sourcePath };
+        }
+
+        if (definition.tileCount <= 0)
+        {
+            definition.tileCount = Mathf.Max(0, definition.columns * definition.rows);
+        }
+
         NormalizeAnimationDefinitions(definition);
         RegisteredByAtlasPath[NormalizePath(definition.atlasPath)] = definition;
     }
@@ -658,7 +814,7 @@ public sealed class MapEditorTilesetLibraryService
 
             if (animation.frameTileIds == null || animation.frameTileIds.Length == 0)
             {
-                int tileCount = Mathf.Max(1, definition.columns * definition.rows);
+                int tileCount = Mathf.Max(1, definition.TileCount);
                 int legacyStartTileId = Mathf.Clamp(animation.startTileId, 0, tileCount - 1);
                 int legacyFrameCount = Mathf.Clamp(
                     Mathf.Max(1, animation.frameCount),
@@ -742,6 +898,127 @@ public sealed class MapEditorTilesetLibraryService
 
         atlas.Apply(false, false);
         return atlas;
+    }
+
+    private static Texture2D BuildCollectionAtlas(
+        IReadOnlyList<TilesetSource> sources,
+        int tileWidth,
+        int tileHeight,
+        int margin,
+        int spacing,
+        int gridSize)
+    {
+        Texture2D atlas = new Texture2D(gridSize * tileWidth, gridSize * tileHeight, TextureFormat.RGBA32, false);
+        atlas.filterMode = FilterMode.Point;
+        atlas.wrapMode = TextureWrapMode.Clamp;
+        atlas.SetPixels32(new Color32[atlas.width * atlas.height]);
+
+        int destinationTile = 0;
+        for (int sourceIndex = 0; sourceIndex < sources.Count; sourceIndex++)
+        {
+            TilesetSource source = sources[sourceIndex];
+            for (int rowFromTop = 0; rowFromTop < source.rows; rowFromTop++)
+            {
+                int sourceY = source.texture.height - margin - tileHeight - rowFromTop * (tileHeight + spacing);
+                for (int column = 0; column < source.columns; column++)
+                {
+                    int destinationColumn = destinationTile % gridSize;
+                    int destinationRowFromTop = destinationTile / gridSize;
+                    int destinationY = (gridSize - 1 - destinationRowFromTop) * tileHeight;
+                    int sourceX = margin + column * (tileWidth + spacing);
+                    atlas.SetPixels(
+                        destinationColumn * tileWidth,
+                        destinationY,
+                        tileWidth,
+                        tileHeight,
+                        source.texture.GetPixels(sourceX, sourceY, tileWidth, tileHeight));
+                    destinationTile++;
+                }
+            }
+        }
+
+        atlas.Apply(false, false);
+        return atlas;
+    }
+
+    private static List<string> NormalizeSourcePaths(IReadOnlyList<string> sourcePaths)
+    {
+        List<string> paths = new List<string>();
+        HashSet<string> seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if (sourcePaths == null)
+        {
+            return paths;
+        }
+
+        for (int i = 0; i < sourcePaths.Count; i++)
+        {
+            string path = sourcePaths[i];
+            if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+            {
+                continue;
+            }
+
+            string normalized = NormalizePath(path);
+            if (seen.Add(normalized))
+            {
+                paths.Add(normalized);
+            }
+        }
+
+        return paths;
+    }
+
+    private static bool ContainsSourcePath(MapEditorTilesetDefinition definition, string normalizedPath)
+    {
+        if (definition == null)
+        {
+            return false;
+        }
+
+        if (!string.IsNullOrEmpty(definition.sourcePath)
+            && string.Equals(NormalizePath(definition.sourcePath), normalizedPath, StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (definition.sourcePaths == null)
+        {
+            return false;
+        }
+
+        for (int i = 0; i < definition.sourcePaths.Length; i++)
+        {
+            if (string.Equals(NormalizePath(definition.sourcePaths[i]), normalizedPath, StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static MapEditorLayerType NormalizeDefaultLayer(MapEditorLayerType layer)
+    {
+        return layer == MapEditorLayerType.Ground
+            || layer == MapEditorLayerType.Object
+            || layer == MapEditorLayerType.WallVisual
+            || layer == MapEditorLayerType.WallCollision
+            ? layer
+            : MapEditorLayerType.Ground;
+    }
+
+    private readonly struct TilesetSource
+    {
+        public readonly Texture2D texture;
+        public readonly int columns;
+        public readonly int rows;
+
+        public TilesetSource(Texture2D texture, int columns, int rows)
+        {
+            this.texture = texture;
+            this.columns = columns;
+            this.rows = rows;
+        }
     }
 
     private static int ResolveAtlasGridSize(int required)

@@ -1686,16 +1686,49 @@ public class MapEditorManager : MonoBehaviour
     public void ClearMap()
     {
         ClearSelection();
-        CurrentMapData.Clear();
+        EnsureSpawnPointList();
+        MapEditorSpawnPointData[] previousSpawnPoints = GetSpawnPointsForSave();
+        RectInt? previousPreviewRegion = previewRegion;
+
+        mapEditing.BeginTransaction();
+        mapEditing.ClearAllLayers();
+        ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), null);
+        mapEditing.RecordTransactionSideEffect(
+            () => ApplyMapClearMetadata(previousSpawnPoints, previousPreviewRegion),
+            () => ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), null));
+        mapEditing.CommitTransaction();
+
+        RefreshAllCells();
+        UpdateBrushCursorPreview();
+    }
+
+    private void ApplyMapClearMetadata(MapEditorSpawnPointData[] spawnPoints, RectInt? restoredPreviewRegion)
+    {
         EnsureSpawnPointList();
         pixelChromaSpawnPoints.Clear();
-        previewRegion = null;
-        mapEditing.ClearHistory();
-        RefreshAllCells();
+        if (spawnPoints != null)
+        {
+            for (int i = 0; i < spawnPoints.Length; i++)
+            {
+                MapEditorSpawnPointData spawnPoint = spawnPoints[i];
+                if (spawnPoint == null)
+                {
+                    continue;
+                }
+
+                pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(
+                    spawnPoint.id,
+                    spawnPoint.x,
+                    spawnPoint.y,
+                    spawnPoint.role));
+            }
+        }
+
+        previewRegion = restoredPreviewRegion;
+        SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
         UpdatePlayerScaleGuide();
         UpdateBrushCursorPreview();
-        RefreshMinimap();
     }
 
     public void ClearActiveLayer()
@@ -2895,26 +2928,7 @@ public class MapEditorManager : MonoBehaviour
     public void OpenTilesetLibrary()
     {
         ImportPixelChromaDefaultTilesets();
-#if UNITY_EDITOR
-        MapEditorTilesetImporterWindow.Open(this);
-#else
-        string sourcePath = MapEditorFileDialog.OpenFile("16x16 타일셋 PNG 가져오기", "png");
-        if (string.IsNullOrEmpty(sourcePath))
-        {
-            return;
-        }
-
-        MapEditorFileDialog.RememberDirectory(sourcePath);
-        ImportTileset(
-            sourcePath,
-            System.IO.Path.GetFileNameWithoutExtension(sourcePath),
-            MaxExportCellPixels,
-            MaxExportCellPixels,
-            0,
-            0,
-            MapEditorLayerType.Ground,
-            false);
-#endif
+        MapEditorTilesetLibraryWindow.Open(this);
     }
 
     public void OpenTileCreator()
@@ -3050,6 +3064,43 @@ public class MapEditorManager : MonoBehaviour
         UseImportedTileset(definition.id);
         Debug.Log("타일셋을 가져왔습니다: " + definition.displayName + " (" + definition.columns + "x" + definition.rows + " 타일)");
         return true;
+    }
+
+    public bool ImportTilesetCollection(
+        IReadOnlyList<string> sourcePaths,
+        string displayName,
+        int tileWidth,
+        int tileHeight,
+        int margin,
+        int spacing,
+        MapEditorLayerType defaultLayer,
+        bool collision)
+    {
+        if (!EnsureTilesetLibrary().ImportCollection(
+                sourcePaths,
+                displayName,
+                tileWidth,
+                tileHeight,
+                margin,
+                spacing,
+                defaultLayer,
+                collision,
+                out MapEditorTilesetDefinition definition,
+                out string error))
+        {
+            Debug.LogError("타일셋 묶음 가져오기 실패: " + error);
+            return false;
+        }
+
+        UseImportedTileset(definition.id);
+        Debug.Log("타일셋 묶음을 가져왔습니다: " + definition.displayName
+            + " (PNG " + definition.SourceCount + "개, 타일 " + definition.TileCount + "개)");
+        return true;
+    }
+
+    public bool RenameImportedTileset(string id, string displayName)
+    {
+        return EnsureTilesetLibrary().Rename(id, displayName);
     }
 
     public Sprite[] GetAnimationFrames(string imagePath, int imageIndex, int rotation = 0, bool flipX = false, bool flipY = false)

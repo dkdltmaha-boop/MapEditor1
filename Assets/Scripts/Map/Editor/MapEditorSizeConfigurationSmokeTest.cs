@@ -391,6 +391,9 @@ public static class MapEditorSizeConfigurationSmokeTest
             Transform failedValidationModal = canvas.transform.Find("MapEditor_ModalPanel");
             Require(failedValidationModal != null,
                 "Workshop export did not show validation before opening a save dialog.");
+            Text failedValidationText = failedValidationModal.Find("Panel/Viewport/Content")?.GetComponent<Text>();
+            Require(failedValidationText != null && failedValidationText.text.Contains("창작마당 합격 조건"),
+                "Workshop validation did not explain its pass requirements.");
             Require(failedValidationModal.Find("Panel/FooterActionButton") == null,
                 "Failed validation incorrectly allows Workshop export to continue.");
 

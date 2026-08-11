@@ -179,13 +179,13 @@ public static class MapEditorTilesetImportSmokeTest
                 && waterAnimation.GetFrameTileId(0) == 15 * definition.atlasGridSize,
                 "Legacy animation data was not upgraded without losing its frames.");
 
-            MapData mapData = new MapData(1, 1);
-            mapData.SetTileOnLayer(0, 0, MapEditorLayerType.Ground, MapEditorManager.CustomImageTileId,
+            MapData mapData = CreateValidationMap();
+            mapData.SetTileOnLayer(1, 1, MapEditorLayerType.Ground, MapEditorManager.CustomImageTileId,
                 Color.white, definition.atlasPath, redIndex, 0, false, false);
-            mapData.SetTileOnLayer(0, 0, MapEditorLayerType.GroundExtra, MapEditorManager.CustomColorTileId,
+            mapData.SetTileOnLayer(1, 1, MapEditorLayerType.GroundExtra, MapEditorManager.CustomColorTileId,
                 new Color(0f, 0f, 1f, 0.25f), string.Empty, -1, 0, false, false);
-            MapEditorSpawnPointData[] spawns = { new MapEditorSpawnPointData("SpawnPoint_1", 0, 0, "Any") };
-            PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.Validate(mapData, 0, 0, spawns);
+            MapEditorSpawnPointData[] spawns = { new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any") };
+            PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.Validate(mapData, 1, 1, spawns);
             Require(validation.isValid
                 && validation.animatedTileCount == 1
                 && validation.animationDefinitionCount == 1
@@ -195,16 +195,17 @@ public static class MapEditorTilesetImportSmokeTest
             int originalSecondFrame = waterAnimation.frameTileIds[1];
             waterAnimation.frameTileIds[1] = definition.atlasGridSize * definition.atlasGridSize;
             library.ReplaceDefinitions(new[] { definition });
-            PixelChromaMapValidationReport invalidAnimationReport = MapEditorPixelChromaValidationService.Validate(mapData, 0, 0, spawns);
+            PixelChromaMapValidationReport invalidAnimationReport = MapEditorPixelChromaValidationService.Validate(mapData, 1, 1, spawns);
             Require(!invalidAnimationReport.isValid && invalidAnimationReport.invalidAnimationCount == 1,
                 "Map validation accepted an animation frame outside the tileset.");
             waterAnimation.frameTileIds[1] = originalSecondFrame;
             library.ReplaceDefinitions(new[] { definition });
 
-            Require(new MapEditorPixelChromaExportService().Export(mapData, exportPath, "animated_smoke", 16, 0, 0, spawns),
+            Require(new MapEditorPixelChromaExportService().Export(mapData, exportPath, "animated_smoke", 16, 1, 1, spawns),
                 "Animated map export failed.");
             PixelChromaMapExportData exported = JsonUtility.FromJson<PixelChromaMapExportData>(File.ReadAllText(exportPath));
-            PixelChromaTileExportData exportedTile = exported.layers[0].tiles[0];
+            PixelChromaTileExportData exportedTile = exported.layers[0].tiles.Find(tile => tile.x == 1 && tile.y == 1);
+            Require(exportedTile != null, "Animated map export did not contain the selected tile.");
             Require(exportedTile.kind == PixelChromaExportContract.AnimatedPixelTileKind,
                 "Animated tile became static when it overlapped another editable layer.");
             Require(exportedTile.animationFrames != null && exportedTile.animationFrames.Length == 2,
@@ -213,6 +214,7 @@ public static class MapEditorTilesetImportSmokeTest
                 "Animated tile playback settings were not exported.");
 
             MapEditorWorkshopExportService workshopExport = new MapEditorWorkshopExportService(tiles.GetTileSprite);
+            workshopExport.SetPreviewRegion(new RectInt(1, 1, 8, 8));
             Require(workshopExport.Export(
                     mapData,
                     packagePath,
@@ -223,8 +225,8 @@ public static class MapEditorTilesetImportSmokeTest
                     "1.0.0",
                     "Private",
                     "Map,Animation",
-                    0,
-                    0,
+                    1,
+                    1,
                     spawns,
                     16,
                     false),
@@ -239,7 +241,7 @@ public static class MapEditorTilesetImportSmokeTest
 
             MapEditorMapSaveService saveService = new MapEditorMapSaveService(MapEditorManager.MaxMapSize);
             saveService.SetImportedTilesets(library.GetDefinitionsForSave());
-            Require(saveService.Save(mapData, definition.atlasPath, 0, 0, spawns, saveFileName),
+            Require(saveService.Save(mapData, definition.atlasPath, 1, 1, spawns, saveFileName),
                 "Editable map with an animated tile could not be saved.");
             File.Delete(definition.atlasPath);
             Require(saveService.Load(saveFileName, out MapSaveData loadedSave, out _),
@@ -255,8 +257,8 @@ public static class MapEditorTilesetImportSmokeTest
             waterAnimation = definition.animations[0];
             lavaAnimation = definition.animations[1];
             MapData loadedMap = MapData.FromSaveData(loadedSave);
-            string loadedImagePath = loadedMap.GetImagePath(0, 0, MapEditorLayerType.Ground);
-            int loadedImageIndex = loadedMap.GetImageIndex(0, 0, MapEditorLayerType.Ground);
+            string loadedImagePath = loadedMap.GetImagePath(1, 1, MapEditorLayerType.Ground);
+            int loadedImageIndex = loadedMap.GetImageIndex(1, 1, MapEditorLayerType.Ground);
             Require(string.Equals(loadedImagePath, restoredAtlasPath, System.StringComparison.OrdinalIgnoreCase)
                 && MapEditorTilesetLibraryService.TryGetAnimation(loadedImagePath, loadedImageIndex, out _, out _),
                 "Loaded map tile no longer resolves to its restored animation.");
@@ -337,6 +339,46 @@ public static class MapEditorTilesetImportSmokeTest
         texture.SetPixel(9, 9, Color.clear);
         texture.Apply(false, false);
         return texture;
+    }
+
+    private static MapData CreateValidationMap()
+    {
+        MapData mapData = new MapData(32, 32);
+
+        for (int y = 0; y < mapData.height; y++)
+        {
+            for (int x = 0; x < mapData.width; x++)
+            {
+                mapData.SetTileOnLayer(
+                    x,
+                    y,
+                    MapEditorLayerType.Ground,
+                    MapEditorManager.CustomColorTileId,
+                    Color.gray,
+                    string.Empty,
+                    -1,
+                    0,
+                    false,
+                    false);
+
+                if (x == 0 || y == 0 || x == mapData.width - 1 || y == mapData.height - 1)
+                {
+                    mapData.SetTileOnLayer(
+                        x,
+                        y,
+                        MapEditorLayerType.WallCollision,
+                        MapEditorManager.WallTileId,
+                        Color.clear,
+                        string.Empty,
+                        -1,
+                        0,
+                        false,
+                        false);
+                }
+            }
+        }
+
+        return mapData;
     }
 
     private static Texture2D CreateCollectionSourceTexture()

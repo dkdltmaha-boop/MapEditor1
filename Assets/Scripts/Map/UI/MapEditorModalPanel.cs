@@ -16,12 +16,26 @@ public static class MapEditorModalPanel
         PixelChromaMapValidationReport report,
         System.Action continueExport)
     {
+        ShowValidation(
+            manager,
+            report,
+            MapEditorLocalization.Choose("저장 위치 선택", "Choose Save Location"),
+            continueExport);
+    }
+
+    public static void ShowValidation(
+        MapEditorManager manager,
+        PixelChromaMapValidationReport report,
+        string continueLabel,
+        System.Action continueExport)
+    {
         if (report == null)
         {
             return;
         }
 
         StringBuilder body = new StringBuilder();
+        AppendWorkshopRequirements(body);
         AppendSection(body, "합격 요소", "✓ ", report.passedChecks);
         AppendSection(body, "불합격 요소", "✕ ", report.errors);
         AppendSection(body, "권장 사항", "• ", report.warnings);
@@ -29,10 +43,20 @@ public static class MapEditorModalPanel
         body.AppendLine();
         body.Append("타일 ").Append(report.paintedTileCount)
             .Append("  |  바닥 ").Append(report.groundTileCount)
+            .Append("  |  이동 가능 ").Append(report.walkableTileCount)
             .Append("  |  오브젝트 ").Append(report.objectTileCount)
             .Append("  |  Wall ").Append(report.wallTileCount)
             .Append("  |  ").Append(MapEditorLocalization.Choose("애니메이션 ", "Animation ")).Append(report.animatedTileCount)
-            .Append("  |  스폰 ").Append(report.spawnPointCount);
+            .Append("  |  스폰 ").Append(report.spawnPointCount)
+            .AppendLine()
+            .Append("열린 경계 ").Append(report.boundaryLeakCount)
+            .Append("  |  도달 불가 ").Append(report.unreachableWalkableTileCount)
+            .Append("  |  고립 바닥 ").Append(report.isolatedGroundTileCount)
+            .AppendLine()
+            .Append("프리뷰 ")
+            .Append(report.previewRegionSet
+                ? report.previewWidth + "×" + report.previewHeight + " / 표시 타일 " + report.previewPaintedCellCount
+                : "미지정");
 
         string title = MapEditorLocalization.Choose(
             report.isValid ? "맵 검사 합격" : "맵 검사 불합격",
@@ -48,7 +72,7 @@ public static class MapEditorModalPanel
                 title,
                 body.ToString(),
                 accent,
-                MapEditorLocalization.Choose("저장 위치 선택", "Choose Save Location"),
+                continueLabel,
                 () =>
                 {
                     CloseCurrent();
@@ -60,6 +84,30 @@ public static class MapEditorModalPanel
         }
 
         Show(manager, title, body.ToString(), accent);
+    }
+
+    private static void AppendWorkshopRequirements(StringBuilder builder)
+    {
+        builder.AppendLine(MapEditorLocalization.Choose("창작마당 합격 조건", "Workshop Pass Requirements"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 맵 크기 32×32 이상, 이동 가능한 바닥 64칸 이상",
+            "• Map size at least 32×32 with at least 64 walkable cells"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 바닥 면적 5% 이상, 열린 가장자리·고립·도달 불가 바닥 없음",
+            "• At least 5% floor coverage with no open edges, isolated cells, or unreachable floor"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 충돌벽 존재, 시작 위치가 바닥 위에 있고 서로 겹치지 않음",
+            "• Collision walls exist and start points are valid, grounded, and unique"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 사용하는 이미지·타일셋·애니메이션 데이터를 정상적으로 읽을 수 있음",
+            "• Referenced images, tilesets, and animation data are readable"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 프리뷰 영역 4×4 이상, 맵 안에 있으며 표시 타일을 포함",
+            "• Preview region is at least 4×4, inside the map, and contains visible tiles"));
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "※ 불합격 요소가 하나라도 있으면 패키지 생성과 업로드가 중단됩니다. 권장 사항은 업로드를 막지 않습니다.",
+            "Note: Any failed requirement blocks package creation and upload. Recommendations do not block upload."));
+        builder.AppendLine();
     }
 
     private static void CloseCurrent()

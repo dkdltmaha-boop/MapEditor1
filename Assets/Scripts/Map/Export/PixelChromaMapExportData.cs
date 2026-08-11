@@ -169,6 +169,16 @@ public sealed class PixelChromaMapValidationReport
     public int missingTilesetCount;
     public int spawnPointCount;
     public int zoneCount;
+    public int groundCellCount;
+    public int walkableTileCount;
+    public int unreachableWalkableTileCount;
+    public int boundaryLeakCount;
+    public int isolatedGroundTileCount;
+    public int unvisualizedWallTileCount;
+    public bool previewRegionSet;
+    public int previewWidth;
+    public int previewHeight;
+    public int previewPaintedCellCount;
     public List<string> passedChecks = new List<string>();
     public List<string> errors = new List<string>();
     public List<string> warnings = new List<string>();

@@ -194,7 +194,7 @@ public sealed class MapEditorWorkshopExportService
         return true;
     }
 
-    private static PixelChromaWorkshopPackageReport BuildPackageReport(MapData mapData, string mapId, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
+    private PixelChromaWorkshopPackageReport BuildPackageReport(MapData mapData, string mapId, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
     {
         mapData.EnsureInitialized();
 
@@ -217,7 +217,12 @@ public sealed class MapEditorWorkshopExportService
             spawnY = clampedSpawnY
         };
 
-        PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.Validate(mapData, spawnX, spawnY, spawnPoints);
+        PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.ValidateForWorkshop(
+            mapData,
+            spawnX,
+            spawnY,
+            spawnPoints,
+            previewRegion);
         report.paintedTileCount = validation.paintedTileCount;
         report.wallTileCount = validation.wallTileCount;
         report.colorTileCount = validation.colorTileCount;

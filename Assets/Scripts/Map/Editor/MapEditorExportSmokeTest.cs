@@ -44,6 +44,7 @@ public static class MapEditorExportSmokeTest
         }
 
         ValidateValidationReport(validation);
+        ValidateStrictGameplayRules();
         ValidateLayerRoundTrip(mapData);
         ValidateLayerIsolation();
         ValidateLayerSettingsRoundTrip();
@@ -68,6 +69,7 @@ public static class MapEditorExportSmokeTest
 
         string packagePath = Path.Combine(root, "workshop_package");
         MapEditorWorkshopExportService workshopExport = new MapEditorWorkshopExportService((_, _) => null);
+        workshopExport.SetPreviewRegion(new RectInt(1, 1, 8, 8));
 
         if (!workshopExport.Export(
             mapData,
@@ -151,7 +153,7 @@ public static class MapEditorExportSmokeTest
 
     private static MapData CreateSmokeTestMap(string sourceTilesetPath)
     {
-        MapData mapData = new MapData(4, 4);
+        MapData mapData = new MapData(32, 32);
 
         for (int y = 0; y < mapData.height; y++)
         {
@@ -164,7 +166,7 @@ public static class MapEditorExportSmokeTest
             }
         }
 
-        mapData.SetTileOnLayer(0, 0, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId, Color.black, string.Empty, -1, 0, false, false);
+        AddBoundaryWalls(mapData);
         int subTileIndex = MapEditorPngTilesetService.EncodeSubTileIndex(1, 4, 4, 8);
         mapData.SetTileOnLayer(0, 1, MapEditorLayerType.Ground, MapEditorManager.CustomImageTileId, Color.white, sourceTilesetPath, subTileIndex, 90, false, false);
         mapData.SetTileOnLayer(3, 3, MapEditorLayerType.Object, MapEditorManager.CustomColorTileId, Color.yellow, string.Empty, -1, 0, false, false);
@@ -343,8 +345,115 @@ public static class MapEditorExportSmokeTest
         Require(
             validation.passedChecks.Exists(message => message.StartsWith("맵 크기:")),
             "Validation result did not contain readable Korean text.");
-        Require(validation.wallTileCount == 1, "Validation did not count the Wall collision layer.");
+        Require(validation.wallTileCount == 124, "Validation did not count the Wall collision layer.");
         Require(validation.spawnPointCount == 2, "Validation did not count all spawn points.");
+        Require(validation.boundaryLeakCount == 0, "Validation reported an opening in a closed map boundary.");
+        Require(validation.unreachableWalkableTileCount == 0, "Validation reported unreachable ground in a connected map.");
+    }
+
+    private static void ValidateStrictGameplayRules()
+    {
+        MapEditorSpawnPointData[] spawn = { new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any") };
+
+        MapData openBoundaryMap = CreateValidationArena(false);
+        PixelChromaMapValidationReport openBoundaryReport = MapEditorPixelChromaValidationService.Validate(openBoundaryMap, 1, 1, spawn);
+        Require(!openBoundaryReport.isValid
+            && openBoundaryReport.boundaryLeakCount > 0
+            && openBoundaryReport.errors.Exists(message => message.Contains("열린 가장자리")),
+            "Validation accepted a playable tile on an open map boundary.");
+
+        MapData internalGapMap = CreateValidationArena(true, false);
+        internalGapMap.SetTileOnLayer(8, 8, MapEditorLayerType.Ground, -1, Color.white, string.Empty, -1, 0, false, false);
+        PixelChromaMapValidationReport internalGapReport = MapEditorPixelChromaValidationService.Validate(internalGapMap, 1, 1, spawn);
+        Require(!internalGapReport.isValid
+            && internalGapReport.boundaryLeakCount > 0
+            && internalGapReport.errors.Exists(message => message.Contains("열린 가장자리")),
+            "Validation accepted an unsealed hole inside the playable area.");
+
+        MapData disconnectedMap = CreateValidationArena(true);
+        PixelChromaMapValidationReport disconnectedReport = MapEditorPixelChromaValidationService.Validate(disconnectedMap, 1, 1, spawn);
+        Require(!disconnectedReport.isValid
+            && disconnectedReport.unreachableWalkableTileCount > 0
+            && disconnectedReport.errors.Exists(message => message.Contains("도달할 수 없는 바닥")),
+            "Validation accepted a disconnected playable area.");
+
+        MapData duplicateSpawnMap = CreateValidationArena(true, false);
+        MapEditorSpawnPointData[] duplicateSpawns =
+        {
+            new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"),
+            new MapEditorSpawnPointData("SpawnPoint_2", 1, 1, "Any")
+        };
+        PixelChromaMapValidationReport duplicateSpawnReport = MapEditorPixelChromaValidationService.Validate(duplicateSpawnMap, 1, 1, duplicateSpawns);
+        Require(!duplicateSpawnReport.isValid
+            && duplicateSpawnReport.errors.Exists(message => message.Contains("겹칩니다")),
+            "Validation accepted duplicate start positions.");
+
+        MapData previewMap = CreateValidationArena(true, false);
+        PixelChromaMapValidationReport missingPreviewReport = MapEditorPixelChromaValidationService.ValidateForWorkshop(
+            previewMap, 1, 1, spawn, null);
+        Require(!missingPreviewReport.isValid
+            && missingPreviewReport.errors.Exists(message => message.Contains("프리뷰 이미지 영역")),
+            "Workshop validation accepted a map without a preview region.");
+
+        PixelChromaMapValidationReport smallPreviewReport = MapEditorPixelChromaValidationService.ValidateForWorkshop(
+            previewMap, 1, 1, spawn, new RectInt(1, 1, 1, 1));
+        Require(!smallPreviewReport.isValid
+            && smallPreviewReport.errors.Exists(message => message.Contains("최소")),
+            "Workshop validation accepted a one-tile preview region.");
+
+        PixelChromaMapValidationReport validPreviewReport = MapEditorPixelChromaValidationService.ValidateForWorkshop(
+            previewMap, 1, 1, spawn, new RectInt(1, 1, 8, 8));
+        Require(validPreviewReport.isValid
+            && validPreviewReport.previewRegionSet
+            && validPreviewReport.previewPaintedCellCount == 64,
+            "Workshop validation rejected a valid preview region.");
+    }
+
+    private static MapData CreateValidationArena(bool closeBoundary, bool divideArena = true)
+    {
+        MapData mapData = new MapData(32, 32);
+        for (int y = 0; y < mapData.height; y++)
+        {
+            for (int x = 0; x < mapData.width; x++)
+            {
+                mapData.SetTileOnLayer(x, y, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId, Color.gray, string.Empty, -1, 0, false, false);
+            }
+        }
+
+        if (closeBoundary)
+        {
+            AddBoundaryWalls(mapData);
+        }
+
+        if (closeBoundary && divideArena)
+        {
+            for (int y = 1; y < mapData.height - 1; y++)
+            {
+                mapData.SetTileOnLayer(16, y, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId, Color.clear, string.Empty, -1, 0, false, false);
+            }
+        }
+
+        return mapData;
+    }
+
+    private static void AddBoundaryWalls(MapData mapData)
+    {
+        for (int x = 0; x < mapData.width; x++)
+        {
+            SetWall(mapData, x, 0);
+            SetWall(mapData, x, mapData.height - 1);
+        }
+
+        for (int y = 1; y < mapData.height - 1; y++)
+        {
+            SetWall(mapData, 0, y);
+            SetWall(mapData, mapData.width - 1, y);
+        }
+    }
+
+    private static void SetWall(MapData mapData, int x, int y)
+    {
+        mapData.SetTileOnLayer(x, y, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId, Color.clear, string.Empty, -1, 0, false, false);
     }
 
     private static void ValidateLayerRoundTrip(MapData source)

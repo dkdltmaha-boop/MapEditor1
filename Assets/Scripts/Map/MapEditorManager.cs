@@ -3286,6 +3286,10 @@ public class MapEditorManager : MonoBehaviour
             " | 이미지=" + report.imageTileCount +
             " | 타일셋=" + report.tilesetCount +
             " | 시작 위치=" + report.spawnPointCount +
+            " | 이동 가능=" + report.walkableTileCount +
+            " | 열린 경계=" + report.boundaryLeakCount +
+            " | 도달 불가=" + report.unreachableWalkableTileCount +
+            " | 프리뷰=" + (report.previewRegionSet ? report.previewWidth + "x" + report.previewHeight : "미지정") +
             " | 오류=" + report.errors.Count +
             " | 경고=" + report.warnings.Count;
 
@@ -3359,6 +3363,24 @@ public class MapEditorManager : MonoBehaviour
     }
 
     public void UploadWorkshopToSteam()
+    {
+        PixelChromaMapValidationReport report = ValidateForWorkshop();
+        PublishValidationResult(report);
+
+        if (!report.isValid)
+        {
+            MapEditorModalPanel.ShowValidation(this, report);
+            return;
+        }
+
+        MapEditorModalPanel.ShowValidation(
+            this,
+            report,
+            MapEditorLocalization.Choose("업로드 시작", "Start Upload"),
+            BeginWorkshopUploadToSteam);
+    }
+
+    private void BeginWorkshopUploadToSteam()
     {
         PixelChromaRuntimeWorkshopUploader uploader =
             Object.FindFirstObjectByType<PixelChromaRuntimeWorkshopUploader>();
@@ -3506,11 +3528,12 @@ public class MapEditorManager : MonoBehaviour
     public PixelChromaMapValidationReport ValidateForWorkshop()
     {
         EnsureSpawnPointList();
-        return MapEditorPixelChromaValidationService.Validate(
+        return MapEditorPixelChromaValidationService.ValidateForWorkshop(
             CurrentMapData,
             pixelChromaSpawnX,
             pixelChromaSpawnY,
-            GetSpawnPointsForSave());
+            GetSpawnPointsForSave(),
+            previewRegion);
     }
 
     // 현재 맵을 persistentDataPath 아래의 쓰기 가능한 폴더로 export 한다.

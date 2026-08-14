@@ -9,6 +9,8 @@ public struct MapEditorToolbarRefs
     public Text validationStatusText;
     public Transform recentPngListRoot;
     public Dictionary<EditorToolType, Image> toolButtonImages;
+    public Image runnerSpawnButtonImage;
+    public Image seekerSpawnButtonImage;
 }
 
 public static class MapEditorToolbarBuilder
@@ -26,13 +28,15 @@ public static class MapEditorToolbarBuilder
     private const string ValidationStatusObjectName = "Toolbar_ValidationStatus";
     private const string RecentPngListObjectName = "Toolbar_RecentPngList";
     private const string LegacyRecentPngListObjectName = "RecentTilesets";
+    private const string RecentResourceScrollObjectName = "RecentResourceScroll";
+    private const string RecentResourceContentObjectName = "RecentResourceContent";
     private const float ToolbarWidth = 176f;
     private const float ToolbarMinHeight = 584f;
     private const float ToolbarHintHeight = 13f;
     private const float ToolbarLabelHeight = 15f;
     private const float ToolbarPreviewHeight = 22f;
     private const float ToolbarValidationHeight = 26f;
-    private const float ToolbarRecentHeight = 76f;
+    private const float ToolbarRecentHeight = 180f;
     private const int ToolbarHintFontSize = 9;
     private const int ToolbarLabelFontSize = 12;
 
@@ -70,7 +74,7 @@ public static class MapEditorToolbarBuilder
         ConfigureToolToolbar(toolbar, offset);
         MapEditorMapSizePanelBuilder.Ensure(canvas.transform, manager, offset);
         EnsureToolbarContents(toolbar, manager);
-        CacheToolbarRefs(toolbar, refs);
+        CacheToolbarRefs(toolbar, ref refs);
         RefreshRecentPngList(refs.recentPngListRoot, manager, recentPngPaths);
         return refs;
     }
@@ -87,10 +91,9 @@ public static class MapEditorToolbarBuilder
             MapEditorObjectUtility.DestroyObject(recentPngListRoot.GetChild(i).gameObject);
         }
 
-        CreateToolbarLabel(recentPngListRoot, L("최근 리소스", "Recent Resources"));
-
         if (paths == null)
         {
+            ResetRecentResourceScroll(recentPngListRoot);
             return;
         }
 
@@ -98,6 +101,8 @@ public static class MapEditorToolbarBuilder
         {
             MapEditorToolbarButtonFactory.CreateRecentPngButton(recentPngListRoot, manager, path);
         }
+
+        ResetRecentResourceScroll(recentPngListRoot);
     }
 
     public static void RefreshLayout(Vector2 offset)
@@ -222,9 +227,12 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarToolButton(toolbar, manager, L("지우개", "Eraser"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraserToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
-        EnsureToolbarToolButton(toolbar, manager, L("시작 위치", "Start Point"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("플레이어 시작", "Runner Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("술래 시작", "Seeker Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSeekerSpawn, "SeekerSpawnToolButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일 만들기", "Create Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenTileCreator, "TileCreatorButton");
         EnsureToolbarActionButton(toolbar, manager, L("애니메이션 타일", "Animated Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenAnimationTileEditor, "AnimationTileButton");
+        EnsureToolbarActionButton(toolbar, manager, L("이동 경로", "Moving Path"), L("선택 후 클릭", "Select / Click"), MapEditorToolbarAction.MovingRegion, "MovingRegionButton");
+        EnsureToolbarActionButton(toolbar, manager, L("맵 테스트", "Test Map"), "F5", MapEditorToolbarAction.Playtest, "PlaytestButton");
         EnsureToolbarDivider(toolbar);
         CreateToolbarLabel(toolbar, L("파일과 검사", "Files & Validation"));
         EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
@@ -254,7 +262,7 @@ public static class MapEditorToolbarBuilder
         }
     }
 
-    private static void CacheToolbarRefs(Transform toolbar, MapEditorToolbarRefs refs)
+    private static void CacheToolbarRefs(Transform toolbar, ref MapEditorToolbarRefs refs)
     {
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "BrushButton", EditorToolType.Brush);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "EraserButton", EditorToolType.Eraser);
@@ -272,6 +280,10 @@ public static class MapEditorToolbarBuilder
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SpawnButton", EditorToolType.Spawn);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "SpawnToolButton", EditorToolType.Spawn);
         MapEditorToolbarButtonFactory.CacheToolButton(toolbar, refs.toolButtonImages, "PreviewRegionToolButton", EditorToolType.PreviewRegion);
+        Transform runnerSpawnButton = toolbar.Find("SpawnToolButton");
+        Transform seekerSpawnButton = toolbar.Find("SeekerSpawnToolButton");
+        refs.runnerSpawnButtonImage = runnerSpawnButton == null ? null : runnerSpawnButton.GetComponent<Image>();
+        refs.seekerSpawnButtonImage = seekerSpawnButton == null ? null : seekerSpawnButton.GetComponent<Image>();
 
         Transform preview = MapEditorObjectUtility.FindAndRenameChild(toolbar, BrushPreviewObjectName, LegacyBrushPreviewObjectName);
 
@@ -450,7 +462,13 @@ public static class MapEditorToolbarBuilder
 
         if (existing != null)
         {
-            return existing;
+            Transform existingContent = existing.Find(RecentResourceScrollObjectName + "/Viewport/" + RecentResourceContentObjectName);
+            if (existingContent != null)
+            {
+                return existingContent;
+            }
+
+            MapEditorObjectUtility.DestroyObject(existing.gameObject);
         }
 
         GameObject root = new GameObject(RecentPngListObjectName, typeof(RectTransform), typeof(VerticalLayoutGroup));
@@ -466,7 +484,125 @@ public static class MapEditorToolbarBuilder
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        return root.transform;
+        CreateToolbarLabel(root.transform, L("최근 리소스", "Recent Resources"));
+        return CreateRecentResourceScroll(root.transform);
+    }
+
+    private static Transform CreateRecentResourceScroll(Transform parent)
+    {
+        GameObject scrollObject = new GameObject(
+            RecentResourceScrollObjectName,
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(ScrollRect));
+        scrollObject.transform.SetParent(parent, false);
+
+        RectTransform scrollRectTransform = scrollObject.GetComponent<RectTransform>();
+        scrollRectTransform.sizeDelta = new Vector2(0f, ToolbarRecentHeight - ToolbarLabelHeight - 1f);
+
+        Image scrollBackground = scrollObject.GetComponent<Image>();
+        scrollBackground.color = new Color(0.05f, 0.05f, 0.05f, 0.38f);
+        scrollBackground.raycastTarget = true;
+
+        GameObject viewportObject = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+        viewportObject.transform.SetParent(scrollObject.transform, false);
+        RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.offsetMin = Vector2.zero;
+        viewportRect.offsetMax = new Vector2(-10f, 0f);
+        Image viewportImage = viewportObject.GetComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+        viewportImage.raycastTarget = true;
+
+        GameObject contentObject = new GameObject(
+            RecentResourceContentObjectName,
+            typeof(RectTransform),
+            typeof(VerticalLayoutGroup),
+            typeof(ContentSizeFitter));
+        contentObject.transform.SetParent(viewportObject.transform, false);
+        RectTransform contentRect = contentObject.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.sizeDelta = Vector2.zero;
+
+        VerticalLayoutGroup contentLayout = contentObject.GetComponent<VerticalLayoutGroup>();
+        contentLayout.spacing = 1f;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = false;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+
+        ContentSizeFitter contentFitter = contentObject.GetComponent<ContentSizeFitter>();
+        contentFitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        contentFitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        GameObject scrollbarObject = new GameObject("Scrollbar", typeof(RectTransform), typeof(Image), typeof(Scrollbar));
+        scrollbarObject.transform.SetParent(scrollObject.transform, false);
+        RectTransform scrollbarRect = scrollbarObject.GetComponent<RectTransform>();
+        scrollbarRect.anchorMin = new Vector2(1f, 0f);
+        scrollbarRect.anchorMax = Vector2.one;
+        scrollbarRect.pivot = new Vector2(1f, 0.5f);
+        scrollbarRect.anchoredPosition = Vector2.zero;
+        scrollbarRect.sizeDelta = new Vector2(8f, 0f);
+        Image scrollbarBackground = scrollbarObject.GetComponent<Image>();
+        scrollbarBackground.color = new Color(0.08f, 0.08f, 0.08f, 0.9f);
+
+        GameObject slidingAreaObject = new GameObject("Sliding Area", typeof(RectTransform));
+        slidingAreaObject.transform.SetParent(scrollbarObject.transform, false);
+        RectTransform slidingAreaRect = slidingAreaObject.GetComponent<RectTransform>();
+        slidingAreaRect.anchorMin = Vector2.zero;
+        slidingAreaRect.anchorMax = Vector2.one;
+        slidingAreaRect.offsetMin = new Vector2(1f, 1f);
+        slidingAreaRect.offsetMax = new Vector2(-1f, -1f);
+
+        GameObject handleObject = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+        handleObject.transform.SetParent(slidingAreaObject.transform, false);
+        RectTransform handleRect = handleObject.GetComponent<RectTransform>();
+        handleRect.anchorMin = Vector2.zero;
+        handleRect.anchorMax = Vector2.one;
+        handleRect.offsetMin = Vector2.zero;
+        handleRect.offsetMax = Vector2.zero;
+        Image handleImage = handleObject.GetComponent<Image>();
+        handleImage.color = new Color(0.38f, 0.55f, 0.72f, 1f);
+
+        Scrollbar scrollbar = scrollbarObject.GetComponent<Scrollbar>();
+        scrollbar.targetGraphic = handleImage;
+        scrollbar.handleRect = handleRect;
+        scrollbar.direction = Scrollbar.Direction.BottomToTop;
+
+        ScrollRect scroll = scrollObject.GetComponent<ScrollRect>();
+        scroll.content = contentRect;
+        scroll.viewport = viewportRect;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.inertia = true;
+        scroll.decelerationRate = 0.135f;
+        scroll.scrollSensitivity = 24f;
+        scroll.verticalScrollbar = scrollbar;
+        scroll.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.Permanent;
+        scroll.verticalNormalizedPosition = 1f;
+
+        return contentObject.transform;
+    }
+
+    private static void ResetRecentResourceScroll(Transform content)
+    {
+        RectTransform contentRect = content as RectTransform;
+        if (contentRect != null)
+        {
+            LayoutRebuilder.ForceRebuildLayoutImmediate(contentRect);
+        }
+
+        ScrollRect scroll = content == null ? null : content.GetComponentInParent<ScrollRect>();
+        if (scroll != null)
+        {
+            scroll.StopMovement();
+            scroll.verticalNormalizedPosition = 1f;
+        }
     }
 
     private static void EnsureBrushPreview(Transform parent)

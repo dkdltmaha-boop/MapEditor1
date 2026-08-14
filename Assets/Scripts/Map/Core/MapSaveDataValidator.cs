@@ -12,6 +12,32 @@ public static class MapSaveDataValidator
             return false;
         }
 
+        long expectedCells = (long)saveData.width * saveData.height;
+        if (expectedCells > maxMapSize * (long)maxMapSize || saveData.tiles.LongLength > expectedCells * 2L)
+        {
+            return false;
+        }
+
+        if (saveData.layerTiles != null && saveData.layerTiles.Length > 128)
+        {
+            return false;
+        }
+
+        if (saveData.importedTilesets != null && saveData.importedTilesets.Length > 256)
+        {
+            return false;
+        }
+
+        if (saveData.embeddedPngAssets != null && saveData.embeddedPngAssets.Length > 512)
+        {
+            return false;
+        }
+
+        if (saveData.movingRegions != null && saveData.movingRegions.Length > 128)
+        {
+            return false;
+        }
+
         return saveData.tiles.Length >= saveData.width * saveData.height;
     }
 }

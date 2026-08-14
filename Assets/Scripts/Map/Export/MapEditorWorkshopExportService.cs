@@ -29,6 +29,11 @@ public sealed class MapEditorWorkshopExportService
         previewRegion = region;
     }
 
+    public void SetMovingRegions(MapEditorMovingRegionData[] regions)
+    {
+        mapExportService.SetMovingRegions(regions);
+    }
+
     public bool ExportToPixelChromaProject(
         MapData mapData,
         string mapId,
@@ -414,6 +419,7 @@ public sealed class MapEditorWorkshopExportService
         }
 
         string[] files = Directory.GetFiles(folderPath, "*", SearchOption.AllDirectories);
+        long totalBytes = 0L;
 
         for (int i = 0; i < files.Length; i++)
         {
@@ -428,6 +434,20 @@ public sealed class MapEditorWorkshopExportService
             try
             {
                 FileInfo fileInfo = new FileInfo(filePath);
+                totalBytes += fileInfo.Length;
+                if (!MapEditorPackageSecurity.IsPathInside(folderPath, filePath))
+                {
+                    report.errors.Add("Package file escaped the package folder: " + filePath);
+                    continue;
+                }
+
+                string extension = Path.GetExtension(filePath).ToLowerInvariant();
+                if (extension != ".json" && extension != ".png" && extension != ".txt"
+                    && extension != ".wav" && extension != ".ogg" && extension != ".mp3")
+                {
+                    report.errors.Add("Unsupported package file type: " + GetRelativePath(folderPath, filePath));
+                    continue;
+                }
 
                 report.files.Add(new PixelChromaWorkshopPackageFileReport
                 {
@@ -442,6 +462,11 @@ public sealed class MapEditorWorkshopExportService
                 report.warnings.Add(warning);
                 Debug.LogWarning(warning + "\n" + exception.Message);
             }
+        }
+
+        if (totalBytes > MapEditorPackageSecurity.MaxPackageBytes)
+        {
+            report.errors.Add("Package exceeds the 256MB size limit.");
         }
 
         report.isValid = report.errors.Count == 0 && report.paintedTileCount > 0;

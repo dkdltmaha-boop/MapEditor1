@@ -184,7 +184,11 @@ public static class MapEditorTilesetImportSmokeTest
                 Color.white, definition.atlasPath, redIndex, 0, false, false);
             mapData.SetTileOnLayer(1, 1, MapEditorLayerType.GroundExtra, MapEditorManager.CustomColorTileId,
                 new Color(0f, 0f, 1f, 0.25f), string.Empty, -1, 0, false, false);
-            MapEditorSpawnPointData[] spawns = { new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any") };
+            MapEditorSpawnPointData[] spawns =
+            {
+                new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
+                new MapEditorSpawnPointData("SeekerSpawn", 2, 1, "Seeker")
+            };
             PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.Validate(mapData, 1, 1, spawns);
             Require(validation.isValid
                 && validation.animatedTileCount == 1

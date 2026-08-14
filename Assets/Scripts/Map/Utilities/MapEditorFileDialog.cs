@@ -22,6 +22,11 @@ public static class MapEditorFileDialog
 #endif
     }
 
+    public static string OpenAnyFile(string title)
+    {
+        return OpenFile(title, string.Empty);
+    }
+
     public static string[] OpenFiles(string title, string extension)
     {
 #if UNITY_EDITOR
@@ -188,8 +193,12 @@ try {
         $dialog.Title = $title
         $dialog.InitialDirectory = $initial
         $dialog.DefaultExt = $extension
-        $dialog.AddExtension = $true
-        $dialog.Filter = $extension.ToUpperInvariant() + ' files (*.' + $extension + ')|*.' + $extension + '|All files (*.*)|*.*'
+        $dialog.AddExtension = -not [string]::IsNullOrWhiteSpace($extension)
+        if ([string]::IsNullOrWhiteSpace($extension)) {
+            $dialog.Filter = 'All files (*.*)|*.*'
+        } else {
+            $dialog.Filter = $extension.ToUpperInvariant() + ' files (*.' + $extension + ')|*.' + $extension + '|All files (*.*)|*.*'
+        }
         if ($dialog.ShowDialog($owner) -eq [System.Windows.Forms.DialogResult]::OK) {
             if ($mode -eq 'OpenMultiple') {
                 foreach ($file in $dialog.FileNames) {
@@ -264,4 +273,32 @@ try {
 
     }
 #endif
+}
+
+public static class MapEditorPackageSecurity
+{
+    public const long MaxPackageBytes = 256L * 1024L * 1024L;
+
+    public static string SanitizeFileName(string fileName, string fallback)
+    {
+        string safe = Path.GetFileName(fileName ?? string.Empty);
+        foreach (char invalid in Path.GetInvalidFileNameChars())
+        {
+            safe = safe.Replace(invalid, '_');
+        }
+
+        return string.IsNullOrWhiteSpace(safe) ? fallback : safe;
+    }
+
+    public static bool IsPathInside(string root, string path)
+    {
+        if (string.IsNullOrWhiteSpace(root) || string.IsNullOrWhiteSpace(path))
+        {
+            return false;
+        }
+
+        string fullRoot = Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        string fullPath = Path.GetFullPath(path);
+        return fullPath.StartsWith(fullRoot, System.StringComparison.OrdinalIgnoreCase);
+    }
 }

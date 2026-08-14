@@ -16,6 +16,7 @@ public enum MapEditorToolbarAction
     Cut,
     Paste,
     SetSpawn,
+    SetSeekerSpawn,
     PreviewRegion = 13,
     Eyedropper,
     Undo,
@@ -54,7 +55,9 @@ public enum MapEditorToolbarAction
     ToggleCanvasVisible,
     AddCanvas,
     DeleteCanvas,
-    OpenAnimationTileEditor
+    OpenAnimationTileEditor,
+    MovingRegion = 53,
+    Playtest = 54
 }
 
 public enum MapEditorLayerType
@@ -234,7 +237,10 @@ public class MapEditorToolbarButton : MonoBehaviour
                 target.PasteClipboardAtHoveredCell();
                 break;
             case MapEditorToolbarAction.SetSpawn:
-                target.SetSpawnTool();
+                target.SetSpawnTool("Runner");
+                break;
+            case MapEditorToolbarAction.SetSeekerSpawn:
+                target.SetSpawnTool("Seeker");
                 break;
             case MapEditorToolbarAction.PreviewRegion:
                 target.SetPreviewRegionTool();
@@ -322,6 +328,12 @@ public class MapEditorToolbarButton : MonoBehaviour
                 break;
             case MapEditorToolbarAction.OpenAnimationTileEditor:
                 target.OpenAnimationTileEditor();
+                break;
+            case MapEditorToolbarAction.MovingRegion:
+                target.ToggleMovingRegionPath();
+                break;
+            case MapEditorToolbarAction.Playtest:
+                target.ToggleMapPlaytest();
                 break;
             case MapEditorToolbarAction.Line:
                 target.SetLineTool();

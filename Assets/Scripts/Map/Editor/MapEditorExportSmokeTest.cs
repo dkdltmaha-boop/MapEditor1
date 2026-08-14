@@ -30,8 +30,8 @@ public static class MapEditorExportSmokeTest
         MapData mapData = CreateSmokeTestMap(sourceTilesetPath);
         MapEditorSpawnPointData[] spawnPoints =
         {
-            new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"),
-            new MapEditorSpawnPointData("SpawnPoint_2", 2, 1, "Any")
+            new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
+            new MapEditorSpawnPointData("SeekerSpawn", 2, 1, "Seeker")
         };
 
         PixelChromaMapValidationReport validation = MapEditorPixelChromaValidationService.Validate(mapData, 1, 1, spawnPoints);
@@ -55,6 +55,8 @@ public static class MapEditorExportSmokeTest
 
         string mapPath = Path.Combine(root, "map.json");
         MapEditorPixelChromaExportService mapExport = new MapEditorPixelChromaExportService();
+        MapEditorMovingRegionData[] movingRegions = CreateSmokeTestMovingRegions();
+        mapExport.SetMovingRegions(movingRegions);
 
         if (!mapExport.Export(mapData, mapPath, "smoke_test", 16, 1, 1, spawnPoints))
         {
@@ -69,7 +71,8 @@ public static class MapEditorExportSmokeTest
 
         string packagePath = Path.Combine(root, "workshop_package");
         MapEditorWorkshopExportService workshopExport = new MapEditorWorkshopExportService((_, _) => null);
-        workshopExport.SetPreviewRegion(new RectInt(1, 1, 8, 8));
+        workshopExport.SetPreviewRegion(new RectInt(0, 0, 4, 4));
+        workshopExport.SetMovingRegions(movingRegions);
 
         if (!workshopExport.Export(
             mapData,
@@ -237,9 +240,14 @@ public static class MapEditorExportSmokeTest
             && map.cellSize == PixelChromaExportContract.TilePixelSize
             && map.tilesets != null
             && map.tilesets.Count == 0
+            && map.spawnPoints != null
+            && map.spawnPoints.Exists(point => point.role == "Runner")
+            && map.spawnPoints.Exists(point => point.role == "Seeker")
             && HasBakedPngTile(map)
             && HasPixelTile(map)
-            && HasWallCollisionTile(map);
+            && HasWallCollisionTile(map)
+            && map.movingRegions?.Count == 1
+            && map.movingRegions[0].path?.Length == 2;
 
         if (!contractValid)
         {
@@ -252,6 +260,7 @@ public static class MapEditorExportSmokeTest
             && RequireJsonText(json, "map.json", "\"layerBindings\"")
             && RequireJsonText(json, "map.json", "\"spawnPoints\"")
             && RequireJsonText(json, "map.json", "\"zones\"")
+            && RequireJsonText(json, "map.json", "\"movingRegions\"")
             && HasNoDuplicateLayerCoordinates(map);
     }
 
@@ -347,13 +356,20 @@ public static class MapEditorExportSmokeTest
             "Validation result did not contain readable Korean text.");
         Require(validation.wallTileCount == 124, "Validation did not count the Wall collision layer.");
         Require(validation.spawnPointCount == 2, "Validation did not count all spawn points.");
+        Require(validation.passedChecks.Exists(message => message.Contains("플레이어 시작 위치"))
+            && validation.passedChecks.Exists(message => message.Contains("술래 시작 위치")),
+            "Validation did not distinguish Runner and Seeker spawn points.");
         Require(validation.boundaryLeakCount == 0, "Validation reported an opening in a closed map boundary.");
         Require(validation.unreachableWalkableTileCount == 0, "Validation reported unreachable ground in a connected map.");
     }
 
     private static void ValidateStrictGameplayRules()
     {
-        MapEditorSpawnPointData[] spawn = { new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any") };
+        MapEditorSpawnPointData[] spawn =
+        {
+            new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
+            new MapEditorSpawnPointData("SeekerSpawn", 2, 1, "Seeker")
+        };
 
         MapData openBoundaryMap = CreateValidationArena(false);
         PixelChromaMapValidationReport openBoundaryReport = MapEditorPixelChromaValidationService.Validate(openBoundaryMap, 1, 1, spawn);
@@ -380,13 +396,23 @@ public static class MapEditorExportSmokeTest
         MapData duplicateSpawnMap = CreateValidationArena(true, false);
         MapEditorSpawnPointData[] duplicateSpawns =
         {
-            new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"),
-            new MapEditorSpawnPointData("SpawnPoint_2", 1, 1, "Any")
+            new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
+            new MapEditorSpawnPointData("SeekerSpawn", 1, 1, "Seeker")
         };
         PixelChromaMapValidationReport duplicateSpawnReport = MapEditorPixelChromaValidationService.Validate(duplicateSpawnMap, 1, 1, duplicateSpawns);
         Require(!duplicateSpawnReport.isValid
             && duplicateSpawnReport.errors.Exists(message => message.Contains("겹칩니다")),
             "Validation accepted duplicate start positions.");
+
+        MapEditorSpawnPointData[] runnerOnlySpawns =
+        {
+            new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner")
+        };
+        PixelChromaMapValidationReport missingSeekerReport = MapEditorPixelChromaValidationService.Validate(
+            duplicateSpawnMap, 1, 1, runnerOnlySpawns);
+        Require(!missingSeekerReport.isValid
+            && missingSeekerReport.errors.Exists(message => message.Contains("술래 시작 위치가 없습니다")),
+            "Validation accepted a map without a Seeker spawn point.");
 
         MapData previewMap = CreateValidationArena(true, false);
         PixelChromaMapValidationReport missingPreviewReport = MapEditorPixelChromaValidationService.ValidateForWorkshop(
@@ -529,7 +555,7 @@ public static class MapEditorExportSmokeTest
 
         MapSaveData loaded = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(source));
 
-        Require(loaded.formatVersion == 5, "Layer settings did not use map format version 5.");
+        Require(loaded.formatVersion == 6, "Layer settings did not use map format version 6.");
         Require(loaded.layerSettings != null && loaded.layerSettings.Length == 4, "Layer settings were not serialized.");
         Require(loaded.layerSettings[0].displayName == "Floor", "A custom layer name was not preserved.");
         Require(!loaded.layerSettings[1].visible, "A hidden layer was restored as visible.");
@@ -721,10 +747,36 @@ public static class MapEditorExportSmokeTest
         }
 
         string reportJson = File.ReadAllText(reportPath);
+        string mapJson = File.ReadAllText(mapPath);
         return RequireJsonText(reportJson, "package_report.json", "\"isValid\": true")
             && RequireJsonText(reportJson, "package_report.json", "\"manifestExists\": true")
             && RequireJsonText(reportJson, "package_report.json", "\"mapFileExists\": true")
-            && RequireJsonText(reportJson, "package_report.json", "\"previewExists\": true");
+            && RequireJsonText(reportJson, "package_report.json", "\"previewExists\": true")
+            && RequireJsonText(mapJson, "map.json", "\"movingRegions\"");
+    }
+
+    private static MapEditorMovingRegionData[] CreateSmokeTestMovingRegions()
+    {
+        return new[]
+        {
+            new MapEditorMovingRegionData
+            {
+                id = "moving_smoke",
+                displayName = "Moving Smoke",
+                x = 1,
+                y = 1,
+                width = 1,
+                height = 1,
+                path = new[]
+                {
+                    new MapEditorPathPointData(1, 1),
+                    new MapEditorPathPointData(2, 1)
+                },
+                tilesPerSecond = 1f,
+                loop = true,
+                pingPong = true
+            }
+        };
     }
 
     private static bool RequireFile(string path)

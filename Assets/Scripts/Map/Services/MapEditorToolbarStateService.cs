@@ -15,6 +15,8 @@ public sealed class MapEditorToolbarStateService
     private Text brushPreviewText;
     private Text validationStatusText;
     private Transform recentPngListRoot;
+    private Image runnerSpawnButtonImage;
+    private Image seekerSpawnButtonImage;
 
     public void EnsureToolbar(MapEditorManager manager, Vector2 offset, IReadOnlyList<string> recentPngPaths)
     {
@@ -34,6 +36,8 @@ public sealed class MapEditorToolbarStateService
         brushPreviewText = toolbarRefs.brushPreviewText;
         validationStatusText = toolbarRefs.validationStatusText;
         recentPngListRoot = toolbarRefs.recentPngListRoot;
+        runnerSpawnButtonImage = toolbarRefs.runnerSpawnButtonImage;
+        seekerSpawnButtonImage = toolbarRefs.seekerSpawnButtonImage;
 
         layerButtonImages.Clear();
         Dictionary<MapEditorLayerType, Image> layerRefs = MapEditorLayerPanelBuilder.Ensure(manager, offset);
@@ -71,6 +75,10 @@ public sealed class MapEditorToolbarStateService
 
             pair.Value.color = selected ? SelectedButtonColor : NormalButtonColor;
         }
+
+        bool spawnToolSelected = currentTool == EditorToolType.Spawn;
+        SetButtonSelected(runnerSpawnButtonImage, spawnToolSelected && manager != null && manager.SelectedSpawnRole == "Runner");
+        SetButtonSelected(seekerSpawnButtonImage, spawnToolSelected && manager != null && manager.SelectedSpawnRole == "Seeker");
 
         RefreshLayerSelection();
     }
@@ -155,5 +163,13 @@ public sealed class MapEditorToolbarStateService
 
         rect.localEulerAngles = Vector3.zero;
         rect.localScale = Vector3.one;
+    }
+
+    private static void SetButtonSelected(Image image, bool selected)
+    {
+        if (image != null)
+        {
+            image.color = selected ? SelectedButtonColor : NormalButtonColor;
+        }
     }
 }

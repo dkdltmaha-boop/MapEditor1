@@ -248,9 +248,10 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
                     localX * PixelsPerTile,
                     textureOffsetY);
 
-                if (manager.HasSpawnPointAt(chunkStartX + localX, chunkStartY + localY))
+                string spawnRole = manager.GetSpawnRoleAt(chunkStartX + localX, chunkStartY + localY);
+                if (!string.IsNullOrEmpty(spawnRole))
                 {
-                    DrawSpawnMarker(chunk.pixels, textureWidth, localX * PixelsPerTile, textureOffsetY);
+                    DrawSpawnMarker(chunk.pixels, textureWidth, localX * PixelsPerTile, textureOffsetY, spawnRole);
                 }
             }
         }
@@ -269,15 +270,26 @@ public sealed class MapEditorChunkRenderer : MonoBehaviour
         }
     }
 
-    private static void DrawSpawnMarker(Color32[] pixels, int width, int offsetX, int offsetY)
+    private static void DrawSpawnMarker(Color32[] pixels, int width, int offsetX, int offsetY, string role)
     {
-        Color32 marker = new Color32(26, 230, 255, 255);
+        bool seeker = string.Equals(role, "Seeker", System.StringComparison.OrdinalIgnoreCase);
+        Color32 marker = seeker
+            ? new Color32(255, 71, 64, 255)
+            : new Color32(26, 230, 255, 255);
         int center = PixelsPerTile / 2;
 
         for (int i = 3; i < PixelsPerTile - 3; i++)
         {
-            pixels[(offsetY + center) * width + offsetX + i] = marker;
-            pixels[(offsetY + i) * width + offsetX + center] = marker;
+            if (seeker)
+            {
+                pixels[(offsetY + i) * width + offsetX + i] = marker;
+                pixels[(offsetY + i) * width + offsetX + PixelsPerTile - 1 - i] = marker;
+            }
+            else
+            {
+                pixels[(offsetY + center) * width + offsetX + i] = marker;
+                pixels[(offsetY + i) * width + offsetX + center] = marker;
+            }
         }
     }
 

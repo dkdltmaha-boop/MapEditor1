@@ -777,6 +777,19 @@ public class GridCell : MonoBehaviour, IPointerDownHandler, IPointerEnterHandler
         }
     }
 
+    public void SetSpawnMarkerRole(string role)
+    {
+        bool visible = !string.IsNullOrEmpty(role);
+        SetSpawnMarkerVisible(visible);
+        if (!visible || spawnMarkerLabel == null) return;
+
+        bool seeker = string.Equals(role, "Seeker", System.StringComparison.OrdinalIgnoreCase);
+        spawnMarkerLabel.text = seeker ? "S" : "P";
+        spawnMarkerLabel.color = seeker
+            ? new Color(1f, 0.28f, 0.25f, 1f)
+            : new Color(0.1f, 0.9f, 1f, 1f);
+    }
+
     public void OnEndDrag(PointerEventData eventData)
     {
         if (eventData.button != PointerEventData.InputButton.Left || MapEditorManager.Instance == null)

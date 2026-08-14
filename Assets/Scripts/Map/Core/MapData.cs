@@ -1074,7 +1074,7 @@ public class MapTilePixelData
 [System.Serializable]
 public class MapSaveData
 {
-    public int formatVersion = 5;
+    public int formatVersion = 6;
     public int width;
     public int height;
     public string currentPngPalettePath;
@@ -1098,6 +1098,7 @@ public class MapSaveData
     public MapEditorLayerSetting[] layerSettings;
     public EmbeddedPngAsset[] embeddedPngAssets;
     public MapEditorTilesetDefinition[] importedTilesets;
+    public MapEditorMovingRegionData[] movingRegions = System.Array.Empty<MapEditorMovingRegionData>();
 
     public MapSaveData()
     {
@@ -1105,7 +1106,7 @@ public class MapSaveData
 
     public MapSaveData(int width, int height)
     {
-        formatVersion = 5;
+        formatVersion = 6;
         this.width = width;
         this.height = height;
         tiles = new int[width * height];
@@ -1122,6 +1123,7 @@ public class MapSaveData
         spawnPoints = new MapEditorSpawnPointData[0];
         embeddedPngAssets = new EmbeddedPngAsset[0];
         importedTilesets = new MapEditorTilesetDefinition[0];
+        movingRegions = new MapEditorMovingRegionData[0];
     }
 }
 
@@ -1184,4 +1186,62 @@ public class EmbeddedPngAsset
     public string originalPath;
     public string fileName;
     public string base64Png;
+}
+
+[System.Serializable]
+public sealed class MapEditorPathPointData
+{
+    public int x;
+    public int y;
+
+    public MapEditorPathPointData()
+    {
+    }
+
+    public MapEditorPathPointData(int x, int y)
+    {
+        this.x = x;
+        this.y = y;
+    }
+}
+
+[System.Serializable]
+public sealed class MapEditorMovingRegionData
+{
+    public string id = string.Empty;
+    public string displayName = string.Empty;
+    public int x;
+    public int y;
+    public int width = 1;
+    public int height = 1;
+    public MapEditorPathPointData[] path = System.Array.Empty<MapEditorPathPointData>();
+    public float tilesPerSecond = 1f;
+    public float waitSeconds;
+    public bool loop = true;
+    public bool pingPong;
+
+    public MapEditorMovingRegionData Clone()
+    {
+        MapEditorPathPointData[] clonedPath = new MapEditorPathPointData[path == null ? 0 : path.Length];
+        for (int i = 0; i < clonedPath.Length; i++)
+        {
+            MapEditorPathPointData point = path[i];
+            clonedPath[i] = point == null ? null : new MapEditorPathPointData(point.x, point.y);
+        }
+
+        return new MapEditorMovingRegionData
+        {
+            id = id,
+            displayName = displayName,
+            x = x,
+            y = y,
+            width = width,
+            height = height,
+            path = clonedPath,
+            tilesPerSecond = tilesPerSecond,
+            waitSeconds = waitSeconds,
+            loop = loop,
+            pingPong = pingPong
+        };
+    }
 }

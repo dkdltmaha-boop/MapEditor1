@@ -26,6 +26,7 @@ public sealed class PixelChromaMapExportData
     public List<PixelChromaMapLayerExportData> layers = new List<PixelChromaMapLayerExportData>();
     public List<PixelChromaSpawnPointExportData> spawnPoints = new List<PixelChromaSpawnPointExportData>();
     public List<PixelChromaZoneExportData> zones = new List<PixelChromaZoneExportData>();
+    public List<MapEditorMovingRegionData> movingRegions = new List<MapEditorMovingRegionData>();
     public PixelChromaMapValidationReport validation;
 }
 

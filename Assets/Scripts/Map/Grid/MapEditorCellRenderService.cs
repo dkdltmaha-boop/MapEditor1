@@ -221,7 +221,7 @@ public sealed class MapEditorCellRenderService
 
                 if (animation != null && animationFrames != null && animationFrames.Length > 1)
                 {
-                    float elapsedFrames = Time.realtimeSinceStartup * Mathf.Max(0.1f, animation.framesPerSecond);
+                    float elapsedFrames = MapEditorAnimationClock.Time * Mathf.Max(0.1f, animation.framesPerSecond);
                     int frameIndex = animation.loop
                         ? Mathf.FloorToInt(elapsedFrames) % animationFrames.Length
                         : Mathf.Min(Mathf.FloorToInt(elapsedFrames), animationFrames.Length - 1);

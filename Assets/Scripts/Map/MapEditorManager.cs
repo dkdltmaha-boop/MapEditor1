@@ -95,6 +95,8 @@ public class MapEditorManager : MonoBehaviour
     public int pixelChromaSpawnX;
     public int pixelChromaSpawnY;
     public List<MapEditorSpawnPointData> pixelChromaSpawnPoints = new List<MapEditorSpawnPointData>();
+    [SerializeField] private string selectedSpawnRole = "Runner";
+    public List<MapEditorMovingRegionData> movingRegions = new List<MapEditorMovingRegionData>();
 
     [Header("색상 창")]
     public bool createColorWheelWindow = true;
@@ -118,6 +120,7 @@ public class MapEditorManager : MonoBehaviour
     private readonly MapEditorEyedropperService eyedropperService = new MapEditorEyedropperService();
     private MapEditorBrushSelectionService brushSelection;
     private PixelChromaRuntimeWorkshopUploader subscribedWorkshopUploader;
+    private MapEditorPlaytestController playtestController;
 
     private GridGenerator gridGenerator;
     private MapEditorMapEditingService mapEditing;
@@ -156,6 +159,8 @@ public class MapEditorManager : MonoBehaviour
     private Vector2Int? rectangleFillDragStart;
     private Vector2Int? rectangleFillDragEnd;
     private RectInt? previewRegion;
+    private MapEditorMovingRegionData pendingMovingRegion;
+    private readonly List<Vector2Int> pendingMovingPath = new List<Vector2Int>();
     private MapEditorLayerType lastPaintLayer = MapEditorLayerType.Ground;
 
     public GridGenerator GridGenerator => gridGenerator;
@@ -163,6 +168,7 @@ public class MapEditorManager : MonoBehaviour
     public int ActiveCanvasIndex => activeCanvasIndex;
     public MapEditorLayerType BrushLayerRole => brushLayerRole;
     public bool BrushRoleMenuOpen => brushRoleMenuOpen;
+    public bool IsPlaytestActive => playtestController != null && playtestController.IsActive;
     private Vector2 lastCanvasSize = new Vector2(-1f, -1f);
 
     public void SetCurrentMapDataForLoad(MapData mapData)
@@ -222,6 +228,7 @@ public class MapEditorManager : MonoBehaviour
 
     private void OnDisable()
     {
+        playtestController?.StopPlaytest();
         UnsubscribeToolControllerChange();
         UnsubscribeWorkshopUploader();
 
@@ -332,6 +339,7 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureWorkshopExportService();
         workshopExportService.SetPreviewRegion(previewRegion);
+        workshopExportService.SetMovingRegions(GetMovingRegionsForSave());
     }
 
     private void SubscribeToolControllerChange()
@@ -455,8 +463,81 @@ public class MapEditorManager : MonoBehaviour
 
         RefreshResponsiveLayout(false);
         MapEditorSceneUiBuilder.BringQuitButtonToFront();
+
+        if (IsPlaytestActive)
+        {
+            brushCursorPreview.Hide();
+            return;
+        }
+
+        if (Input.GetKeyDown(KeyCode.F5))
+        {
+            StartMapPlaytest();
+            return;
+        }
+
         inputService.Tick();
         UpdateBrushCursorPreview();
+    }
+
+    public void ToggleMapPlaytest()
+    {
+        if (IsPlaytestActive) StopMapPlaytest();
+        else StartMapPlaytest();
+    }
+
+    public void StartMapPlaytest()
+    {
+        if (!Application.isPlaying)
+        {
+            Debug.LogWarning("맵 테스트는 플레이 모드 또는 빌드에서 실행할 수 있습니다.");
+            return;
+        }
+
+        if (playtestController == null)
+        {
+            playtestController = GetComponent<MapEditorPlaytestController>();
+            if (playtestController == null) playtestController = gameObject.AddComponent<MapEditorPlaytestController>();
+        }
+
+        playtestController.StartPlaytest(this);
+    }
+
+    public void StopMapPlaytest()
+    {
+        playtestController?.StopPlaytest();
+        UpdateBrushCursorPreview();
+    }
+
+    public MapEditorSpawnPointData[] GetPlaytestSpawnPoints()
+    {
+        return GetSpawnPointsForSave();
+    }
+
+    public MapEditorMovingRegionData[] GetPlaytestMovingRegions()
+    {
+        return GetMovingRegionsForSave();
+    }
+
+    public bool HasPlaytestGroundAt(int x, int y)
+    {
+        if (CurrentMapData == null || !CurrentMapData.IsInside(x, y)) return false;
+        if (CurrentMapData.GetTile(x, y, MapEditorLayerType.Ground) != -1) return true;
+
+        MapEditorLayerType[] optionalLayers = MapEditorLayerUtility.GroundOptionalLayers;
+        for (int i = 0; i < optionalLayers.Length; i++)
+        {
+            if (CurrentMapData.GetTile(x, y, optionalLayers[i]) != -1) return true;
+        }
+
+        return false;
+    }
+
+    public bool HasPlaytestCollisionAt(int x, int y)
+    {
+        return CurrentMapData != null
+            && CurrentMapData.IsInside(x, y)
+            && CurrentMapData.GetTile(x, y, MapEditorLayerType.WallCollision) == WallTileId;
     }
 
     private void RefreshResponsiveLayout(bool force)
@@ -585,9 +666,17 @@ public class MapEditorManager : MonoBehaviour
 
     public void SetSpawnTool()
     {
+        SetSpawnTool("Runner");
+    }
+
+    public string SelectedSpawnRole => selectedSpawnRole;
+
+    public void SetSpawnTool(string role)
+    {
         CancelTransientToolState();
         useWallTileBrush = false;
         activeLayer = MapEditorLayerType.Spawn;
+        selectedSpawnRole = NormalizeSpawnRole(role);
 
         if (EditorToolController.Instance != null)
         {
@@ -1293,6 +1382,11 @@ public class MapEditorManager : MonoBehaviour
         rectangleFillDragStart = null;
         rectangleFillDragEnd = null;
         linePreviewCells.Clear();
+        if (EditorToolController.Instance == null || EditorToolController.Instance.CurrentTool != EditorToolType.MovingPath)
+        {
+            pendingMovingRegion = null;
+            pendingMovingPath.Clear();
+        }
     }
 
     public void SelectColor(Color color)
@@ -1491,12 +1585,13 @@ public class MapEditorManager : MonoBehaviour
 
     public void UseCurrentTool(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         UseCurrentTool(cell, -1, -1);
     }
 
     public void UseCurrentTool(GridCell cell, int subPixelX, int subPixelY)
     {
-        if (showPlayerScaleGuide || EditorToolController.Instance == null)
+        if (IsPlaytestActive || showPlayerScaleGuide || EditorToolController.Instance == null)
         {
             return;
         }
@@ -1648,6 +1743,9 @@ public class MapEditorManager : MonoBehaviour
 
             case EditorToolType.Spawn:
                 SetPixelChromaSpawnAtCell(cell);
+                break;
+            case EditorToolType.MovingPath:
+                AddMovingPathPoint(cell);
                 break;
         }
     }
@@ -1881,6 +1979,7 @@ public class MapEditorManager : MonoBehaviour
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
         mapSaveService.SetPreviewRegion(previewRegion);
+        mapSaveService.SetMovingRegions(GetMovingRegionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
 
@@ -1890,6 +1989,7 @@ public class MapEditorManager : MonoBehaviour
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
         mapSaveService.SetPreviewRegion(previewRegion);
+        mapSaveService.SetMovingRegions(GetMovingRegionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave(), fileName);
     }
 
@@ -1946,6 +2046,7 @@ public class MapEditorManager : MonoBehaviour
             : (RectInt?)null;
         ClampPreviewRegionToMap();
         LoadSpawnPoints(saveData);
+        movingRegions = new List<MapEditorMovingRegionData>(saveData.movingRegions ?? System.Array.Empty<MapEditorMovingRegionData>());
         RefreshSpawnMarker();
     }
 
@@ -2026,9 +2127,21 @@ public class MapEditorManager : MonoBehaviour
         }
 
         EnsureSpawnPointList();
-        pixelChromaSpawnPoints.Clear();
-        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SpawnPoint_1", cell.X, cell.Y, "Any"));
-        Debug.Log("시작 위치를 새 위치로 변경했습니다: " + cell.X + ", " + cell.Y);
+        string role = NormalizeSpawnRole(selectedSpawnRole);
+        for (int i = pixelChromaSpawnPoints.Count - 1; i >= 0; i--)
+        {
+            MapEditorSpawnPointData existing = pixelChromaSpawnPoints[i];
+            bool sameRole = NormalizeSpawnRole(existing.role) == role;
+            bool sameCell = existing.x == cell.X && existing.y == cell.Y;
+            if (sameRole || sameCell)
+            {
+                pixelChromaSpawnPoints.RemoveAt(i);
+            }
+        }
+
+        string id = role == "Seeker" ? "SeekerSpawn" : "RunnerSpawn";
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(id, cell.X, cell.Y, role));
+        Debug.Log((role == "Seeker" ? "술래" : "플레이어") + " 시작 위치를 변경했습니다: " + cell.X + ", " + cell.Y);
 
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
@@ -2078,7 +2191,7 @@ public class MapEditorManager : MonoBehaviour
 
         if (saveData.spawnPoints != null)
         {
-            for (int i = 0; i < saveData.spawnPoints.Length && pixelChromaSpawnPoints.Count == 0; i++)
+            for (int i = 0; i < saveData.spawnPoints.Length; i++)
             {
                 MapEditorSpawnPointData spawnPoint = saveData.spawnPoints[i];
 
@@ -2091,7 +2204,7 @@ public class MapEditorManager : MonoBehaviour
                     string.IsNullOrEmpty(spawnPoint.id) ? "SpawnPoint_" + (pixelChromaSpawnPoints.Count + 1) : spawnPoint.id,
                     Mathf.Clamp(spawnPoint.x, 0, mapWidth - 1),
                     Mathf.Clamp(spawnPoint.y, 0, mapHeight - 1),
-                    spawnPoint.role
+                    NormalizeSpawnRole(spawnPoint.role)
                 ));
             }
         }
@@ -2111,7 +2224,7 @@ public class MapEditorManager : MonoBehaviour
                 string.IsNullOrEmpty(spawnPoint.id) ? "SpawnPoint_" + (i + 1) : spawnPoint.id,
                 Mathf.Clamp(spawnPoint.x, 0, mapWidth - 1),
                 Mathf.Clamp(spawnPoint.y, 0, mapHeight - 1),
-                spawnPoint.role
+                NormalizeSpawnRole(spawnPoint.role)
             );
         }
 
@@ -2128,6 +2241,14 @@ public class MapEditorManager : MonoBehaviour
         }
 
         MapEditorSpawnPointData primary = pixelChromaSpawnPoints[0];
+        for (int i = 0; i < pixelChromaSpawnPoints.Count; i++)
+        {
+            if (NormalizeSpawnRole(pixelChromaSpawnPoints[i].role) == "Runner")
+            {
+                primary = pixelChromaSpawnPoints[i];
+                break;
+            }
+        }
         primary.x = Mathf.Clamp(primary.x, 0, mapWidth - 1);
         primary.y = Mathf.Clamp(primary.y, 0, mapHeight - 1);
         pixelChromaSpawnX = primary.x;
@@ -2149,6 +2270,13 @@ public class MapEditorManager : MonoBehaviour
         return -1;
     }
 
+    private static string NormalizeSpawnRole(string role)
+    {
+        return string.Equals(role, "Seeker", System.StringComparison.OrdinalIgnoreCase)
+            ? "Seeker"
+            : "Runner";
+    }
+
     private string GetNextSpawnPointId()
     {
         return "SpawnPoint_" + (pixelChromaSpawnPoints.Count + 1);
@@ -2166,11 +2294,13 @@ public class MapEditorManager : MonoBehaviour
 
     public void BeginSelectionDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         selectionClipboard.BeginSelectionDrag(cell);
     }
 
     public void BeginPointerDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         if (IsRectangleFillToolActive())
         {
             BeginRectangleFillDrag(cell);
@@ -2194,11 +2324,13 @@ public class MapEditorManager : MonoBehaviour
 
     public void UpdateSelectionDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         selectionClipboard.UpdateSelectionDrag(cell);
     }
 
     public void UpdatePointerDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         if (IsRectangleFillToolActive())
         {
             UpdateRectangleFillDrag(cell);
@@ -2222,11 +2354,13 @@ public class MapEditorManager : MonoBehaviour
 
     public void EndSelectionDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         selectionClipboard.EndSelectionDrag(cell);
     }
 
     public void EndPointerDrag(GridCell cell)
     {
+        if (IsPlaytestActive) return;
         if (rectangleFillDragStart.HasValue)
         {
             EndRectangleFillDrag(cell);
@@ -2526,7 +2660,12 @@ public class MapEditorManager : MonoBehaviour
         }
 
         cells[new Vector2Int(cell.X, cell.Y)] = cell;
-        cell.SetSpawnMarkerVisible(IsSpawnPointAt(cell.X, cell.Y));
+        cell.SetSpawnMarkerRole(GetSpawnRoleAt(cell.X, cell.Y));
+    }
+
+    public bool IsMovingPathToolActive()
+    {
+        return EditorToolController.Instance != null && EditorToolController.Instance.CurrentTool == EditorToolType.MovingPath;
     }
 
     public bool TryGetCellAtScreenPosition(Vector2 screenPosition, Camera eventCamera, out GridCell cell)
@@ -2602,6 +2741,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void HandleVirtualPointerDown(int x, int y, int subPixelX, int subPixelY)
     {
+        if (IsPlaytestActive) return;
         GridCell cell = GetCellForEditing(x, y);
         if (cell == null)
         {
@@ -2621,6 +2761,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void HandleVirtualPointerDrag(int x, int y, int subPixelX, int subPixelY)
     {
+        if (IsPlaytestActive) return;
         GridCell cell = GetCellForEditing(x, y);
         if (cell == null)
         {
@@ -2648,6 +2789,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void HandleVirtualPointerUp(int x, int y, int subPixelX, int subPixelY)
     {
+        if (IsPlaytestActive) return;
         GridCell cell = GetCellForEditing(x, y);
         if (cell != null)
         {
@@ -2660,6 +2802,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void HandleVirtualPointerUpOutside()
     {
+        if (IsPlaytestActive) return;
         EndPointerDrag(hoveredCell);
         CommitEditTransaction();
     }
@@ -2828,8 +2971,9 @@ public class MapEditorManager : MonoBehaviour
     {
         if (pixelChromaSpawnPoints != null && pixelChromaSpawnPoints.Count > 0)
         {
-            playerScaleGuideX = pixelChromaSpawnPoints[0].x;
-            playerScaleGuideY = pixelChromaSpawnPoints[0].y;
+            SyncPrimarySpawnPoint();
+            playerScaleGuideX = pixelChromaSpawnX;
+            playerScaleGuideY = pixelChromaSpawnY;
         }
         else
         {
@@ -2939,6 +3083,102 @@ public class MapEditorManager : MonoBehaviour
     public void OpenAnimationTileEditor()
     {
         MapEditorAnimationTileWindow.Open(this);
+    }
+
+    public void ToggleMovingRegionPath()
+    {
+        if (IsMovingPathToolActive() && pendingMovingRegion != null)
+        {
+            FinishMovingRegionPath();
+            return;
+        }
+
+        RectInt? selected = selectionClipboard == null ? null : selectionClipboard.SelectionPreviewRect;
+        if (!selected.HasValue || selected.Value.width <= 0 || selected.Value.height <= 0)
+        {
+            MapEditorModalPanel.Show(this, "이동 구역 선택 필요", "선택 도구(S)로 움직일 타일 구역을 먼저 드래그하세요.", new Color(0.95f, 0.66f, 0.18f, 1f));
+            return;
+        }
+
+        RectInt region = selected.Value;
+        pendingMovingRegion = new MapEditorMovingRegionData
+        {
+            id = "MovingRegion_" + (movingRegions.Count + 1),
+            displayName = "이동 구역 " + (movingRegions.Count + 1),
+            x = region.x,
+            y = region.y,
+            width = region.width,
+            height = region.height,
+            tilesPerSecond = 1f,
+            loop = true
+        };
+        pendingMovingPath.Clear();
+        pendingMovingPath.Add(new Vector2Int(region.x + region.width / 2, region.y + region.height / 2));
+        if (EditorToolController.Instance == null)
+        {
+            pendingMovingRegion = null;
+            pendingMovingPath.Clear();
+            MapEditorModalPanel.Show(this, "이동 경로 도구 오류", "도구 컨트롤러를 찾을 수 없습니다.", new Color(0.92f, 0.3f, 0.26f, 1f));
+            return;
+        }
+
+        EditorToolController.Instance.SetMovingPathTool();
+        RefreshMovingPathPreview();
+        Debug.Log("이동 경로 기록 시작: 맵을 클릭해 경유점을 추가하고 이동 경로 버튼을 다시 누르면 완료됩니다.");
+    }
+
+    private void AddMovingPathPoint(GridCell cell)
+    {
+        if (cell == null || pendingMovingRegion == null) return;
+        Vector2Int point = new Vector2Int(cell.X, cell.Y);
+        if (pendingMovingPath.Count == 0 || pendingMovingPath[pendingMovingPath.Count - 1] != point)
+        {
+            pendingMovingPath.Add(point);
+            RefreshMovingPathPreview();
+        }
+    }
+
+    private void RefreshMovingPathPreview()
+    {
+        linePreviewCells.Clear();
+        for (int i = 1; i < pendingMovingPath.Count; i++)
+        {
+            MapEditorBrushGeometry.RasterizeLine(pendingMovingPath[i - 1], pendingMovingPath[i], point =>
+            {
+                if (!linePreviewCells.Contains(point)) linePreviewCells.Add(point);
+            });
+        }
+        UpdateBrushCursorPreview();
+    }
+
+    private void FinishMovingRegionPath()
+    {
+        if (pendingMovingRegion == null) return;
+        if (pendingMovingPath.Count < 2)
+        {
+            MapEditorModalPanel.Show(this, "이동 경로 부족", "출발점 외에 경유점을 한 곳 이상 클릭해야 합니다.", new Color(0.92f, 0.3f, 0.26f, 1f));
+            return;
+        }
+
+        pendingMovingRegion.path = new MapEditorPathPointData[pendingMovingPath.Count];
+        for (int i = 0; i < pendingMovingPath.Count; i++)
+        {
+            pendingMovingRegion.path[i] = new MapEditorPathPointData(pendingMovingPath[i].x, pendingMovingPath[i].y);
+        }
+        movingRegions.Add(pendingMovingRegion.Clone());
+        Debug.Log("이동 구역 저장 완료: " + pendingMovingRegion.displayName + " / 경유점 " + pendingMovingPath.Count + "개");
+        pendingMovingRegion = null;
+        pendingMovingPath.Clear();
+        linePreviewCells.Clear();
+        SetSelectionTool();
+    }
+
+    private MapEditorMovingRegionData[] GetMovingRegionsForSave()
+    {
+        if (movingRegions == null) return System.Array.Empty<MapEditorMovingRegionData>();
+        MapEditorMovingRegionData[] result = new MapEditorMovingRegionData[movingRegions.Count];
+        for (int i = 0; i < result.Length; i++) result[i] = movingRegions[i]?.Clone();
+        return result;
     }
 
     public bool AddTilesetAnimation(
@@ -3306,12 +3546,14 @@ public class MapEditorManager : MonoBehaviour
     public void ExportForPixelChroma()
     {
         EnsureSpawnPointList();
+        pixelChromaExportService.SetMovingRegions(GetMovingRegionsForSave());
         pixelChromaExportService.ExportWithDialog(CurrentMapData, pixelChromaMapId, GetExportCellPixels(), pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
 
     public void ExportForPixelChroma(string path)
     {
         EnsureSpawnPointList();
+        pixelChromaExportService.SetMovingRegions(GetMovingRegionsForSave());
         pixelChromaExportService.Export(CurrentMapData, path, pixelChromaMapId, GetExportCellPixels(), pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
 
@@ -3765,11 +4007,18 @@ public class MapEditorManager : MonoBehaviour
 
             if (cell != null)
             {
-                cell.SetSpawnMarkerVisible(IsSpawnPointAt(cell.X, cell.Y));
+                cell.SetSpawnMarkerRole(GetSpawnRoleAt(cell.X, cell.Y));
             }
         }
 
         MarkAllVisualsDirty();
+    }
+
+    public string GetSpawnRoleAt(int x, int y)
+    {
+        EnsureSpawnPointList();
+        int index = FindSpawnPointIndex(x, y);
+        return index < 0 ? string.Empty : NormalizeSpawnRole(pixelChromaSpawnPoints[index].role);
     }
 
     private bool IsSpawnPointAt(int x, int y)

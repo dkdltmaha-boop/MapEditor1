@@ -85,12 +85,49 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorSceneUiBuilder.BringQuitButtonToFront();
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
+            Transform recentScrollTransform = FindDescendant(toolbar, "RecentResourceScroll");
+            ScrollRect recentScroll = recentScrollTransform == null
+                ? null
+                : recentScrollTransform.GetComponent<ScrollRect>();
+            Require(recentScroll != null
+                && recentScroll.vertical
+                && !recentScroll.horizontal
+                && recentScroll.verticalScrollbar != null
+                && recentScroll.verticalScrollbarVisibility == ScrollRect.ScrollbarVisibility.Permanent,
+                "Recent Resources is missing its vertical scroll bar.");
+            Require(recentScroll.viewport != null
+                && recentScroll.viewport.GetComponent<RectMask2D>() != null
+                && recentScroll.content != null
+                && recentScroll.content.name == "RecentResourceContent",
+                "Recent Resources scroll viewport or masked content is not configured.");
             RequireToolbarButton(toolbar, "BrushToolButton", "브러시 · 바닥", MapEditorToolbarAction.Brush);
             RequireToolbarButton(toolbar, "BrushRoleMenuButton", "▼", MapEditorToolbarAction.ToggleBrushRoleMenu);
             Require(FindDescendant(toolbar, "WallToolButton") == null,
                 "Legacy standalone Wall tool is still visible.");
             RequireToolbarButton(toolbar, "TilesetsButton", "타일셋", MapEditorToolbarAction.OpenTilesetLibrary);
             RequireToolbarButton(toolbar, "AnimationTileButton", "애니메이션 타일", MapEditorToolbarAction.OpenAnimationTileEditor);
+            Require(FindDescendant(toolbar, "AudioSettingsButton") == null,
+                "Removed audio settings button is still visible.");
+            RequireToolbarButton(toolbar, "MovingRegionButton", "이동 경로", MapEditorToolbarAction.MovingRegion);
+            RequireToolbarButton(toolbar, "PlaytestButton", "맵 테스트", MapEditorToolbarAction.Playtest);
+            MapData originalMapData = manager.CurrentMapData;
+            MapData playtestMapData = new MapData(2, 2);
+            playtestMapData.SetTileOnLayer(
+                0, 0, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId,
+                Color.white, string.Empty, -1, 0, false, false);
+            manager.SetCurrentMapDataForLoad(playtestMapData);
+            Require(manager.HasPlaytestGroundAt(0, 0),
+                "Playtest does not recognize a painted Ground cell as walkable ground.");
+            Require(!manager.HasPlaytestCollisionAt(0, 0),
+                "Playtest reports collision on an empty collision layer.");
+            playtestMapData.SetTileOnLayer(
+                0, 0, MapEditorLayerType.WallCollision, MapEditorManager.WallTileId,
+                Color.clear, string.Empty, -1, 0, false, false);
+            Require(manager.HasPlaytestCollisionAt(0, 0),
+                "Playtest does not recognize the WallCollision layer.");
+            manager.SetCurrentMapDataForLoad(originalMapData);
+            RequireToolbarButton(toolbar, "SpawnToolButton", "플레이어 시작", MapEditorToolbarAction.SetSpawn);
+            RequireToolbarButton(toolbar, "SeekerSpawnToolButton", "술래 시작", MapEditorToolbarAction.SetSeekerSpawn);
             Require(toolbar.Find("ValidateButton") == null,
                 "Standalone Validate Map button is still visible.");
             Require(toolbar.Find("PNGOutButton") == null,
@@ -121,6 +158,19 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(FindDescendant(animationRoot, "UseAnimationBrushButton")?.GetComponent<Button>() != null,
                 "Animation tile editor is missing the Use as Brush action.");
             MapEditorObjectUtility.DestroyObject(animationRoot.gameObject);
+
+            MapEditorTileCreatorWindow tileCreator = MapEditorTileCreatorWindow.Open(manager);
+            Transform tileCreatorRoot = canvas.transform.Find("MapEditor_TileCreator");
+            Require(tileCreator != null && tileCreatorRoot != null,
+                "Direct tile creator was not created.");
+            Require(FindDescendant(tileCreatorRoot, "AddFrameButton")?.GetComponent<Button>() != null
+                && FindDescendant(tileCreatorRoot, "DuplicateFrameButton")?.GetComponent<Button>() != null
+                && FindDescendant(tileCreatorRoot, "DeleteFrameButton")?.GetComponent<Button>() != null
+                && FindDescendant(tileCreatorRoot, "SaveAnimationButton")?.GetComponent<Button>() != null,
+                "Direct tile creator is missing frame-by-frame animation controls.");
+            Require(FindDescendant(tileCreatorRoot, "NewTileSlot")?.GetComponent<Button>() != null,
+                "Direct tile creator is missing the blank new-tile slot.");
+            MapEditorObjectUtility.DestroyObject(tileCreatorRoot.gameObject);
 
             MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
             Transform layerPanel = canvas.transform.Find("MapEditor_LayerPanel");
@@ -168,6 +218,11 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Selection tool did not restore the last normal layer after Start Point.");
             manager.SetSpawnTool();
+            Require(manager.SelectedSpawnRole == "Runner",
+                "Runner spawn tool did not select the Runner role.");
+            manager.SetSpawnTool("Seeker");
+            Require(manager.SelectedSpawnRole == "Seeker",
+                "Seeker spawn tool did not select the Seeker role.");
             manager.SetBrushTool();
             Require(manager.ActiveLayer == MapEditorLayerType.Ground,
                 "Brush tool did not restore the last normal paint layer after Start Point.");
@@ -344,6 +399,14 @@ public static class MapEditorSizeConfigurationSmokeTest
             GridCell firstCell = testCellObject.GetComponent<GridCell>();
             testCellObject.SendMessage("Awake");
             firstCell.Init(0, 0);
+            firstCell.SetSpawnMarkerRole("Runner");
+            Text spawnMarker = firstCell.transform.Find("SpawnMarker")?.GetComponent<Text>();
+            Require(spawnMarker != null && spawnMarker.text == "P" && spawnMarker.color.b > spawnMarker.color.r,
+                "Runner spawn marker is not shown as a cyan P.");
+            firstCell.SetSpawnMarkerRole("Seeker");
+            Require(spawnMarker.text == "S" && spawnMarker.color.r > spawnMarker.color.b,
+                "Seeker spawn marker is not shown as a red S.");
+            firstCell.SetSpawnMarkerRole(string.Empty);
             firstCell.SetWallCollisionOutline(false, false, false, false, false);
             Require(firstCell.transform.Find("WallCollisionOverlay") == null,
                 "An empty cell allocated a wall collision overlay during refresh.");
@@ -356,7 +419,7 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Wall collision overlay is not clearly visible over painted tiles.");
 
             manager.pixelChromaSpawnPoints.Clear();
-            manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SpawnPoint_1", 1, 1, "Any"));
+            manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"));
             manager.CurrentMapData.SetTileOnLayer(
                 1, 1, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId,
                 Color.green, string.Empty, -1, 0, false, false);
@@ -394,6 +457,10 @@ public static class MapEditorSizeConfigurationSmokeTest
             Text failedValidationText = failedValidationModal.Find("Panel/Viewport/Content")?.GetComponent<Text>();
             Require(failedValidationText != null && failedValidationText.text.Contains("창작마당 합격 조건"),
                 "Workshop validation did not explain its pass requirements.");
+            Require(failedValidationText != null
+                && failedValidationText.text.Contains("PixelChroma Workshop 콘텐츠 정책")
+                && failedValidationText.text.Contains("타 게임에서 무단 추출한 에셋의 업로드를 금지합니다."),
+                "Workshop validation did not show the content policy notice.");
             Require(failedValidationModal.Find("Panel/FooterActionButton") == null,
                 "Failed validation incorrectly allows Workshop export to continue.");
 
@@ -476,6 +543,44 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(Mathf.Abs(paletteViewport.rect.width - paletteContentRect.rect.width) < 0.1f
                 && Mathf.Abs(paletteViewport.rect.height - paletteContentRect.rect.height) < 0.1f,
                 "PNG palette does not fit its viewport after loading.");
+
+            MapSaveData extendedSave = new MapSaveData(4, 4)
+            {
+                spawnPoints = new[]
+                {
+                    new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
+                    new MapEditorSpawnPointData("SeekerSpawn", 2, 2, "Seeker")
+                },
+                movingRegions = new[]
+                {
+                    new MapEditorMovingRegionData
+                    {
+                        id = "platform_1",
+                        x = 0,
+                        y = 0,
+                        width = 2,
+                        height = 2,
+                        path = new[]
+                        {
+                            new MapEditorPathPointData(1, 1),
+                            new MapEditorPathPointData(3, 1)
+                        },
+                        tilesPerSecond = 2f,
+                        pingPong = true
+                    }
+                }
+            };
+            MapSaveData extendedRoundTrip = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(extendedSave));
+            Require(extendedRoundTrip != null && extendedRoundTrip.formatVersion == 6,
+                "Extended edit-map contract did not preserve format version 6.");
+            Require(extendedRoundTrip.spawnPoints?.Length == 2
+                && extendedRoundTrip.spawnPoints[0].role == "Runner"
+                && extendedRoundTrip.spawnPoints[1].role == "Seeker",
+                "Runner and Seeker spawn roles were not preserved by JSON round-trip.");
+            Require(extendedRoundTrip.movingRegions?.Length == 1
+                && extendedRoundTrip.movingRegions[0].path?.Length == 2
+                && extendedRoundTrip.movingRegions[0].pingPong,
+                "Moving-region path data was not preserved by JSON round-trip.");
 
             Debug.Log("MapEditor size configuration smoke test passed.");
         }

@@ -108,6 +108,31 @@ public static class MapEditorModalPanel
             "※ 불합격 요소가 하나라도 있으면 패키지 생성과 업로드가 중단됩니다. 권장 사항은 업로드를 막지 않습니다.",
             "Note: Any failed requirement blocks package creation and upload. Recommendations do not block upload."));
         builder.AppendLine();
+        AppendWorkshopContentPolicy(builder);
+    }
+
+    private static void AppendWorkshopContentPolicy(StringBuilder builder)
+    {
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "PixelChroma Workshop 콘텐츠 정책",
+            "PixelChroma Workshop Content Policy"));
+        builder.AppendLine();
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 본인이 제작했거나 사용할 권리가 있는 콘텐츠만 업로드할 수 있습니다.",
+            "• Upload only content you created or have the right to use."));
+        builder.AppendLine();
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 타 게임에서 무단 추출한 에셋의 업로드를 금지합니다.",
+            "• Uploading assets extracted from other games without permission is prohibited."));
+        builder.AppendLine();
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 타인의 저작권·상표권 등 권리를 침해하는 콘텐츠를 업로드할 수 없습니다.",
+            "• Do not upload content that infringes copyrights, trademarks, or other rights."));
+        builder.AppendLine();
+        builder.AppendLine(MapEditorLocalization.Choose(
+            "• 권리 침해 신고가 접수된 콘텐츠는 비공개 또는 삭제될 수 있습니다.",
+            "• Reported infringing content may be hidden or removed."));
+        builder.AppendLine();
     }
 
     private static void CloseCurrent()

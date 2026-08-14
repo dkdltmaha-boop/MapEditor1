@@ -15,6 +15,12 @@ public sealed class MapEditorPixelChromaExportService
     private const string WallVisualLayerKind = "wall_visual";
     private const string WallCollisionLayerKind = "collision";
     private readonly MapEditorPngTilesetService pngTilesets = new MapEditorPngTilesetService();
+    private MapEditorMovingRegionData[] movingRegions = System.Array.Empty<MapEditorMovingRegionData>();
+
+    public void SetMovingRegions(MapEditorMovingRegionData[] regions)
+    {
+        movingRegions = CloneMovingRegions(regions);
+    }
 
     public bool ExportWithDialog(MapData mapData, string mapId, int cellSize)
     {
@@ -81,7 +87,14 @@ public sealed class MapEditorPixelChromaExportService
             return false;
         }
 
+        if (!ValidateMovingRegions(mapData, out string movingRegionError))
+        {
+            Debug.LogError("이동 구역 내보내기 실패: " + movingRegionError);
+            return false;
+        }
+
         PixelChromaMapExportData exportData = BuildExportData(mapData, mapId, cellSize, tilesetRelativeFolder, spawnX, spawnY, spawnPoints, validation);
+        exportData.movingRegions.AddRange(CloneMovingRegions(movingRegions));
         string json = JsonUtility.ToJson(exportData, true);
         string directory = Path.GetDirectoryName(path);
 
@@ -93,6 +106,63 @@ public sealed class MapEditorPixelChromaExportService
         File.WriteAllText(path, json);
         Debug.Log("PixelChroma 맵을 내보냈습니다: " + path);
         return true;
+    }
+
+    private bool ValidateMovingRegions(MapData mapData, out string error)
+    {
+        error = string.Empty;
+        if (movingRegions == null) return true;
+
+        for (int i = 0; i < movingRegions.Length; i++)
+        {
+            MapEditorMovingRegionData region = movingRegions[i];
+            if (region == null)
+            {
+                error = "비어 있는 이동 구역 데이터가 있습니다.";
+                return false;
+            }
+
+            if (region.width <= 0 || region.height <= 0
+                || region.x < 0 || region.y < 0
+                || region.x + region.width > mapData.width
+                || region.y + region.height > mapData.height)
+            {
+                error = region.displayName + " 구역이 맵 범위를 벗어났습니다.";
+                return false;
+            }
+
+            if (region.path == null || region.path.Length < 2 || region.path.Length > 256)
+            {
+                error = region.displayName + " 경로는 2개 이상, 256개 이하의 지점이 필요합니다.";
+                return false;
+            }
+
+            for (int pointIndex = 0; pointIndex < region.path.Length; pointIndex++)
+            {
+                MapEditorPathPointData point = region.path[pointIndex];
+                if (point == null || !mapData.IsInside(point.x, point.y))
+                {
+                    error = region.displayName + " 경로 지점이 맵 범위를 벗어났습니다.";
+                    return false;
+                }
+            }
+
+            if (region.tilesPerSecond <= 0f || region.tilesPerSecond > 20f
+                || region.waitSeconds < 0f || region.waitSeconds > 60f)
+            {
+                error = region.displayName + " 이동 속도 또는 대기 시간이 허용 범위를 벗어났습니다.";
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static MapEditorMovingRegionData[] CloneMovingRegions(MapEditorMovingRegionData[] regions)
+    {
+        MapEditorMovingRegionData[] result = new MapEditorMovingRegionData[regions == null ? 0 : regions.Length];
+        for (int i = 0; i < result.Length; i++) result[i] = regions[i]?.Clone();
+        return result;
     }
 
     private PixelChromaMapExportData BuildExportData(MapData mapData, string mapId, int cellSize, string tilesetRelativeFolder, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints, PixelChromaMapValidationReport validation)
@@ -256,7 +326,7 @@ public sealed class MapEditorPixelChromaExportService
 
         if (exportData.spawnPoints.Count == 0)
         {
-            AddSpawnPoint(exportData, mapData, "SpawnPoint_1", spawnX, spawnY, "Any");
+            AddSpawnPoint(exportData, mapData, "RunnerSpawn", spawnX, spawnY, "Runner");
         }
     }
 
@@ -272,7 +342,7 @@ public sealed class MapEditorPixelChromaExportService
             y = clampedY,
             worldX = clampedX + 0.5f,
             worldY = mapData.height - 1 - clampedY + 0.5f,
-            role = string.IsNullOrEmpty(role) ? "Any" : role,
+            role = string.Equals(role, "Seeker", System.StringComparison.OrdinalIgnoreCase) ? "Seeker" : "Runner",
             component = "PixelChroma.MapSpawnPoint"
         });
     }

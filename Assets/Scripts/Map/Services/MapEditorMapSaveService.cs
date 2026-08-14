@@ -11,6 +11,7 @@ public class MapEditorMapSaveService
     private MapEditorTilesetDefinition[] importedTilesets = System.Array.Empty<MapEditorTilesetDefinition>();
     private MapEditorLayerSetting[] layerSettings = System.Array.Empty<MapEditorLayerSetting>();
     private RectInt? previewRegion;
+    private MapEditorMovingRegionData[] movingRegions = System.Array.Empty<MapEditorMovingRegionData>();
 
     public MapEditorMapSaveService(int maxMapSize)
     {
@@ -41,6 +42,11 @@ public class MapEditorMapSaveService
         {
             layerSettings[i] = settings[i]?.Clone();
         }
+    }
+
+    public void SetMovingRegions(MapEditorMovingRegionData[] regions)
+    {
+        movingRegions = CloneMovingRegions(regions);
     }
 
     public bool Save(MapData mapData, string currentPngPalettePath)
@@ -120,6 +126,7 @@ public class MapEditorMapSaveService
         saveData.spawnX = Mathf.Clamp(spawnX, 0, mapData.width - 1);
         saveData.spawnY = Mathf.Clamp(spawnY, 0, mapData.height - 1);
         saveData.spawnPoints = spawnPoints ?? System.Array.Empty<MapEditorSpawnPointData>();
+        saveData.movingRegions = CloneMovingRegions(movingRegions);
         if (previewRegion.HasValue)
         {
             RectInt region = previewRegion.Value;
@@ -141,6 +148,17 @@ public class MapEditorMapSaveService
         currentMapFilePath = path;
         Debug.Log("맵을 저장했습니다: " + path);
         return true;
+    }
+
+    private static MapEditorMovingRegionData[] CloneMovingRegions(MapEditorMovingRegionData[] regions)
+    {
+        MapEditorMovingRegionData[] result = new MapEditorMovingRegionData[regions == null ? 0 : regions.Length];
+        for (int i = 0; i < result.Length; i++)
+        {
+            result[i] = regions[i]?.Clone();
+        }
+
+        return result;
     }
 
     private bool TryLoadFromPath(string path, out MapSaveData saveData)

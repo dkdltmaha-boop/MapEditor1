@@ -11,7 +11,8 @@ public enum EditorToolType
     Line,
     PreviewRegion = 6,
     BrushEraser,
-    RectangleFill
+    RectangleFill,
+    MovingPath
 }
 
 [ExecuteAlways]
@@ -75,6 +76,11 @@ public class EditorToolController : MonoBehaviour
     public void SetPreviewRegionTool()
     {
         SetTool(EditorToolType.PreviewRegion);
+    }
+
+    public void SetMovingPathTool()
+    {
+        SetTool(EditorToolType.MovingPath);
     }
 
     public void SetTool(EditorToolType tool)

@@ -522,11 +522,17 @@ public static class MapEditorPixelChromaValidationService
         }
 
         HashSet<Vector2Int> positions = new HashSet<Vector2Int>();
+        int runnerCount = 0;
+        int seekerCount = 0;
 
         for (int i = 0; i < spawnPoints.Count; i++)
         {
             MapEditorSpawnPointData spawn = spawnPoints[i];
-            string label = string.IsNullOrEmpty(spawn.id) ? "시작 위치 " + (i + 1) : spawn.id;
+            bool seeker = string.Equals(spawn.role, "Seeker", System.StringComparison.OrdinalIgnoreCase);
+            string roleLabel = seeker ? "술래 시작 위치" : "플레이어 시작 위치";
+            string label = string.IsNullOrEmpty(spawn.id) ? roleLabel : spawn.id + " (" + roleLabel + ")";
+            if (seeker) seekerCount++;
+            else runnerCount++;
 
             if (!mapData.IsInside(spawn.x, spawn.y))
             {
@@ -558,9 +564,14 @@ public static class MapEditorPixelChromaValidationService
             }
         }
 
-        if (spawnPoints.Count < 2)
+        if (runnerCount == 0)
         {
-            Warn(report, "멀티플레이 테스트를 위해 시작 위치를 2개 이상 권장합니다.");
+            Fail(report, "플레이어 시작 위치가 없습니다. '플레이어 시작' 도구로 한 곳을 지정하세요.");
+        }
+
+        if (seekerCount == 0)
+        {
+            Fail(report, "술래 시작 위치가 없습니다. '술래 시작' 도구로 한 곳을 지정하세요.");
         }
     }
 
@@ -616,7 +627,10 @@ public static class MapEditorPixelChromaValidationService
             if (IsWalkable(mapData, spawn.x, spawn.y) && !visited[spawn.x, spawn.y])
             {
                 allSpawnsReachable = false;
-                Fail(report, "시작 위치 " + (i + 1) + "까지 이동 가능한 경로가 없습니다.");
+                string roleLabel = string.Equals(spawn.role, "Seeker", System.StringComparison.OrdinalIgnoreCase)
+                    ? "술래 시작 위치"
+                    : "플레이어 시작 위치";
+                Fail(report, roleLabel + "까지 이동 가능한 경로가 없습니다.");
             }
         }
 

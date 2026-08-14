@@ -7,6 +7,7 @@ public sealed class MapEditorMovingPathListView
     private const string RootObjectName = "MovingPathList";
     private const float TopInset = 588f;
     private const float HeaderHeight = 24f;
+    private const float SpeedControlHeight = 30f;
     private const float RowHeight = 48f;
     private const float RowSpacing = 2f;
 
@@ -20,6 +21,8 @@ public sealed class MapEditorMovingPathListView
     private RectTransform root;
     private RectTransform content;
     private ScrollRect scrollRect;
+    private InputField selectedSpeedInput;
+    private Text selectedPathLabel;
 
     public MapEditorMovingPathListView(MapEditorManager manager)
     {
@@ -41,10 +44,28 @@ public sealed class MapEditorMovingPathListView
         else
         {
             root = existing as RectTransform;
-            Transform contentTransform = existing.Find("Viewport/Content");
+            Transform contentTransform = existing.Find("ScrollView/Viewport/Content");
             content = contentTransform as RectTransform;
             scrollRect = existing.GetComponentInChildren<ScrollRect>(true);
             ConfigureRoot();
+        }
+
+        Transform legacyVisibilityToggle = root == null ? null : root.Find("VisibilityToggle");
+        if (legacyVisibilityToggle != null)
+        {
+            MapEditorObjectUtility.DestroyObject(legacyVisibilityToggle.gameObject);
+        }
+        RectTransform header = root == null ? null : root.Find("Header") as RectTransform;
+        if (header != null)
+        {
+            header.sizeDelta = new Vector2(-12f, HeaderHeight);
+        }
+
+        EnsureSelectedSpeedControl();
+        RectTransform scrollView = root == null ? null : root.Find("ScrollView") as RectTransform;
+        if (scrollView != null)
+        {
+            Stretch(scrollView, new Vector2(4f, 4f), new Vector2(-4f, -(HeaderHeight + SpeedControlHeight)));
         }
 
         Refresh();
@@ -52,6 +73,7 @@ public sealed class MapEditorMovingPathListView
 
     public void Refresh()
     {
+        RefreshSelectedSpeedControl();
         if (content == null)
         {
             return;
@@ -104,7 +126,7 @@ public sealed class MapEditorMovingPathListView
         GameObject scrollObject = new GameObject("ScrollView", typeof(RectTransform), typeof(ScrollRect));
         scrollObject.transform.SetParent(root, false);
         RectTransform scrollRectTransform = scrollObject.GetComponent<RectTransform>();
-        Stretch(scrollRectTransform, new Vector2(4f, 4f), new Vector2(-4f, -HeaderHeight));
+        Stretch(scrollRectTransform, new Vector2(4f, 4f), new Vector2(-4f, -(HeaderHeight + SpeedControlHeight)));
 
         GameObject viewportObject = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
         viewportObject.transform.SetParent(scrollObject.transform, false);
@@ -132,6 +154,103 @@ public sealed class MapEditorMovingPathListView
         scrollRect.verticalScrollbar = scrollbar;
         scrollRect.verticalScrollbarVisibility = ScrollRect.ScrollbarVisibility.AutoHideAndExpandViewport;
         scrollRect.verticalScrollbarSpacing = 2f;
+    }
+
+    private void EnsureSelectedSpeedControl()
+    {
+        if (root == null)
+        {
+            return;
+        }
+
+        Transform existing = root.Find("SelectedPathControls");
+        if (existing != null)
+        {
+            selectedPathLabel = existing.Find("PathLabel")?.GetComponent<Text>();
+            selectedSpeedInput = existing.Find("Speed")?.GetComponent<InputField>();
+            if (selectedPathLabel != null && selectedSpeedInput != null)
+            {
+                return;
+            }
+
+            MapEditorObjectUtility.DestroyObject(existing.gameObject);
+        }
+
+        GameObject controlsObject = new GameObject("SelectedPathControls", typeof(RectTransform), typeof(Image));
+        controlsObject.transform.SetParent(root, false);
+        RectTransform controls = controlsObject.GetComponent<RectTransform>();
+        controls.anchorMin = new Vector2(0f, 1f);
+        controls.anchorMax = new Vector2(1f, 1f);
+        controls.pivot = new Vector2(0.5f, 1f);
+        controls.anchoredPosition = new Vector2(0f, -HeaderHeight);
+        controls.sizeDelta = new Vector2(-8f, SpeedControlHeight - 2f);
+        controlsObject.GetComponent<Image>().color = RowColor;
+
+        selectedPathLabel = CreateText(controls, "PathLabel", string.Empty, 9, FontStyle.Normal,
+            TextAnchor.MiddleLeft, new Vector2(6f, 2f), new Vector2(-104f, -2f)).GetComponent<Text>();
+
+        RectTransform speedLabel = CreateText(controls, "SpeedLabel",
+            MapEditorLocalization.Choose("\uC18D\uB3C4", "Speed"), 9, FontStyle.Bold,
+            TextAnchor.MiddleRight, Vector2.zero, Vector2.zero);
+        speedLabel.anchorMin = new Vector2(1f, 0f);
+        speedLabel.anchorMax = new Vector2(1f, 1f);
+        speedLabel.offsetMin = new Vector2(-100f, 2f);
+        speedLabel.offsetMax = new Vector2(-64f, -2f);
+
+        selectedSpeedInput = CreateSelectedSpeedInput(controls);
+        RectTransform inputRect = selectedSpeedInput.GetComponent<RectTransform>();
+        inputRect.anchorMin = new Vector2(1f, 0f);
+        inputRect.anchorMax = new Vector2(1f, 1f);
+        inputRect.offsetMin = new Vector2(-60f, 3f);
+        inputRect.offsetMax = new Vector2(-5f, -3f);
+    }
+
+    private InputField CreateSelectedSpeedInput(Transform parent)
+    {
+        GameObject inputObject = new GameObject("Speed", typeof(RectTransform), typeof(Image), typeof(InputField));
+        inputObject.transform.SetParent(parent, false);
+        inputObject.GetComponent<Image>().color = new Color(0.06f, 0.07f, 0.08f, 1f);
+        Text text = CreateText(inputObject.transform, "Text", "1", 10, FontStyle.Bold,
+            TextAnchor.MiddleCenter, new Vector2(2f, 0f), new Vector2(-2f, 0f)).GetComponent<Text>();
+
+        InputField input = inputObject.GetComponent<InputField>();
+        input.textComponent = text;
+        input.characterLimit = 5;
+        input.contentType = InputField.ContentType.DecimalNumber;
+        input.lineType = InputField.LineType.SingleLine;
+        input.onEndEdit.AddListener(nextValue =>
+        {
+            int index = manager == null ? -1 : manager.SelectedMovingRegionIndex;
+            float parsed;
+            bool valid = float.TryParse(nextValue, NumberStyles.Float, CultureInfo.InvariantCulture, out parsed)
+                || float.TryParse(nextValue, NumberStyles.Float, CultureInfo.CurrentCulture, out parsed);
+            if (index >= 0 && valid)
+            {
+                manager.SetMovingRegionSpeed(index, parsed);
+            }
+
+            RefreshSelectedSpeedControl();
+        });
+        return input;
+    }
+
+    private void RefreshSelectedSpeedControl()
+    {
+        if (selectedSpeedInput == null || selectedPathLabel == null)
+        {
+            return;
+        }
+
+        int index = manager == null ? -1 : manager.SelectedMovingRegionIndex;
+        MapEditorMovingRegionData region = manager == null ? null : manager.GetMovingRegionAt(index);
+        bool hasSelection = region != null;
+        selectedSpeedInput.interactable = hasSelection;
+        selectedSpeedInput.text = hasSelection
+            ? region.tilesPerSecond.ToString("0.##", CultureInfo.InvariantCulture)
+            : "-";
+        selectedPathLabel.text = hasSelection
+            ? (string.IsNullOrWhiteSpace(region.displayName) ? "#" + (index + 1) : region.displayName)
+            : MapEditorLocalization.Choose("\uACBD\uB85C \uC120\uD0DD", "Select a path");
     }
 
     private void ConfigureRoot()
@@ -186,10 +305,14 @@ public sealed class MapEditorMovingPathListView
         inputRect.anchorMin = new Vector2(0f, 0.5f);
         inputRect.anchorMax = new Vector2(1f, 1f);
         inputRect.offsetMin = new Vector2(22f, 2f);
-        inputRect.offsetMax = new Vector2(-66f, -2f);
+        inputRect.offsetMax = new Vector2(-104f, -2f);
 
         CreateButton(row, "Show", MapEditorLocalization.Choose("보기", "Show"), ButtonColor,
-            new Vector2(-64f, 26f), new Vector2(-26f, -2f), () => manager.FocusMovingRegion(index));
+            new Vector2(-102f, 26f), new Vector2(-66f, -2f), () => manager.FocusMovingRegion(index));
+        bool guideVisible = manager.IsMovingPathGuideVisible(index);
+        CreateButton(row, "Visibility", guideVisible ? "ON" : "OFF",
+            guideVisible ? SelectedRowColor : ButtonColor,
+            new Vector2(-64f, 26f), new Vector2(-26f, -2f), () => manager.ToggleMovingPathGuide(index));
         CreateButton(row, "Delete", "X", DeleteColor,
             new Vector2(-24f, 26f), new Vector2(-2f, -2f), () => manager.DeleteMovingRegion(index));
 

@@ -108,7 +108,11 @@ public class MapEditorManager : MonoBehaviour
     private readonly MapEditorPngFileService pngFiles = new MapEditorPngFileService();
     private MapEditorTilesetLibraryService tilesetLibrary;
     private readonly MapEditorBrushCursorPreview brushCursorPreview = new MapEditorBrushCursorPreview();
+    private readonly MapEditorBrushCursorPreview movingPathGuidePreview =
+        new MapEditorBrushCursorPreview("MapEditor_MovingPathGuidePreview");
     private readonly List<Vector2Int> linePreviewCells = new List<Vector2Int>();
+    private readonly List<Vector2Int> movingPathGuideCells = new List<Vector2Int>();
+    private readonly HashSet<int> hiddenMovingPathGuideIndices = new HashSet<int>();
     private readonly MapEditorPlayerScaleGuide playerScaleGuide = new MapEditorPlayerScaleGuide();
     private readonly MapEditorMapSaveService mapSaveService = new MapEditorMapSaveService(MaxMapSize);
     private readonly MapEditorPixelChromaImportService pixelChromaImportService = new MapEditorPixelChromaImportService();
@@ -1934,8 +1938,11 @@ public class MapEditorManager : MonoBehaviour
             movingRegions.Clear();
         }
         selectedMovingRegionIndex = -1;
+        hiddenMovingPathGuideIndices.Clear();
+        movingPathGuideCells.Clear();
         CurrentMapData = mapSizeService.CreateNewMap(this, width, height, ClearSelection, mapEditing.ClearHistory, RegenerateGrid);
         colorWheelWindow?.RefreshMovingPathList();
+        UpdateBrushCursorPreview();
     }
 
     public void ResizeMap(int width, int height)
@@ -2069,6 +2076,8 @@ public class MapEditorManager : MonoBehaviour
         LoadSpawnPoints(saveData);
         movingRegions = new List<MapEditorMovingRegionData>(saveData.movingRegions ?? System.Array.Empty<MapEditorMovingRegionData>());
         selectedMovingRegionIndex = -1;
+        hiddenMovingPathGuideIndices.Clear();
+        RefreshMovingPathGuides();
         colorWheelWindow?.RefreshMovingPathList();
         RefreshSpawnMarker();
     }
@@ -3033,6 +3042,14 @@ public class MapEditorManager : MonoBehaviour
 
     private void UpdateBrushCursorPreview()
     {
+        movingPathGuidePreview.UpdateCellGuides(
+            showBrushCursorPreview && !showPlayerScaleGuide,
+            gridGenerator,
+            CurrentMapData,
+            movingPathGuideCells,
+            new Color(0.1f, 0.75f, 1f, 0.16f),
+            new Color(0.05f, 0.55f, 1f, 0.95f));
+
         RectInt? areaFillPreviewRect = null;
 
         if (IsAreaFillModifierPressed() && mapEditing.TryGetAreaFillRect(hoveredCell, out RectInt rect))
@@ -3217,7 +3234,7 @@ public class MapEditorManager : MonoBehaviour
         SetSelectionTool();
         ClearSelection();
         selectedMovingRegionIndex = index;
-        ShowMovingRegionPath(region);
+        RefreshMovingPathGuides();
         colorWheelWindow?.RefreshMovingPathList();
     }
 
@@ -3246,6 +3263,36 @@ public class MapEditorManager : MonoBehaviour
         region.tilesPerSecond = Mathf.Clamp(tilesPerSecond, 0.05f, 20f);
     }
 
+    public bool IsMovingPathGuideVisible(int index)
+    {
+        return GetMovingRegionAt(index) != null && !hiddenMovingPathGuideIndices.Contains(index);
+    }
+
+    public void SetMovingPathGuideVisible(int index, bool visible)
+    {
+        if (GetMovingRegionAt(index) == null)
+        {
+            return;
+        }
+
+        if (visible)
+        {
+            hiddenMovingPathGuideIndices.Remove(index);
+        }
+        else
+        {
+            hiddenMovingPathGuideIndices.Add(index);
+        }
+
+        RefreshMovingPathGuides();
+        colorWheelWindow?.RefreshMovingPathList();
+    }
+
+    public void ToggleMovingPathGuide(int index)
+    {
+        SetMovingPathGuideVisible(index, !IsMovingPathGuideVisible(index));
+    }
+
     public void DeleteMovingRegion(int index)
     {
         if (movingRegions == null || index < 0 || index >= movingRegions.Count)
@@ -3258,20 +3305,57 @@ public class MapEditorManager : MonoBehaviour
         if (selectedMovingRegionIndex == index)
         {
             selectedMovingRegionIndex = -1;
-            linePreviewCells.Clear();
-            UpdateBrushCursorPreview();
         }
         else if (selectedMovingRegionIndex > index)
         {
             selectedMovingRegionIndex--;
         }
 
+        int[] hiddenIndices = new int[hiddenMovingPathGuideIndices.Count];
+        hiddenMovingPathGuideIndices.CopyTo(hiddenIndices);
+        hiddenMovingPathGuideIndices.Clear();
+        for (int i = 0; i < hiddenIndices.Length; i++)
+        {
+            if (hiddenIndices[i] < index)
+            {
+                hiddenMovingPathGuideIndices.Add(hiddenIndices[i]);
+            }
+            else if (hiddenIndices[i] > index)
+            {
+                hiddenMovingPathGuideIndices.Add(hiddenIndices[i] - 1);
+            }
+        }
+
+        RefreshMovingPathGuides();
         colorWheelWindow?.RefreshMovingPathList();
     }
 
-    private void ShowMovingRegionPath(MapEditorMovingRegionData region)
+    private void RefreshMovingPathGuides()
     {
-        linePreviewCells.Clear();
+        movingPathGuideCells.Clear();
+        if (movingRegions == null)
+        {
+            UpdateBrushCursorPreview();
+            return;
+        }
+
+        for (int i = 0; i < movingRegions.Count; i++)
+        {
+            if (!hiddenMovingPathGuideIndices.Contains(i))
+            {
+                AppendMovingRegionGuide(movingRegions[i]);
+            }
+        }
+
+        UpdateBrushCursorPreview();
+    }
+
+    private void AppendMovingRegionGuide(MapEditorMovingRegionData region)
+    {
+        if (region == null)
+        {
+            return;
+        }
 
         int left = Mathf.Clamp(region.x, 0, mapWidth - 1);
         int top = Mathf.Clamp(region.y, 0, mapHeight - 1);
@@ -3306,14 +3390,13 @@ public class MapEditorManager : MonoBehaviour
                 AddMovingRegionPreviewCell);
         }
 
-        UpdateBrushCursorPreview();
     }
 
     private void AddMovingRegionPreviewCell(Vector2Int point)
     {
-        if (CurrentMapData != null && CurrentMapData.IsInside(point.x, point.y) && !linePreviewCells.Contains(point))
+        if (CurrentMapData != null && CurrentMapData.IsInside(point.x, point.y) && !movingPathGuideCells.Contains(point))
         {
-            linePreviewCells.Add(point);
+            movingPathGuideCells.Add(point);
         }
     }
 

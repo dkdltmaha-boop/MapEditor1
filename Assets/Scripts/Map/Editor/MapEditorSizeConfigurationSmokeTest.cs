@@ -584,13 +584,72 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(movingPathScroll.content != null
                 && movingPathScroll.content.childCount == originalMovingRegionCount + 1,
                 "The saved moving-path list does not match the moving-region data.");
+            manager.FocusMovingRegion(originalMovingRegionCount);
+            InputField selectedPathSpeed = movingPathList.Find("SelectedPathControls/Speed")?.GetComponent<InputField>();
+            Require(selectedPathSpeed != null && selectedPathSpeed.gameObject.activeInHierarchy && selectedPathSpeed.interactable,
+                "The selected moving path speed input is not visible or editable.");
+            Require(selectedPathSpeed.text == "3.5",
+                "The selected moving path speed input does not show the saved speed.");
+            MapEditorMovingPathListView reloadedMovingPathView = new MapEditorMovingPathListView(manager);
+            reloadedMovingPathView.EnsureArea(picker.transform);
+            Transform reloadedMovingPathContent = movingPathList.Find("ScrollView/Viewport/Content");
+            InputField reloadedPathSpeed = movingPathList.Find("SelectedPathControls/Speed")?.GetComponent<InputField>();
+            Require(reloadedMovingPathContent != null
+                && reloadedMovingPathContent.childCount == originalMovingRegionCount + 1
+                && reloadedPathSpeed != null
+                && reloadedPathSpeed.interactable,
+                "The moving-path list or speed input was lost after reconnecting existing scene UI.");
+            Transform movingPathRow = reloadedMovingPathContent.Find("MovingPath_" + originalMovingRegionCount);
+            Button movingPathVisibilityToggle = movingPathRow?.Find("Visibility")?.GetComponent<Button>();
+            Text movingPathVisibilityLabel = movingPathRow?.Find("Visibility/Text")?.GetComponent<Text>();
+            Require(movingPathVisibilityToggle != null && movingPathVisibilityLabel != null
+                && manager.IsMovingPathGuideVisible(originalMovingRegionCount) && movingPathVisibilityLabel.text == "ON",
+                "The per-path visibility toggle was not created in its enabled state.");
+            movingPathVisibilityToggle.onClick.Invoke();
+            movingPathVisibilityLabel = movingPathList.Find("ScrollView/Viewport/Content/MovingPath_"
+                + originalMovingRegionCount + "/Visibility/Text")?.GetComponent<Text>();
+            Require(!manager.IsMovingPathGuideVisible(originalMovingRegionCount)
+                && movingPathVisibilityLabel != null && movingPathVisibilityLabel.text == "OFF"
+                && manager.SelectedMovingRegionIndex == originalMovingRegionCount,
+                "Hiding one moving-path guide changed the selected path or did not update its toggle.");
+            movingPathVisibilityToggle = movingPathList.Find("ScrollView/Viewport/Content/MovingPath_"
+                + originalMovingRegionCount + "/Visibility")?.GetComponent<Button>();
+            movingPathVisibilityToggle.onClick.Invoke();
+            movingPathVisibilityLabel = movingPathList.Find("ScrollView/Viewport/Content/MovingPath_"
+                + originalMovingRegionCount + "/Visibility/Text")?.GetComponent<Text>();
+            Require(manager.IsMovingPathGuideVisible(originalMovingRegionCount)
+                && movingPathVisibilityLabel != null && movingPathVisibilityLabel.text == "ON"
+                && manager.SelectedMovingRegionIndex == originalMovingRegionCount,
+                "Showing one moving-path guide did not restore its visibility state.");
+            int secondMovingRegionIndex = manager.MovingRegionCount;
+            manager.movingRegions.Add(new MapEditorMovingRegionData
+            {
+                id = "moving_path_smoke_second",
+                displayName = "Second Smoke Path",
+                canvasLayerIndex = 1,
+                x = 5,
+                y = 5,
+                width = 1,
+                height = 1,
+                tilesPerSecond = 2f,
+                path = new[]
+                {
+                    new MapEditorPathPointData(5, 5),
+                    new MapEditorPathPointData(6, 5)
+                }
+            });
+            manager.SetMovingPathGuideVisible(originalMovingRegionCount, false);
+            Require(!manager.IsMovingPathGuideVisible(originalMovingRegionCount)
+                && manager.IsMovingPathGuideVisible(secondMovingRegionIndex),
+                "Hiding one moving path also hid another path.");
+            manager.SetMovingPathGuideVisible(originalMovingRegionCount, true);
+            manager.DeleteMovingRegion(secondMovingRegionIndex);
             manager.SetMovingRegionSpeed(originalMovingRegionCount, 6.25f);
             Require(Mathf.Abs(manager.GetMovingRegionAt(originalMovingRegionCount).tilesPerSecond - 6.25f) < 0.001f,
                 "Editing a saved moving path speed did not update its data.");
             manager.RenameMovingRegion(originalMovingRegionCount, "Renamed Path");
             Require(manager.GetMovingRegionAt(originalMovingRegionCount)?.displayName == "Renamed Path",
                 "A saved moving path could not be renamed.");
-            manager.FocusMovingRegion(originalMovingRegionCount);
             Require(manager.SelectedMovingRegionIndex == originalMovingRegionCount,
                 "A saved moving path could not be focused on the map.");
             manager.DeleteMovingRegion(originalMovingRegionCount);
@@ -657,6 +716,16 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "The moving-region source did not preserve the remaining canvas layers.");
             Require(emptyMovingPixel[0].a == 0,
                 "An empty moving-layer cell was rendered as an opaque white tile.");
+
+            Color32[] sourceCoverPixels = { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
+            Color32[] movingPixels = { new Color32(255, 0, 0, 255), new Color32(0, 0, 0, 0) };
+            System.Reflection.MethodInfo applyMovingMask = typeof(MapEditorPlaytestController).GetMethod(
+                "ApplyMovingLayerMask",
+                System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
+            Require(applyMovingMask != null, "The moving-region source mask helper is missing.");
+            applyMovingMask.Invoke(null, new object[] { sourceCoverPixels, movingPixels });
+            Require(sourceCoverPixels[0].a == 255 && sourceCoverPixels[1].a == 0,
+                "The moving-region source cover still paints empty selection pixels white.");
 
             Debug.Log("MapEditor size configuration smoke test passed.");
         }

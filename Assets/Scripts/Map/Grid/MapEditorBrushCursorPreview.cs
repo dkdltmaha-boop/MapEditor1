@@ -13,7 +13,41 @@ public class MapEditorBrushCursorPreview
     private static readonly Color AreaFillOutlineColor = new Color(1f, 0.7f, 0f, 1f);
 
     private readonly List<Image> images = new List<Image>();
+    private readonly string overlayObjectName;
     private RectTransform overlay;
+
+    public MapEditorBrushCursorPreview(string overlayObjectName = "MapEditor_BrushCursorPreview")
+    {
+        this.overlayObjectName = string.IsNullOrWhiteSpace(overlayObjectName)
+            ? "MapEditor_BrushCursorPreview"
+            : overlayObjectName;
+    }
+
+    public void UpdateCellGuides(
+        bool showGuides,
+        GridGenerator gridGenerator,
+        MapData mapData,
+        IReadOnlyCollection<Vector2Int> guideCells,
+        Color fillColor,
+        Color outlineColor)
+    {
+        if (!showGuides || gridGenerator == null || gridGenerator.gridParent == null || mapData == null
+            || guideCells == null || guideCells.Count == 0)
+        {
+            Hide();
+            return;
+        }
+
+        EnsureOverlay(gridGenerator);
+        SyncOverlayTransform(gridGenerator);
+        if (overlay == null)
+        {
+            return;
+        }
+
+        overlay.SetAsLastSibling();
+        UpdateCellSetPreview(gridGenerator, mapData, guideCells, fillColor, outlineColor);
+    }
 
     public void Update(
         bool showPreview,
@@ -313,7 +347,7 @@ public class MapEditorBrushCursorPreview
             return;
         }
 
-        GameObject overlayObject = new GameObject("MapEditor_BrushCursorPreview", typeof(RectTransform));
+        GameObject overlayObject = new GameObject(overlayObjectName, typeof(RectTransform));
         overlayObject.transform.SetParent(parent, false);
         overlay = overlayObject.GetComponent<RectTransform>();
         overlay.SetAsLastSibling();

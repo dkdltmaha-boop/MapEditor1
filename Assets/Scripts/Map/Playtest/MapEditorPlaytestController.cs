@@ -387,6 +387,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
                 }
             }
 
+            ApplyMovingLayerMask(sourcePixels, pixels);
+
             Texture2D sourceTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
@@ -513,6 +515,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
     private void RefreshMovingRegionTexture(MovingRegionPreview preview)
     {
         int textureWidth = preview.data.width * RegionPixelsPerTile;
+        System.Array.Clear(preview.pixels, 0, preview.pixels.Length);
         for (int y = 0; y < preview.data.height; y++)
         {
             for (int x = 0; x < preview.data.width; x++)
@@ -536,6 +539,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
     private void RefreshMovingRegionSourceTexture(MovingRegionPreview preview)
     {
         int textureWidth = preview.data.width * RegionPixelsPerTile;
+        System.Array.Clear(preview.sourcePixels, 0, preview.sourcePixels.Length);
         for (int y = 0; y < preview.data.height; y++)
         {
             for (int x = 0; x < preview.data.width; x++)
@@ -552,8 +556,26 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             }
         }
 
+        ApplyMovingLayerMask(preview.sourcePixels, preview.pixels);
         preview.sourceTexture.SetPixels32(preview.sourcePixels);
         preview.sourceTexture.Apply(false, false);
+    }
+
+    private static void ApplyMovingLayerMask(Color32[] sourcePixels, Color32[] movingPixels)
+    {
+        if (sourcePixels == null || movingPixels == null)
+        {
+            return;
+        }
+
+        int length = Mathf.Min(sourcePixels.Length, movingPixels.Length);
+        for (int i = 0; i < length; i++)
+        {
+            if (movingPixels[i].a == 0)
+            {
+                sourcePixels[i] = new Color32(0, 0, 0, 0);
+            }
+        }
     }
 
     private void SetActiveRole(string role)

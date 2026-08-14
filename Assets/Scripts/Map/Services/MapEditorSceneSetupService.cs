@@ -80,7 +80,7 @@ public static class MapEditorSceneSetupService
 
     private static void RemoveObjectByName(string objectName)
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
 
         if (canvas == null)
         {

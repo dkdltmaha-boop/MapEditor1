@@ -39,7 +39,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             return null;
         }
 
-        Canvas canvas = FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         if (canvas == null)
         {
             return null;

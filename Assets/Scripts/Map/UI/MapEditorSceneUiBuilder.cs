@@ -11,9 +11,47 @@ public static class MapEditorSceneUiBuilder
     private const string LogoObjectName = "MapEditor_Logo";
     private const string QuitButtonObjectName = "MapEditor_QuitButton";
 
+    public static Canvas FindEditorCanvas()
+    {
+        Canvas[] canvases = Object.FindObjectsByType<Canvas>(
+            FindObjectsInactive.Include,
+            FindObjectsSortMode.None);
+        Canvas fallback = null;
+
+        for (int i = 0; i < canvases.Length; i++)
+        {
+            Canvas canvas = canvases[i];
+            if (canvas == null || !canvas.gameObject.scene.IsValid())
+            {
+                continue;
+            }
+
+            if (fallback == null)
+            {
+                fallback = canvas.rootCanvas != null ? canvas.rootCanvas : canvas;
+            }
+
+            if (!canvas.isRootCanvas)
+            {
+                continue;
+            }
+
+            Transform root = canvas.transform;
+            if (root.Find("MapEditor_MapViewport") != null
+                || root.Find("MapEditor_Toolbar") != null
+                || root.Find(BackgroundObjectName) != null
+                || root.name == "Canvas")
+            {
+                return canvas;
+            }
+        }
+
+        return fallback;
+    }
+
     public static void EnsureBackground()
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = FindEditorCanvas();
 
         if (canvas == null)
         {
@@ -291,7 +329,7 @@ public static class MapEditorSceneUiBuilder
 
     public static void BringQuitButtonToFront()
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = FindEditorCanvas();
         Transform button = canvas == null ? null : canvas.transform.Find(QuitButtonObjectName);
 
         if (button != null && button.GetSiblingIndex() != canvas.transform.childCount - 1)

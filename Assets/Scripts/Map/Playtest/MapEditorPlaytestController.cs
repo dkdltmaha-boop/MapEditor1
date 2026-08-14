@@ -47,6 +47,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         public float waitRemaining;
         public Texture2D texture;
         public Color32[] pixels;
+        public Texture2D sourceTexture;
+        public Color32[] sourcePixels;
         public float nextTextureRefresh;
     }
 
@@ -96,6 +98,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         for (int i = 0; i < movingPreviews.Count; i++)
         {
             if (movingPreviews[i].texture != null) Object.Destroy(movingPreviews[i].texture);
+            if (movingPreviews[i].sourceTexture != null) Object.Destroy(movingPreviews[i].sourceTexture);
         }
         DestroyRuntimeObject(overlay == null ? null : overlay.gameObject);
         DestroyRuntimeObject(hud);
@@ -200,7 +203,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
 
     private void CreateHud()
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         if (canvas == null) return;
 
         Transform old = canvas.transform.Find(HudName);
@@ -268,18 +271,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
     {
         int x = Mathf.FloorToInt(point.x);
         int y = Mathf.FloorToInt(point.y);
-        bool baseGround = manager.HasPlaytestGroundAt(x, y);
-        bool baseCollision = manager.HasPlaytestCollisionAt(x, y);
-
-        for (int i = 0; i < movingPreviews.Count; i++)
-        {
-            MovingRegionPreview preview = movingPreviews[i];
-            if (Contains(preview.sourceTopLeft, preview.data.width, preview.data.height, point))
-            {
-                baseGround = false;
-                baseCollision = false;
-            }
-        }
+        bool baseGround = HasStaticGroundAt(x, y);
+        bool baseCollision = HasStaticCollisionAt(x, y);
 
         bool movingGround = false;
         bool movingCollision = false;
@@ -289,11 +282,50 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             if (!Contains(preview.currentTopLeft, preview.data.width, preview.data.height, point)) continue;
             int sourceX = preview.data.x + Mathf.FloorToInt(point.x - preview.currentTopLeft.x);
             int sourceY = preview.data.y + Mathf.FloorToInt(point.y - preview.currentTopLeft.y);
-            movingGround |= manager.HasPlaytestGroundAt(sourceX, sourceY);
+            movingGround |= manager.HasPlaytestGroundAt(sourceX, sourceY, preview.data.canvasLayerIndex);
             movingCollision |= manager.HasPlaytestCollisionAt(sourceX, sourceY);
         }
 
         return (baseGround || movingGround) && !(baseCollision || movingCollision);
+    }
+
+    private bool HasStaticGroundAt(int x, int y)
+    {
+        Vector2 cellCenter = new Vector2(x + 0.5f, y + 0.5f);
+        for (int canvasIndex = 0; canvasIndex < MapEditorLayerUtility.CanvasLayerCount; canvasIndex++)
+        {
+            if (!manager.HasPlaytestGroundAt(x, y, canvasIndex)) continue;
+
+            bool movedAway = false;
+            for (int i = 0; i < movingPreviews.Count; i++)
+            {
+                MovingRegionPreview preview = movingPreviews[i];
+                if (preview.data.canvasLayerIndex == canvasIndex
+                    && Contains(preview.sourceTopLeft, preview.data.width, preview.data.height, cellCenter))
+                {
+                    movedAway = true;
+                    break;
+                }
+            }
+
+            if (!movedAway) return true;
+        }
+
+        return false;
+    }
+
+    private bool HasStaticCollisionAt(int x, int y)
+    {
+        if (!manager.HasPlaytestCollisionAt(x, y)) return false;
+
+        Vector2 cellCenter = new Vector2(x + 0.5f, y + 0.5f);
+        for (int i = 0; i < movingPreviews.Count; i++)
+        {
+            MovingRegionPreview preview = movingPreviews[i];
+            if (Contains(preview.sourceTopLeft, preview.data.width, preview.data.height, cellCenter)) return false;
+        }
+
+        return true;
     }
 
     private void UpdatePlayerVisual()
@@ -318,7 +350,15 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             {
                 for (int x = 0; x < data.width; x++)
                 {
-                    manager.WriteCompositeCellPixels(data.x + x, data.y + y, RegionPixelsPerTile, pixels, textureWidth, x * RegionPixelsPerTile, (data.height - y - 1) * RegionPixelsPerTile);
+                    manager.WriteCanvasCellPixels(
+                        data.x + x,
+                        data.y + y,
+                        data.canvasLayerIndex,
+                        RegionPixelsPerTile,
+                        pixels,
+                        textureWidth,
+                        x * RegionPixelsPerTile,
+                        (data.height - y - 1) * RegionPixelsPerTile);
                 }
             }
 
@@ -330,7 +370,32 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             texture.SetPixels32(pixels);
             texture.Apply(false, false);
 
-            GameObject coverObject = new GameObject("MovingRegionSource_" + i, typeof(RectTransform), typeof(Image));
+            Color32[] sourcePixels = new Color32[textureWidth * textureHeight];
+            for (int y = 0; y < data.height; y++)
+            {
+                for (int x = 0; x < data.width; x++)
+                {
+                    manager.WriteCompositeCellPixelsExcludingCanvas(
+                        data.x + x,
+                        data.y + y,
+                        data.canvasLayerIndex,
+                        RegionPixelsPerTile,
+                        sourcePixels,
+                        textureWidth,
+                        x * RegionPixelsPerTile,
+                        (data.height - y - 1) * RegionPixelsPerTile);
+                }
+            }
+
+            Texture2D sourceTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Point,
+                wrapMode = TextureWrapMode.Clamp
+            };
+            sourceTexture.SetPixels32(sourcePixels);
+            sourceTexture.Apply(false, false);
+
+            GameObject coverObject = new GameObject("MovingRegionSource_" + i, typeof(RectTransform), typeof(RawImage));
             coverObject.transform.SetParent(overlay, false);
             RectTransform coverRect = coverObject.GetComponent<RectTransform>();
             coverRect.anchorMin = new Vector2(0f, 1f);
@@ -338,7 +403,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             coverRect.pivot = new Vector2(0f, 1f);
             coverRect.anchoredPosition = new Vector2(data.x * generator.cellSize, -data.y * generator.cellSize);
             coverRect.sizeDelta = new Vector2(data.width * generator.cellSize, data.height * generator.cellSize);
-            Image cover = coverObject.GetComponent<Image>();
+            RawImage cover = coverObject.GetComponent<RawImage>();
+            cover.texture = sourceTexture;
             cover.color = Color.white;
             cover.raycastTarget = false;
 
@@ -360,7 +426,9 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
                 currentTopLeft = new Vector2(data.x, data.y),
                 pathIndex = 1,
                 texture = texture,
-                pixels = pixels
+                pixels = pixels,
+                sourceTexture = sourceTexture,
+                sourcePixels = sourcePixels
             };
             movingPreviews.Add(preview);
             UpdateMovingRegionVisual(preview);
@@ -377,6 +445,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             if (MapEditorAnimationClock.Time >= preview.nextTextureRefresh)
             {
                 RefreshMovingRegionTexture(preview);
+                RefreshMovingRegionSourceTexture(preview);
                 preview.nextTextureRefresh = MapEditorAnimationClock.Time + 0.1f;
             }
 
@@ -409,7 +478,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         if (!Contains(topLeft, preview.data.width, preview.data.height, playerPosition)) return false;
         int sourceX = preview.data.x + Mathf.FloorToInt(playerPosition.x - topLeft.x);
         int sourceY = preview.data.y + Mathf.FloorToInt(playerPosition.y - topLeft.y);
-        return manager.HasPlaytestGroundAt(sourceX, sourceY) && !manager.HasPlaytestCollisionAt(sourceX, sourceY);
+        return manager.HasPlaytestGroundAt(sourceX, sourceY, preview.data.canvasLayerIndex)
+            && !manager.HasPlaytestCollisionAt(sourceX, sourceY);
     }
 
     private static void AdvanceMovingPath(MovingRegionPreview preview)
@@ -447,9 +517,10 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         {
             for (int x = 0; x < preview.data.width; x++)
             {
-                manager.WriteCompositeCellPixels(
+                manager.WriteCanvasCellPixels(
                     preview.data.x + x,
                     preview.data.y + y,
+                    preview.data.canvasLayerIndex,
                     RegionPixelsPerTile,
                     preview.pixels,
                     textureWidth,
@@ -460,6 +531,29 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
 
         preview.texture.SetPixels32(preview.pixels);
         preview.texture.Apply(false, false);
+    }
+
+    private void RefreshMovingRegionSourceTexture(MovingRegionPreview preview)
+    {
+        int textureWidth = preview.data.width * RegionPixelsPerTile;
+        for (int y = 0; y < preview.data.height; y++)
+        {
+            for (int x = 0; x < preview.data.width; x++)
+            {
+                manager.WriteCompositeCellPixelsExcludingCanvas(
+                    preview.data.x + x,
+                    preview.data.y + y,
+                    preview.data.canvasLayerIndex,
+                    RegionPixelsPerTile,
+                    preview.sourcePixels,
+                    textureWidth,
+                    x * RegionPixelsPerTile,
+                    (preview.data.height - y - 1) * RegionPixelsPerTile);
+            }
+        }
+
+        preview.sourceTexture.SetPixels32(preview.sourcePixels);
+        preview.sourceTexture.Apply(false, false);
     }
 
     private void SetActiveRole(string role)

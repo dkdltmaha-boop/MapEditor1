@@ -47,7 +47,7 @@ public static class MapEditorToolbarBuilder
             toolButtonImages = new Dictionary<EditorToolType, Image>()
         };
 
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
 
         if (canvas == null)
         {
@@ -107,7 +107,7 @@ public static class MapEditorToolbarBuilder
 
     public static void RefreshLayout(Vector2 offset)
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         Transform toolbar = canvas == null ? null : FindExistingToolbar(canvas.transform);
 
         if (toolbar != null)
@@ -712,7 +712,7 @@ public static class MapEditorLayerPanelBuilder
     public static Dictionary<MapEditorLayerType, Image> Ensure(MapEditorManager manager, Vector2 toolbarOffset)
     {
         Dictionary<MapEditorLayerType, Image> buttonImages = new Dictionary<MapEditorLayerType, Image>();
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
 
         if (canvas == null)
         {
@@ -735,7 +735,7 @@ public static class MapEditorLayerPanelBuilder
 
     public static void RefreshLayout(Vector2 toolbarOffset)
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         Transform panel = canvas == null ? null : canvas.transform.Find(LayerPanelObjectName);
 
         if (panel != null)

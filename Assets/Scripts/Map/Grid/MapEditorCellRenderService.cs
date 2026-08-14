@@ -179,28 +179,78 @@ public sealed class MapEditorCellRenderService
         int offsetX,
         int offsetY)
     {
+        return WriteFilteredCellPixels(
+            mapData, mapX, mapY, resolution, target, targetWidth, offsetX, offsetY,
+            Color.white, null, true);
+    }
+
+    public bool WriteCanvasCellPixels(
+        MapData mapData,
+        int mapX,
+        int mapY,
+        int canvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        canvasLayerIndex = Mathf.Clamp(canvasLayerIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        return WriteFilteredCellPixels(
+            mapData, mapX, mapY, resolution, target, targetWidth, offsetX, offsetY,
+            Color.clear,
+            layerType => MapEditorLayerUtility.GetCanvasIndex(layerType) == canvasLayerIndex,
+            true);
+    }
+
+    public bool WriteCompositeCellPixelsExcludingCanvas(
+        MapData mapData,
+        int mapX,
+        int mapY,
+        int excludedCanvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        excludedCanvasLayerIndex = Mathf.Clamp(excludedCanvasLayerIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        return WriteFilteredCellPixels(
+            mapData, mapX, mapY, resolution, target, targetWidth, offsetX, offsetY,
+            Color.white,
+            layerType => MapEditorLayerUtility.GetCanvasIndex(layerType) != excludedCanvasLayerIndex,
+            false);
+    }
+
+    private bool WriteFilteredCellPixels(
+        MapData mapData,
+        int mapX,
+        int mapY,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY,
+        Color backgroundColor,
+        Func<MapEditorLayerType, bool> includeLayer,
+        bool includeCollisionOverlay)
+    {
         if (mapData == null || target == null || resolution <= 0 || targetWidth <= 0)
         {
             return false;
         }
 
         bool hasAnimation = false;
-
         for (int y = 0; y < resolution; y++)
         {
             int row = (offsetY + y) * targetWidth + offsetX;
-            for (int x = 0; x < resolution; x++)
-            {
-                target[row + x] = Color.white;
-            }
+            for (int x = 0; x < resolution; x++) target[row + x] = backgroundColor;
         }
 
         for (int layerIndex = LayerPriority.Length - 1; layerIndex >= 0; layerIndex--)
         {
             MapEditorLayerType layerType = LayerPriority[layerIndex];
-            if (layerType == MapEditorLayerType.WallCollision
-                || layerType == MapEditorLayerType.Spawn
-                || layerType == MapEditorLayerType.Zone
+            if ((includeLayer != null && !includeLayer(layerType))
                 || (isLayerVisible != null && !isLayerVisible(layerType))
                 || mapData.GetTile(mapX, mapY, layerType) == -1)
             {
@@ -248,7 +298,7 @@ public sealed class MapEditorCellRenderService
         }
 
         bool collisionVisible = isLayerVisible == null || isLayerVisible(MapEditorLayerType.WallCollision);
-        if (!collisionVisible || !IsWallCollision(mapData, mapX, mapY))
+        if (!includeCollisionOverlay || !collisionVisible || !IsWallCollision(mapData, mapX, mapY))
         {
             return hasAnimation;
         }

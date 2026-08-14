@@ -33,6 +33,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
     private RectTransform squareHandle;
     private Texture2D squareTexture;
     private ColorWheelPngPaletteView pngPaletteView;
+    private MapEditorMovingPathListView movingPathListView;
 
     private float hue;
     private float saturation = 1f;
@@ -41,7 +42,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     public static ColorWheelPickerWindow Create(MapEditorManager manager, Vector2 offset)
     {
-        Canvas canvas = FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
 
         if (canvas == null)
         {
@@ -138,6 +139,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
     {
         this.manager = manager;
         pngPaletteView = new ColorWheelPngPaletteView(this, manager);
+        movingPathListView = new MapEditorMovingPathListView(manager);
         RemoveMissingScripts();
         RemoveChild("AlphaControl");
 
@@ -161,6 +163,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         }
 
         ApplyCompactVerticalLayout();
+        movingPathListView.EnsureArea(transform);
         isBuilt = true;
         SetColor(manager.selectedColor, false);
     }
@@ -200,6 +203,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
     public void RefreshLocalizedText()
     {
         UpdateColorDetails();
+        movingPathListView?.Refresh();
 
         Transform wallTileLabel = transform.Find(WallTileSelectorObjectName + "/WallTileLabel");
         Text wallText = wallTileLabel == null ? null : wallTileLabel.GetComponent<Text>();
@@ -218,6 +222,11 @@ public class ColorWheelPickerWindow : MonoBehaviour
         }
 
         RefreshHexInputLabels(transform.Find(HexColorInputObjectName));
+    }
+
+    public void RefreshMovingPathList()
+    {
+        movingPathListView?.Refresh();
     }
 
     public void SetHueFromLocalPoint(Vector2 localPoint)

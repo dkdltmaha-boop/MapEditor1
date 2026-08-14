@@ -131,6 +131,12 @@ public sealed class MapEditorPixelChromaExportService
                 return false;
             }
 
+            if (region.canvasLayerIndex < 0 || region.canvasLayerIndex >= MapEditorLayerUtility.CanvasLayerCount)
+            {
+                error = region.displayName + " 이동 구역의 대상 레이어가 올바르지 않습니다.";
+                return false;
+            }
+
             if (region.path == null || region.path.Length < 2 || region.path.Length > 256)
             {
                 error = region.displayName + " 경로는 2개 이상, 256개 이하의 지점이 필요합니다.";

@@ -485,6 +485,50 @@ public class MapEditorMapEditingService
             offsetY);
     }
 
+    public bool WriteCanvasCellPixels(
+        int mapX,
+        int mapY,
+        int canvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        return cellRender.WriteCanvasCellPixels(
+            getMapData(),
+            mapX,
+            mapY,
+            canvasLayerIndex,
+            resolution,
+            target,
+            targetWidth,
+            offsetX,
+            offsetY);
+    }
+
+    public bool WriteCompositeCellPixelsExcludingCanvas(
+        int mapX,
+        int mapY,
+        int excludedCanvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        return cellRender.WriteCompositeCellPixelsExcludingCanvas(
+            getMapData(),
+            mapX,
+            mapY,
+            excludedCanvasLayerIndex,
+            resolution,
+            target,
+            targetWidth,
+            offsetX,
+            offsetY);
+    }
+
     public Color GetPreviewColor(int x, int y)
     {
         return cellRender.GetPreviewColor(getMapData(), x, y);

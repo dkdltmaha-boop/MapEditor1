@@ -1210,6 +1210,7 @@ public sealed class MapEditorMovingRegionData
 {
     public string id = string.Empty;
     public string displayName = string.Empty;
+    public int canvasLayerIndex;
     public int x;
     public int y;
     public int width = 1;
@@ -1233,6 +1234,7 @@ public sealed class MapEditorMovingRegionData
         {
             id = id,
             displayName = displayName,
+            canvasLayerIndex = canvasLayerIndex,
             x = x,
             y = y,
             width = width,

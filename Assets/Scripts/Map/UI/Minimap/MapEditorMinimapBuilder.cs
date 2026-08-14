@@ -10,7 +10,7 @@ public static class MapEditorMinimapBuilder
 
     public static MapEditorMinimap Ensure(MapEditorManager manager, Vector2 offset, Vector2 size)
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
 
         if (canvas == null)
         {

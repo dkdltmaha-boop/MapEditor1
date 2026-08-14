@@ -161,6 +161,7 @@ public class MapEditorManager : MonoBehaviour
     private RectInt? previewRegion;
     private MapEditorMovingRegionData pendingMovingRegion;
     private readonly List<Vector2Int> pendingMovingPath = new List<Vector2Int>();
+    private int selectedMovingRegionIndex = -1;
     private MapEditorLayerType lastPaintLayer = MapEditorLayerType.Ground;
 
     public GridGenerator GridGenerator => gridGenerator;
@@ -169,6 +170,8 @@ public class MapEditorManager : MonoBehaviour
     public MapEditorLayerType BrushLayerRole => brushLayerRole;
     public bool BrushRoleMenuOpen => brushRoleMenuOpen;
     public bool IsPlaytestActive => playtestController != null && playtestController.IsActive;
+    public int MovingRegionCount => movingRegions == null ? 0 : movingRegions.Count;
+    public int SelectedMovingRegionIndex => selectedMovingRegionIndex;
     private Vector2 lastCanvasSize = new Vector2(-1f, -1f);
 
     public void SetCurrentMapDataForLoad(MapData mapData)
@@ -443,7 +446,7 @@ public class MapEditorManager : MonoBehaviour
 
         ConfigureMapViewportVisual();
         RefreshResponsiveLayout(true);
-        MapEditorSceneUiBuilder.EnsureQuitButton(Object.FindFirstObjectByType<Canvas>());
+        MapEditorSceneUiBuilder.EnsureQuitButton(MapEditorSceneUiBuilder.FindEditorCanvas());
         MapEditorFontProvider.ApplyToScene(gameObject.scene);
 
 #if UNITY_EDITOR
@@ -533,6 +536,14 @@ public class MapEditorManager : MonoBehaviour
         return false;
     }
 
+    public bool HasPlaytestGroundAt(int x, int y, int canvasLayerIndex)
+    {
+        if (CurrentMapData == null || !CurrentMapData.IsInside(x, y)) return false;
+        canvasLayerIndex = Mathf.Clamp(canvasLayerIndex, 0, MapEditorLayerUtility.CanvasLayerCount - 1);
+        MapEditorLayerType groundLayer = MapEditorLayerUtility.GetCanvasLayer(canvasLayerIndex, MapEditorLayerType.Ground);
+        return CurrentMapData.GetTile(x, y, groundLayer) != -1;
+    }
+
     public bool HasPlaytestCollisionAt(int x, int y)
     {
         return CurrentMapData != null
@@ -542,7 +553,7 @@ public class MapEditorManager : MonoBehaviour
 
     private void RefreshResponsiveLayout(bool force)
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         RectTransform canvasRect = canvas == null ? null : canvas.transform as RectTransform;
 
         if (canvasRect == null)
@@ -1914,7 +1925,17 @@ public class MapEditorManager : MonoBehaviour
     public void CreateNewMap(int width, int height)
     {
         previewRegion = null;
+        if (movingRegions == null)
+        {
+            movingRegions = new List<MapEditorMovingRegionData>();
+        }
+        else
+        {
+            movingRegions.Clear();
+        }
+        selectedMovingRegionIndex = -1;
         CurrentMapData = mapSizeService.CreateNewMap(this, width, height, ClearSelection, mapEditing.ClearHistory, RegenerateGrid);
+        colorWheelWindow?.RefreshMovingPathList();
     }
 
     public void ResizeMap(int width, int height)
@@ -2047,6 +2068,8 @@ public class MapEditorManager : MonoBehaviour
         ClampPreviewRegionToMap();
         LoadSpawnPoints(saveData);
         movingRegions = new List<MapEditorMovingRegionData>(saveData.movingRegions ?? System.Array.Empty<MapEditorMovingRegionData>());
+        selectedMovingRegionIndex = -1;
+        colorWheelWindow?.RefreshMovingPathList();
         RefreshSpawnMarker();
     }
 
@@ -2093,7 +2116,6 @@ public class MapEditorManager : MonoBehaviour
 
     public void PasteLoadedPngToMap()
     {
-        const int pngTileGridSize = 16;
         MapEditorClipboard pngClipboard = pngFiles.CreateCurrentPaletteClipboard();
 
         if (pngClipboard == null)
@@ -2102,16 +2124,18 @@ public class MapEditorManager : MonoBehaviour
         }
 
         Vector2Int topLeft = selectionClipboard.GetPasteTopLeft();
-        EnsureMapContainsRect(topLeft, pngTileGridSize, pngTileGridSize);
+        int pasteWidth = Mathf.Max(1, pngClipboard.width);
+        int pasteHeight = Mathf.Max(1, pngClipboard.height);
+        EnsureMapContainsRect(topLeft, pasteWidth, pasteHeight);
 
         mapEditing.PasteClipboard(topLeft, pngClipboard);
-        selectionClipboard.SetSelectionRect(new RectInt(topLeft.x, topLeft.y, pngTileGridSize, pngTileGridSize));
+        selectionClipboard.ClearSelection();
         Canvas.ForceUpdateCanvases();
         RefreshAllCells();
         ConfigureMapViewportVisual();
         UpdateBrushCursorPreview();
         RefreshMinimap();
-        Debug.Log("불러온 PNG를 맵에 붙여넣었습니다: " + pngFiles.CurrentPath + " / 위치 " + topLeft + " / 크기 " + pngTileGridSize + "x" + pngTileGridSize);
+        Debug.Log("불러온 PNG를 맵에 붙여넣었습니다: " + pngFiles.CurrentPath + " / 위치 " + topLeft + " / 크기 " + pasteWidth + "x" + pasteHeight);
     }
 
     public void SetPixelChromaSpawnAtHoveredCell()
@@ -2952,7 +2976,7 @@ public class MapEditorManager : MonoBehaviour
         RefreshToolToolbarSelection();
         UpdateBrushCursorPreview();
 
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         if (canvas != null)
         {
             MapEditorMapSizePanelBuilder.Ensure(canvas.transform, this, toolToolbarOffset);
@@ -3105,6 +3129,7 @@ public class MapEditorManager : MonoBehaviour
         {
             id = "MovingRegion_" + (movingRegions.Count + 1),
             displayName = "이동 구역 " + (movingRegions.Count + 1),
+            canvasLayerIndex = activeCanvasIndex,
             x = region.x,
             y = region.y,
             width = region.width,
@@ -3166,11 +3191,130 @@ public class MapEditorManager : MonoBehaviour
             pendingMovingRegion.path[i] = new MapEditorPathPointData(pendingMovingPath[i].x, pendingMovingPath[i].y);
         }
         movingRegions.Add(pendingMovingRegion.Clone());
+        selectedMovingRegionIndex = movingRegions.Count - 1;
         Debug.Log("이동 구역 저장 완료: " + pendingMovingRegion.displayName + " / 경유점 " + pendingMovingPath.Count + "개");
         pendingMovingRegion = null;
         pendingMovingPath.Clear();
         linePreviewCells.Clear();
+        FocusMovingRegion(selectedMovingRegionIndex);
+    }
+
+    public MapEditorMovingRegionData GetMovingRegionAt(int index)
+    {
+        return movingRegions != null && index >= 0 && index < movingRegions.Count
+            ? movingRegions[index]
+            : null;
+    }
+
+    public void FocusMovingRegion(int index)
+    {
+        MapEditorMovingRegionData region = GetMovingRegionAt(index);
+        if (region == null)
+        {
+            return;
+        }
+
         SetSelectionTool();
+        ClearSelection();
+        selectedMovingRegionIndex = index;
+        ShowMovingRegionPath(region);
+        colorWheelWindow?.RefreshMovingPathList();
+    }
+
+    public void RenameMovingRegion(int index, string displayName)
+    {
+        MapEditorMovingRegionData region = GetMovingRegionAt(index);
+        if (region == null)
+        {
+            return;
+        }
+
+        string trimmedName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
+        region.displayName = string.IsNullOrEmpty(trimmedName)
+            ? "이동 경로 " + (index + 1)
+            : trimmedName;
+    }
+
+    public void SetMovingRegionSpeed(int index, float tilesPerSecond)
+    {
+        MapEditorMovingRegionData region = GetMovingRegionAt(index);
+        if (region == null)
+        {
+            return;
+        }
+
+        region.tilesPerSecond = Mathf.Clamp(tilesPerSecond, 0.05f, 20f);
+    }
+
+    public void DeleteMovingRegion(int index)
+    {
+        if (movingRegions == null || index < 0 || index >= movingRegions.Count)
+        {
+            return;
+        }
+
+        movingRegions.RemoveAt(index);
+
+        if (selectedMovingRegionIndex == index)
+        {
+            selectedMovingRegionIndex = -1;
+            linePreviewCells.Clear();
+            UpdateBrushCursorPreview();
+        }
+        else if (selectedMovingRegionIndex > index)
+        {
+            selectedMovingRegionIndex--;
+        }
+
+        colorWheelWindow?.RefreshMovingPathList();
+    }
+
+    private void ShowMovingRegionPath(MapEditorMovingRegionData region)
+    {
+        linePreviewCells.Clear();
+
+        int left = Mathf.Clamp(region.x, 0, mapWidth - 1);
+        int top = Mathf.Clamp(region.y, 0, mapHeight - 1);
+        int right = Mathf.Clamp(region.x + Mathf.Max(1, region.width) - 1, 0, mapWidth - 1);
+        int bottom = Mathf.Clamp(region.y + Mathf.Max(1, region.height) - 1, 0, mapHeight - 1);
+
+        for (int x = left; x <= right; x++)
+        {
+            AddMovingRegionPreviewCell(new Vector2Int(x, top));
+            AddMovingRegionPreviewCell(new Vector2Int(x, bottom));
+        }
+
+        for (int y = top; y <= bottom; y++)
+        {
+            AddMovingRegionPreviewCell(new Vector2Int(left, y));
+            AddMovingRegionPreviewCell(new Vector2Int(right, y));
+        }
+
+        MapEditorPathPointData[] path = region.path ?? System.Array.Empty<MapEditorPathPointData>();
+        for (int i = 1; i < path.Length; i++)
+        {
+            MapEditorPathPointData from = path[i - 1];
+            MapEditorPathPointData to = path[i];
+            if (from == null || to == null)
+            {
+                continue;
+            }
+
+            MapEditorBrushGeometry.RasterizeLine(
+                new Vector2Int(from.x, from.y),
+                new Vector2Int(to.x, to.y),
+                AddMovingRegionPreviewCell);
+        }
+
+        UpdateBrushCursorPreview();
+    }
+
+    private void AddMovingRegionPreviewCell(Vector2Int point)
+    {
+        if (CurrentMapData != null && CurrentMapData.IsInside(point.x, point.y) && !linePreviewCells.Contains(point))
+        {
+            linePreviewCells.Add(point);
+        }
     }
 
     private MapEditorMovingRegionData[] GetMovingRegionsForSave()
@@ -4043,6 +4187,36 @@ public class MapEditorManager : MonoBehaviour
     {
         EnsureMapEditingService();
         return mapEditing.WriteCompositeCellPixels(mapX, mapY, resolution, target, targetWidth, offsetX, offsetY);
+    }
+
+    public bool WriteCanvasCellPixels(
+        int mapX,
+        int mapY,
+        int canvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        EnsureMapEditingService();
+        return mapEditing.WriteCanvasCellPixels(
+            mapX, mapY, canvasLayerIndex, resolution, target, targetWidth, offsetX, offsetY);
+    }
+
+    public bool WriteCompositeCellPixelsExcludingCanvas(
+        int mapX,
+        int mapY,
+        int excludedCanvasLayerIndex,
+        int resolution,
+        Color32[] target,
+        int targetWidth,
+        int offsetX,
+        int offsetY)
+    {
+        EnsureMapEditingService();
+        return mapEditing.WriteCompositeCellPixelsExcludingCanvas(
+            mapX, mapY, excludedCanvasLayerIndex, resolution, target, targetWidth, offsetX, offsetY);
     }
 
     private void MarkVisualCellDirty(int x, int y)

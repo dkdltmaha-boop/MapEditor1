@@ -137,7 +137,7 @@ public static class MapEditorModalPanel
 
     private static void CloseCurrent()
     {
-        Canvas canvas = Object.FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         Transform existing = canvas == null ? null : canvas.transform.Find(ObjectName);
 
         if (existing != null)
@@ -265,10 +265,10 @@ public static class MapEditorModalPanel
         string secondaryActionLabel,
         System.Action secondaryAction)
     {
-        Canvas canvas = manager == null ? Object.FindFirstObjectByType<Canvas>() : manager.GetComponentInParent<Canvas>();
+        Canvas canvas = manager == null ? null : manager.GetComponentInParent<Canvas>();
         if (canvas == null)
         {
-            canvas = Object.FindFirstObjectByType<Canvas>();
+            canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         }
 
         if (canvas == null)

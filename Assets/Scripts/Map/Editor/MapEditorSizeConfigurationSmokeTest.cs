@@ -15,6 +15,7 @@ public static class MapEditorSizeConfigurationSmokeTest
         Texture2D texture = null;
         GameObject testCellObject = null;
         GameObject collisionLineRoot = null;
+        GameObject nestedCanvasObject = null;
 
         try
         {
@@ -85,6 +86,18 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorSceneUiBuilder.BringQuitButtonToFront();
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
+
+            nestedCanvasObject = new GameObject("MapEditor_PlaytestHud_Smoke", typeof(RectTransform), typeof(Canvas));
+            nestedCanvasObject.transform.SetParent(canvas.transform, false);
+            nestedCanvasObject.GetComponent<Canvas>().overrideSorting = true;
+            Require(MapEditorSceneUiBuilder.FindEditorCanvas() == canvas,
+                "A nested playtest canvas replaced the editor's root canvas.");
+            MapEditorToolbarBuilder.Ensure(manager, manager.toolToolbarOffset, Array.Empty<string>());
+            Require(nestedCanvasObject.transform.Find("MapEditor_Toolbar") == null,
+                "The tool toolbar was duplicated inside the playtest HUD canvas.");
+            UnityEngine.Object.DestroyImmediate(nestedCanvasObject);
+            nestedCanvasObject = null;
+
             Transform recentScrollTransform = FindDescendant(toolbar, "RecentResourceScroll");
             ScrollRect recentScroll = recentScrollTransform == null
                 ? null
@@ -544,6 +557,47 @@ public static class MapEditorSizeConfigurationSmokeTest
                 && Mathf.Abs(paletteViewport.rect.height - paletteContentRect.rect.height) < 0.1f,
                 "PNG palette does not fit its viewport after loading.");
 
+            int originalMovingRegionCount = manager.MovingRegionCount;
+            manager.movingRegions.Add(new MapEditorMovingRegionData
+            {
+                id = "moving_path_smoke",
+                displayName = "Smoke Path",
+                canvasLayerIndex = 2,
+                x = 1,
+                y = 1,
+                width = 2,
+                height = 2,
+                tilesPerSecond = 3.5f,
+                path = new[]
+                {
+                    new MapEditorPathPointData(2, 2),
+                    new MapEditorPathPointData(4, 2)
+                }
+            });
+            picker.RefreshMovingPathList();
+            Transform movingPathList = picker.transform.Find("MovingPathList");
+            ScrollRect movingPathScroll = movingPathList?.Find("ScrollView")?.GetComponent<ScrollRect>();
+            Require(movingPathList != null && movingPathList.gameObject.activeSelf,
+                "The saved moving-path list was not created below the palette.");
+            Require(movingPathScroll != null && movingPathScroll.vertical && !movingPathScroll.horizontal,
+                "The saved moving-path list is not vertically scrollable.");
+            Require(movingPathScroll.content != null
+                && movingPathScroll.content.childCount == originalMovingRegionCount + 1,
+                "The saved moving-path list does not match the moving-region data.");
+            manager.SetMovingRegionSpeed(originalMovingRegionCount, 6.25f);
+            Require(Mathf.Abs(manager.GetMovingRegionAt(originalMovingRegionCount).tilesPerSecond - 6.25f) < 0.001f,
+                "Editing a saved moving path speed did not update its data.");
+            manager.RenameMovingRegion(originalMovingRegionCount, "Renamed Path");
+            Require(manager.GetMovingRegionAt(originalMovingRegionCount)?.displayName == "Renamed Path",
+                "A saved moving path could not be renamed.");
+            manager.FocusMovingRegion(originalMovingRegionCount);
+            Require(manager.SelectedMovingRegionIndex == originalMovingRegionCount,
+                "A saved moving path could not be focused on the map.");
+            manager.DeleteMovingRegion(originalMovingRegionCount);
+            Require(manager.MovingRegionCount == originalMovingRegionCount
+                && manager.SelectedMovingRegionIndex == -1,
+                "A saved moving path could not be deleted.");
+
             MapSaveData extendedSave = new MapSaveData(4, 4)
             {
                 spawnPoints = new[]
@@ -556,6 +610,7 @@ public static class MapEditorSizeConfigurationSmokeTest
                     new MapEditorMovingRegionData
                     {
                         id = "platform_1",
+                        canvasLayerIndex = 3,
                         x = 0,
                         y = 0,
                         width = 2,
@@ -579,13 +634,39 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Runner and Seeker spawn roles were not preserved by JSON round-trip.");
             Require(extendedRoundTrip.movingRegions?.Length == 1
                 && extendedRoundTrip.movingRegions[0].path?.Length == 2
-                && extendedRoundTrip.movingRegions[0].pingPong,
+                && extendedRoundTrip.movingRegions[0].pingPong
+                && extendedRoundTrip.movingRegions[0].canvasLayerIndex == 3
+                && Mathf.Abs(extendedRoundTrip.movingRegions[0].tilesPerSecond - 2f) < 0.001f,
                 "Moving-region path data was not preserved by JSON round-trip.");
+
+            MapData renderContractMap = new MapData(2, 1);
+            renderContractMap.SetTileOnLayer(0, 0, MapEditorLayerType.Ground,
+                MapEditorManager.CustomColorTileId, Color.red, string.Empty, -1, 0, false, false);
+            renderContractMap.SetTileOnLayer(0, 0, MapEditorLayerType.GroundExtra,
+                MapEditorManager.CustomColorTileId, Color.green, string.Empty, -1, 0, false, false);
+            MapEditorCellRenderService renderContract = new MapEditorCellRenderService(null, _ => true);
+            Color32[] movingLayerPixel = new Color32[1];
+            Color32[] remainingLayerPixel = new Color32[1];
+            Color32[] emptyMovingPixel = new Color32[1];
+            renderContract.WriteCanvasCellPixels(renderContractMap, 0, 0, 1, 1, movingLayerPixel, 1, 0, 0);
+            renderContract.WriteCompositeCellPixelsExcludingCanvas(renderContractMap, 0, 0, 1, 1, remainingLayerPixel, 1, 0, 0);
+            renderContract.WriteCanvasCellPixels(renderContractMap, 1, 0, 1, 1, emptyMovingPixel, 1, 0, 0);
+            Require(ColorDistance(movingLayerPixel[0], Color.green) < 0.02f,
+                "Moving-region rendering did not isolate the selected canvas layer.");
+            Require(ColorDistance(remainingLayerPixel[0], Color.red) < 0.02f,
+                "The moving-region source did not preserve the remaining canvas layers.");
+            Require(emptyMovingPixel[0].a == 0,
+                "An empty moving-layer cell was rendered as an opaque white tile.");
 
             Debug.Log("MapEditor size configuration smoke test passed.");
         }
         finally
         {
+            if (nestedCanvasObject != null)
+            {
+                UnityEngine.Object.DestroyImmediate(nestedCanvasObject);
+            }
+
             if (texture != null)
             {
                 UnityEngine.Object.DestroyImmediate(texture);

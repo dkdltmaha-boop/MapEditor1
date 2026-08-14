@@ -31,7 +31,7 @@ public sealed class MapEditorTilesetLibraryWindow : MonoBehaviour
             return null;
         }
 
-        Canvas canvas = FindFirstObjectByType<Canvas>();
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         if (canvas == null)
         {
             Debug.LogError("타일셋 보관함을 표시할 Canvas가 없습니다.");

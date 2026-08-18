@@ -71,7 +71,11 @@ public static class MapEditorExportSmokeTest
 
         string packagePath = Path.Combine(root, "workshop_package");
         MapEditorWorkshopExportService workshopExport = new MapEditorWorkshopExportService((_, _) => null);
-        workshopExport.SetPreviewRegion(new RectInt(0, 0, 4, 4));
+        workshopExport.SetPreviewRegions(new[]
+        {
+            new RectInt(0, 0, 4, 4),
+            new RectInt(1, 1, 2, 2)
+        });
         workshopExport.SetMovingRegions(movingRegions);
 
         if (!workshopExport.Export(
@@ -555,7 +559,7 @@ public static class MapEditorExportSmokeTest
 
         MapSaveData loaded = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(source));
 
-        Require(loaded.formatVersion == 6, "Layer settings did not use map format version 6.");
+        Require(loaded.formatVersion == 7, "Layer settings did not use map format version 7.");
         Require(loaded.layerSettings != null && loaded.layerSettings.Length == 4, "Layer settings were not serialized.");
         Require(loaded.layerSettings[0].displayName == "Floor", "A custom layer name was not preserved.");
         Require(!loaded.layerSettings[1].visible, "A hidden layer was restored as visible.");
@@ -717,6 +721,7 @@ public static class MapEditorExportSmokeTest
         string manifestPath = Path.Combine(packagePath, "manifest.json");
         string mapPath = Path.Combine(packagePath, "map.json");
         string previewPath = Path.Combine(packagePath, "preview.png");
+        string additionalPreviewPath = Path.Combine(packagePath, "preview_02.png");
         string reportPath = Path.Combine(packagePath, "package_report.json");
         string steamUploadPath = Path.Combine(packagePath, "steam_upload.json");
         string readmePath = Path.Combine(packagePath, "README.txt");
@@ -725,6 +730,7 @@ public static class MapEditorExportSmokeTest
         bool valid = RequireFile(manifestPath)
             & RequireFile(mapPath)
             & RequireFile(previewPath)
+            & RequireFile(additionalPreviewPath)
             & RequireFile(reportPath)
             & RequireFile(steamUploadPath)
             & RequireFile(readmePath)
@@ -739,7 +745,9 @@ public static class MapEditorExportSmokeTest
         try
         {
             Require(preview.LoadImage(File.ReadAllBytes(previewPath)), "Workshop preview PNG could not be decoded.");
-            Require(preview.width == 64 && preview.height == 64, "Workshop preview size does not match the 4x4 map at 16 pixels per tile.");
+            Require(preview.width == MapEditorWorkshopExportService.PreviewWidth
+                && preview.height == MapEditorWorkshopExportService.PreviewHeight,
+                "Workshop preview does not use the fixed 16:9 output size.");
         }
         finally
         {
@@ -748,11 +756,13 @@ public static class MapEditorExportSmokeTest
 
         string reportJson = File.ReadAllText(reportPath);
         string mapJson = File.ReadAllText(mapPath);
+        string uploadJson = File.ReadAllText(steamUploadPath);
         return RequireJsonText(reportJson, "package_report.json", "\"isValid\": true")
             && RequireJsonText(reportJson, "package_report.json", "\"manifestExists\": true")
             && RequireJsonText(reportJson, "package_report.json", "\"mapFileExists\": true")
             && RequireJsonText(reportJson, "package_report.json", "\"previewExists\": true")
-            && RequireJsonText(mapJson, "map.json", "\"movingRegions\"");
+            && RequireJsonText(mapJson, "map.json", "\"movingRegions\"")
+            && RequireJsonText(uploadJson, "steam_upload.json", "preview_02.png");
     }
 
     private static MapEditorMovingRegionData[] CreateSmokeTestMovingRegions()

@@ -9,6 +9,7 @@ public sealed class PixelChromaWorkshopManifest
     public string description;
     public string mapFile = "map.json";
     public string previewImage = "preview.png";
+    public string[] previewImages = new string[] { "preview.png" };
     public string tilesetFolder = "tilesets";
     public string loaderStrategy = "RuntimeTilemapLoader";
     public string mapFormat = "PixelChromaMap";

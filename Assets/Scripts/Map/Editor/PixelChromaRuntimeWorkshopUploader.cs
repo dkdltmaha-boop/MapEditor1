@@ -200,6 +200,16 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         if (File.Exists(preview) && new FileInfo(preview).Length <= 1024 * 1024)
             SteamUGC.SetItemPreview(updateHandle, preview);
 
+        if (cfg?.additionalPreviewFiles != null)
+        {
+            for (int i = 0; i < cfg.additionalPreviewFiles.Length; i++)
+            {
+                string additional = Path.GetFullPath(Path.Combine(exportFolder, cfg.additionalPreviewFiles[i] ?? string.Empty));
+                if (File.Exists(additional) && new FileInfo(additional).Length <= 1024 * 1024)
+                    SteamUGC.AddItemPreviewFile(updateHandle, additional, EItemPreviewType.k_EItemPreviewType_Image);
+            }
+        }
+
         // 핵심: 업로드할 "폴더" 지정. Steam 이 이 폴더 전체를 압축/전송한다.
         SteamUGC.SetItemContent(updateHandle, Path.GetFullPath(exportFolder));
 

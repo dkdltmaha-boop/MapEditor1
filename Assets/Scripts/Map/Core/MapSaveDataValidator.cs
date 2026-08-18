@@ -38,6 +38,11 @@ public static class MapSaveDataValidator
             return false;
         }
 
+        if (saveData.previewRegions != null && saveData.previewRegions.Length > 64)
+        {
+            return false;
+        }
+
         return saveData.tiles.Length >= saveData.width * saveData.height;
     }
 }

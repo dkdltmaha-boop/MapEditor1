@@ -39,6 +39,7 @@ public static class MapEditorToolbarBuilder
     private const float ToolbarRecentHeight = 180f;
     private const int ToolbarHintFontSize = 9;
     private const int ToolbarLabelFontSize = 12;
+    private const float QuitButtonSafeInset = 42f;
 
     public static MapEditorToolbarRefs Ensure(MapEditorManager manager, Vector2 offset, IReadOnlyList<string> recentPngPaths)
     {
@@ -187,7 +188,7 @@ public static class MapEditorToolbarBuilder
             rect.anchorMax = new Vector2(1f, 1f);
             rect.pivot = new Vector2(1f, 1f);
             availableHeight = 0f;
-            position.x = Mathf.Clamp(position.x, -parentRect.rect.width + ToolbarWidth, 0f);
+            position.x = Mathf.Clamp(position.x, -parentRect.rect.width + ToolbarWidth, -QuitButtonSafeInset);
             position.y = 0f;
         }
         else
@@ -226,7 +227,6 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarToolButton(toolbar, manager, L("사각형 채우기", "Rectangle Fill"), "G", EditorToolType.RectangleFill, MapEditorToolbarAction.RectangleFill, "RectangleFillToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("지우개", "Eraser"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraserToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
-        EnsureToolbarToolButton(toolbar, manager, L("프리뷰 영역", "Preview Area"), L("P/드래그", "P/Drag"), EditorToolType.PreviewRegion, MapEditorToolbarAction.PreviewRegion, "PreviewRegionToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("플레이어 시작", "Runner Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("술래 시작", "Seeker Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSeekerSpawn, "SeekerSpawnToolButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일 만들기", "Create Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenTileCreator, "TileCreatorButton");

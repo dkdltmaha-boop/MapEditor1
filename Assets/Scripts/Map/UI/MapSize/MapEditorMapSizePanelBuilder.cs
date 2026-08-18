@@ -11,7 +11,9 @@ public static class MapEditorMapSizePanelBuilder
 
     internal static Vector2 GetPanelPosition(Vector2 toolbarOffset)
     {
-        return toolbarOffset + new Vector2(-(ToolbarWidth + 10f), 0f);
+        Vector2 safeToolbarOffset = toolbarOffset;
+        safeToolbarOffset.x = Mathf.Min(safeToolbarOffset.x, -42f);
+        return safeToolbarOffset + new Vector2(-(ToolbarWidth + 10f), 0f);
     }
 
     internal static Vector2 GetLayerPanelPosition(Vector2 toolbarOffset)

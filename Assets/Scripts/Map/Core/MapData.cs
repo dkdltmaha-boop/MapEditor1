@@ -1074,7 +1074,7 @@ public class MapTilePixelData
 [System.Serializable]
 public class MapSaveData
 {
-    public int formatVersion = 6;
+    public int formatVersion = 7;
     public int width;
     public int height;
     public string currentPngPalettePath;
@@ -1084,6 +1084,7 @@ public class MapSaveData
     public int previewY;
     public int previewWidth;
     public int previewHeight;
+    public MapEditorPreviewRegionData[] previewRegions = System.Array.Empty<MapEditorPreviewRegionData>();
     public MapEditorSpawnPointData[] spawnPoints;
     public int[] tiles;
     public Color[] colors;
@@ -1106,7 +1107,7 @@ public class MapSaveData
 
     public MapSaveData(int width, int height)
     {
-        formatVersion = 6;
+        formatVersion = 7;
         this.width = width;
         this.height = height;
         tiles = new int[width * height];
@@ -1124,6 +1125,33 @@ public class MapSaveData
         embeddedPngAssets = new EmbeddedPngAsset[0];
         importedTilesets = new MapEditorTilesetDefinition[0];
         movingRegions = new MapEditorMovingRegionData[0];
+        previewRegions = new MapEditorPreviewRegionData[0];
+    }
+}
+
+[System.Serializable]
+public sealed class MapEditorPreviewRegionData
+{
+    public int x;
+    public int y;
+    public int width;
+    public int height;
+
+    public MapEditorPreviewRegionData()
+    {
+    }
+
+    public MapEditorPreviewRegionData(RectInt region)
+    {
+        x = region.x;
+        y = region.y;
+        width = region.width;
+        height = region.height;
+    }
+
+    public RectInt ToRectInt()
+    {
+        return new RectInt(x, y, width, height);
     }
 }
 

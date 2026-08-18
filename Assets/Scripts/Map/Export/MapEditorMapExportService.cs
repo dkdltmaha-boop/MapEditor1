@@ -23,12 +23,57 @@ public class MapEditorMapExportService
             return;
         }
 
+        Texture2D output = CreateTexture(mapData, cellPixels, emptyCellsTransparent, cropRegion);
+        if (output == null) return;
+        File.WriteAllBytes(path, output.EncodeToPNG());
+        MapEditorObjectUtility.DestroyObject(output);
+        Debug.Log("맵 PNG를 내보냈습니다: " + path);
+    }
+
+    public void ExportFixedPreviewPng(
+        MapData mapData,
+        string path,
+        int cellPixels,
+        bool emptyCellsTransparent,
+        RectInt? cropRegion,
+        int outputWidth,
+        int outputHeight)
+    {
+        Texture2D source = CreateTexture(mapData, cellPixels, emptyCellsTransparent, cropRegion);
+        if (source == null) return;
+
+        Texture2D output = ResizeNearest(source, Mathf.Max(1, outputWidth), Mathf.Max(1, outputHeight));
+        File.WriteAllBytes(path, output.EncodeToPNG());
+        MapEditorObjectUtility.DestroyObject(source);
+        MapEditorObjectUtility.DestroyObject(output);
+        Debug.Log("고정 크기 맵 프리뷰를 내보냈습니다: " + path);
+    }
+
+    public Texture2D CreateFixedPreviewTexture(
+        MapData mapData,
+        int cellPixels,
+        bool emptyCellsTransparent,
+        RectInt? cropRegion,
+        int outputWidth,
+        int outputHeight)
+    {
+        Texture2D source = CreateTexture(mapData, cellPixels, emptyCellsTransparent, cropRegion);
+        if (source == null) return null;
+        Texture2D output = ResizeNearest(source, Mathf.Max(1, outputWidth), Mathf.Max(1, outputHeight));
+        MapEditorObjectUtility.DestroyObject(source);
+        return output;
+    }
+
+    private Texture2D CreateTexture(MapData mapData, int cellPixels, bool emptyCellsTransparent, RectInt? cropRegion)
+    {
+        if (mapData == null) return null;
+
         int safeCellPixels = MapEditorManager.NormalizeExportCellPixels(cellPixels);
         RectInt region = ResolveCropRegion(mapData, cropRegion);
         int exportWidth = region.width * safeCellPixels;
         int exportHeight = region.height * safeCellPixels;
         Texture2D output = new Texture2D(exportWidth, exportHeight, TextureFormat.RGBA32, false);
-
+        output.filterMode = FilterMode.Point;
         FillEmptyPixels(output, emptyCellsTransparent ? Color.clear : Color.white);
 
         for (int mapY = region.yMin; mapY < region.yMax; mapY++)
@@ -40,9 +85,29 @@ public class MapEditorMapExportService
         }
 
         output.Apply();
-        File.WriteAllBytes(path, output.EncodeToPNG());
-        MapEditorObjectUtility.DestroyObject(output);
-        Debug.Log("맵 PNG를 내보냈습니다: " + path);
+        return output;
+    }
+
+    private static Texture2D ResizeNearest(Texture2D source, int width, int height)
+    {
+        Texture2D output = new Texture2D(width, height, TextureFormat.RGBA32, false);
+        output.filterMode = FilterMode.Point;
+        Color32[] sourcePixels = source.GetPixels32();
+        Color32[] targetPixels = new Color32[width * height];
+
+        for (int y = 0; y < height; y++)
+        {
+            int sourceY = Mathf.Min(source.height - 1, y * source.height / height);
+            for (int x = 0; x < width; x++)
+            {
+                int sourceX = Mathf.Min(source.width - 1, x * source.width / width);
+                targetPixels[y * width + x] = sourcePixels[sourceY * source.width + sourceX];
+            }
+        }
+
+        output.SetPixels32(targetPixels);
+        output.Apply();
+        return output;
     }
 
     private void FillEmptyPixels(Texture2D output, Color emptyColor)

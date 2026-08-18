@@ -86,6 +86,9 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorSceneUiBuilder.BringQuitButtonToFront();
             Transform toolbar = canvas.transform.Find("MapEditor_Toolbar");
             Require(toolbar != null, "Tool toolbar was not created.");
+            RectTransform toolbarRect = toolbar.GetComponent<RectTransform>();
+            Require(toolbarRect != null && toolbarRect.anchoredPosition.x <= -42f,
+                "Tool toolbar overlaps the fixed top-right quit-button area.");
 
             nestedCanvasObject = new GameObject("MapEditor_PlaytestHud_Smoke", typeof(RectTransform), typeof(Canvas));
             nestedCanvasObject.transform.SetParent(canvas.transform, false);
@@ -186,6 +189,8 @@ public static class MapEditorSizeConfigurationSmokeTest
             MapEditorObjectUtility.DestroyObject(tileCreatorRoot.gameObject);
 
             MapEditorLayerPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
+            MapEditorWorkshopPreviewPanelBuilder.Ensure(manager, manager.toolToolbarOffset);
+            MapEditorMapInfoPanelBuilder.Ensure(canvas.transform, manager);
             Transform layerPanel = canvas.transform.Find("MapEditor_LayerPanel");
             Require(layerPanel != null, "Layer panel was not created.");
             Require(FindDescendant(layerPanel, "CanvasLayer_0")?.GetComponent<MapEditorToolbarButton>()?.action
@@ -197,6 +202,13 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Canvas-layer add button is missing.");
             Require(FindDescendant(layerPanel, "LayerAction_DeleteCanvas_Ground") != null,
                 "Canvas-layer delete button is missing.");
+            Transform previewPanel = canvas.transform.Find("MapEditor_WorkshopPreviewPanel");
+            Require(previewPanel != null && FindDescendant(previewPanel, "AddPreviewButton")?.GetComponent<Button>() != null,
+                "Workshop preview panel or capture button is missing below the layer panel.");
+            Require(canvas.transform.Find("MapEditor_MapInfoPanel/Stats")?.GetComponent<Text>() != null,
+                "Map statistics panel was not created below the tilemap workspace.");
+            Require(FindDescendant(toolbar, "PreviewRegionToolButton") == null,
+                "Preview capture is still present in the tool toolbar instead of its own panel.");
 
             manager.SetBrushLayerRole(MapEditorLayerType.Object);
             Require(manager.ActiveLayer == MapEditorLayerType.Ground,
@@ -685,8 +697,8 @@ public static class MapEditorSizeConfigurationSmokeTest
                 }
             };
             MapSaveData extendedRoundTrip = JsonUtility.FromJson<MapSaveData>(JsonUtility.ToJson(extendedSave));
-            Require(extendedRoundTrip != null && extendedRoundTrip.formatVersion == 6,
-                "Extended edit-map contract did not preserve format version 6.");
+            Require(extendedRoundTrip != null && extendedRoundTrip.formatVersion == 7,
+                "Extended edit-map contract did not preserve format version 7.");
             Require(extendedRoundTrip.spawnPoints?.Length == 2
                 && extendedRoundTrip.spawnPoints[0].role == "Runner"
                 && extendedRoundTrip.spawnPoints[1].role == "Seeker",

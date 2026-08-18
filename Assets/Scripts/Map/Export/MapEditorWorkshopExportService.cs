@@ -14,10 +14,13 @@ public sealed class MapEditorWorkshopExportService
     private const string ReportFileName = "package_report.json";
     private const string SteamUploadFileName = "steam_upload.json";
     private const string TilesetFolderName = "tilesets";
+    public const int PreviewWidth = 512;
+    public const int PreviewHeight = 288;
 
     private readonly MapEditorPixelChromaExportService mapExportService = new MapEditorPixelChromaExportService();
     private readonly MapEditorMapExportService previewExportService;
     private RectInt? previewRegion;
+    private RectInt[] previewRegions = Array.Empty<RectInt>();
 
     public MapEditorWorkshopExportService(Func<string, int, Sprite> getPngTileSprite)
     {
@@ -27,6 +30,13 @@ public sealed class MapEditorWorkshopExportService
     public void SetPreviewRegion(RectInt? region)
     {
         previewRegion = region;
+    }
+
+    public void SetPreviewRegions(IReadOnlyList<RectInt> regions)
+    {
+        previewRegions = regions == null ? Array.Empty<RectInt>() : new RectInt[regions.Count];
+        for (int i = 0; i < previewRegions.Length; i++) previewRegions[i] = regions[i];
+        previewRegion = previewRegions.Length > 0 ? previewRegions[0] : (RectInt?)null;
     }
 
     public void SetMovingRegions(MapEditorMovingRegionData[] regions)
@@ -181,9 +191,9 @@ public sealed class MapEditorWorkshopExportService
 
         Directory.CreateDirectory(paths.TilesetFolder);
         report.tilesetCount = 0;
-        previewExportService.ExportPng(mapData, paths.Preview, cellSize, emptyCellsTransparent, previewRegion);
-        WriteManifest(paths.Manifest, normalizedMapId, title, author, description, requiredGameVersion);
-        WriteSteamUploadConfig(paths.SteamUpload, normalizedMapId, title, description, steamVisibility, steamTags);
+        string[] previewFiles = ExportPreviewImages(mapData, folderPath, paths.Preview, cellSize, emptyCellsTransparent);
+        WriteManifest(paths.Manifest, normalizedMapId, title, author, description, requiredGameVersion, previewFiles);
+        WriteSteamUploadConfig(paths.SteamUpload, normalizedMapId, title, description, steamVisibility, steamTags, previewFiles);
         WriteReadme(paths.Readme, normalizedMapId);
         ValidateRequiredPackageFiles(paths, report);
         AddFileInventory(folderPath, report);
@@ -197,6 +207,25 @@ public sealed class MapEditorWorkshopExportService
 
         Debug.Log("PixelChroma 창작마당 패키지를 내보냈습니다: " + folderPath);
         return true;
+    }
+
+    private string[] ExportPreviewImages(MapData mapData, string folderPath, string primaryPath, int cellSize, bool emptyCellsTransparent)
+    {
+        RectInt[] regions = previewRegions.Length > 0
+            ? previewRegions
+            : previewRegion.HasValue ? new[] { previewRegion.Value } : new[] { new RectInt(0, 0, mapData.width, mapData.height) };
+        string[] files = new string[regions.Length];
+
+        for (int i = 0; i < regions.Length; i++)
+        {
+            string fileName = i == 0 ? PreviewFileName : "preview_" + (i + 1).ToString("00") + ".png";
+            string path = i == 0 ? primaryPath : Path.Combine(folderPath, fileName);
+            previewExportService.ExportFixedPreviewPng(
+                mapData, path, cellSize, emptyCellsTransparent, regions[i], PreviewWidth, PreviewHeight);
+            files[i] = fileName;
+        }
+
+        return files;
     }
 
     private PixelChromaWorkshopPackageReport BuildPackageReport(MapData mapData, string mapId, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
@@ -250,7 +279,8 @@ public sealed class MapEditorWorkshopExportService
         string title,
         string author,
         string description,
-        string requiredGameVersion)
+        string requiredGameVersion,
+        string[] previewFiles)
     {
         PixelChromaWorkshopManifest manifest = new PixelChromaWorkshopManifest
         {
@@ -260,6 +290,7 @@ public sealed class MapEditorWorkshopExportService
             description = description ?? string.Empty,
             mapFile = MapFileName,
             previewImage = PreviewFileName,
+            previewImages = previewFiles ?? new[] { PreviewFileName },
             tilesetFolder = TilesetFolderName,
             loaderStrategy = "RuntimeTilemapLoader",
             mapFormat = "PixelChromaMap",
@@ -478,7 +509,8 @@ public sealed class MapEditorWorkshopExportService
         string title,
         string description,
         string visibility,
-        string tags)
+        string tags,
+        string[] previewFiles)
     {
         PixelChromaSteamWorkshopUploadConfig config = new PixelChromaSteamWorkshopUploadConfig
         {
@@ -486,10 +518,19 @@ public sealed class MapEditorWorkshopExportService
             title = string.IsNullOrWhiteSpace(title) ? mapId : title,
             description = description ?? string.Empty,
             visibility = NormalizeVisibility(visibility),
-            tags = ParseTags(tags)
+            tags = ParseTags(tags),
+            additionalPreviewFiles = GetAdditionalPreviewFiles(previewFiles)
         };
 
         File.WriteAllText(path, JsonUtility.ToJson(config, true));
+    }
+
+    private static string[] GetAdditionalPreviewFiles(string[] previewFiles)
+    {
+        if (previewFiles == null || previewFiles.Length <= 1) return Array.Empty<string>();
+        string[] result = new string[previewFiles.Length - 1];
+        Array.Copy(previewFiles, 1, result, 0, result.Length);
+        return result;
     }
 
     private static void WriteReadme(string path, string mapId)

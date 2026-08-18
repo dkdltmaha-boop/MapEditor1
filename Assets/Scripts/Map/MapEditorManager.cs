@@ -163,6 +163,7 @@ public class MapEditorManager : MonoBehaviour
     private Vector2Int? rectangleFillDragStart;
     private Vector2Int? rectangleFillDragEnd;
     private RectInt? previewRegion;
+    [SerializeField] private List<RectInt> previewRegions = new List<RectInt>();
     private MapEditorMovingRegionData pendingMovingRegion;
     private readonly List<Vector2Int> pendingMovingPath = new List<Vector2Int>();
     private int selectedMovingRegionIndex = -1;
@@ -176,6 +177,8 @@ public class MapEditorManager : MonoBehaviour
     public bool IsPlaytestActive => playtestController != null && playtestController.IsActive;
     public int MovingRegionCount => movingRegions == null ? 0 : movingRegions.Count;
     public int SelectedMovingRegionIndex => selectedMovingRegionIndex;
+    public int SpawnPointCount => pixelChromaSpawnPoints == null ? 0 : pixelChromaSpawnPoints.Count;
+    public IReadOnlyList<RectInt> PreviewRegions => previewRegions;
     private Vector2 lastCanvasSize = new Vector2(-1f, -1f);
 
     public void SetCurrentMapDataForLoad(MapData mapData)
@@ -345,7 +348,7 @@ public class MapEditorManager : MonoBehaviour
     private void ConfigureWorkshopPreview()
     {
         EnsureWorkshopExportService();
-        workshopExportService.SetPreviewRegion(previewRegion);
+        workshopExportService.SetPreviewRegions(previewRegions);
         workshopExportService.SetMovingRegions(GetMovingRegionsForSave());
     }
 
@@ -578,6 +581,8 @@ public class MapEditorManager : MonoBehaviour
         MapEditorToolbarBuilder.RefreshLayout(toolToolbarOffset);
         MapEditorMapSizePanelBuilder.RefreshLayout(canvas.transform, toolToolbarOffset);
         MapEditorLayerPanelBuilder.RefreshLayout(toolToolbarOffset);
+        MapEditorWorkshopPreviewPanelBuilder.RefreshLayout(toolToolbarOffset);
+        MapEditorMapInfoPanelBuilder.RefreshLayout(canvas.transform);
         ConfigureMapViewportVisual();
     }
 
@@ -1801,21 +1806,21 @@ public class MapEditorManager : MonoBehaviour
         ClearSelection();
         EnsureSpawnPointList();
         MapEditorSpawnPointData[] previousSpawnPoints = GetSpawnPointsForSave();
-        RectInt? previousPreviewRegion = previewRegion;
+        RectInt[] previousPreviewRegions = previewRegions.ToArray();
 
         mapEditing.BeginTransaction();
         mapEditing.ClearAllLayers();
-        ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), null);
+        ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), System.Array.Empty<RectInt>());
         mapEditing.RecordTransactionSideEffect(
-            () => ApplyMapClearMetadata(previousSpawnPoints, previousPreviewRegion),
-            () => ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), null));
+            () => ApplyMapClearMetadata(previousSpawnPoints, previousPreviewRegions),
+            () => ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), System.Array.Empty<RectInt>()));
         mapEditing.CommitTransaction();
 
         RefreshAllCells();
         UpdateBrushCursorPreview();
     }
 
-    private void ApplyMapClearMetadata(MapEditorSpawnPointData[] spawnPoints, RectInt? restoredPreviewRegion)
+    private void ApplyMapClearMetadata(MapEditorSpawnPointData[] spawnPoints, RectInt[] restoredPreviewRegions)
     {
         EnsureSpawnPointList();
         pixelChromaSpawnPoints.Clear();
@@ -1837,7 +1842,10 @@ public class MapEditorManager : MonoBehaviour
             }
         }
 
-        previewRegion = restoredPreviewRegion;
+        previewRegions.Clear();
+        if (restoredPreviewRegions != null) previewRegions.AddRange(restoredPreviewRegions);
+        previewRegion = previewRegions.Count > 0 ? previewRegions[0] : (RectInt?)null;
+        MapEditorWorkshopPreviewPanelBuilder.Ensure(this, toolToolbarOffset);
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
         UpdatePlayerScaleGuide();
@@ -1929,6 +1937,7 @@ public class MapEditorManager : MonoBehaviour
     public void CreateNewMap(int width, int height)
     {
         previewRegion = null;
+        previewRegions.Clear();
         if (movingRegions == null)
         {
             movingRegions = new List<MapEditorMovingRegionData>();
@@ -1968,7 +1977,8 @@ public class MapEditorManager : MonoBehaviour
         }
 
         CurrentMapData = resizedMapData;
-        ClampPreviewRegionToMap();
+        ClampPreviewRegionsToMap();
+        previewRegion = previewRegions.Count > 0 ? previewRegions[0] : (RectInt?)null;
         RegenerateGrid();
 
         if (refreshToolbar && createToolToolbar)
@@ -2006,7 +2016,7 @@ public class MapEditorManager : MonoBehaviour
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
-        mapSaveService.SetPreviewRegion(previewRegion);
+        mapSaveService.SetPreviewRegions(previewRegions);
         mapSaveService.SetMovingRegions(GetMovingRegionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave());
     }
@@ -2016,7 +2026,7 @@ public class MapEditorManager : MonoBehaviour
         EnsureSpawnPointList();
         mapSaveService.SetImportedTilesets(EnsureTilesetLibrary().GetDefinitionsForSave());
         mapSaveService.SetLayerSettings(GetLayerSettingsForSave());
-        mapSaveService.SetPreviewRegion(previewRegion);
+        mapSaveService.SetPreviewRegions(previewRegions);
         mapSaveService.SetMovingRegions(GetMovingRegionsForSave());
         mapSaveService.Save(CurrentMapData, pngFiles.CurrentPath, pixelChromaSpawnX, pixelChromaSpawnY, GetSpawnPointsForSave(), fileName);
     }
@@ -2069,10 +2079,20 @@ public class MapEditorManager : MonoBehaviour
 
         pixelChromaSpawnX = Mathf.Clamp(saveData.spawnX, 0, mapWidth - 1);
         pixelChromaSpawnY = Mathf.Clamp(saveData.spawnY, 0, mapHeight - 1);
-        previewRegion = saveData.previewWidth > 0 && saveData.previewHeight > 0
-            ? new RectInt(saveData.previewX, saveData.previewY, saveData.previewWidth, saveData.previewHeight)
-            : (RectInt?)null;
-        ClampPreviewRegionToMap();
+        previewRegions.Clear();
+        if (saveData.previewRegions != null && saveData.previewRegions.Length > 0)
+        {
+            for (int i = 0; i < saveData.previewRegions.Length; i++)
+            {
+                if (saveData.previewRegions[i] != null) previewRegions.Add(saveData.previewRegions[i].ToRectInt());
+            }
+        }
+        else if (saveData.previewWidth > 0 && saveData.previewHeight > 0)
+        {
+            previewRegions.Add(new RectInt(saveData.previewX, saveData.previewY, saveData.previewWidth, saveData.previewHeight));
+        }
+        ClampPreviewRegionsToMap();
+        previewRegion = previewRegions.Count > 0 ? previewRegions[0] : (RectInt?)null;
         LoadSpawnPoints(saveData);
         movingRegions = new List<MapEditorMovingRegionData>(saveData.movingRegions ?? System.Array.Empty<MapEditorMovingRegionData>());
         selectedMovingRegionIndex = -1;
@@ -2666,6 +2686,9 @@ public class MapEditorManager : MonoBehaviour
         if (previewRegion.HasValue)
         {
             RectInt region = previewRegion.Value;
+            previewRegions.Add(region);
+            previewRegion = previewRegions[0];
+            MapEditorWorkshopPreviewPanelBuilder.Ensure(this, toolToolbarOffset);
             Debug.Log("맵 프리뷰 영역을 지정했습니다: " + region.width + "x" + region.height);
         }
     }
@@ -2683,6 +2706,36 @@ public class MapEditorManager : MonoBehaviour
         int width = Mathf.Clamp(region.width, 1, CurrentMapData.width - x);
         int height = Mathf.Clamp(region.height, 1, CurrentMapData.height - y);
         previewRegion = new RectInt(x, y, width, height);
+    }
+
+    private void ClampPreviewRegionsToMap()
+    {
+        if (CurrentMapData == null) return;
+        for (int i = previewRegions.Count - 1; i >= 0; i--)
+        {
+            RectInt region = previewRegions[i];
+            int x = Mathf.Clamp(region.x, 0, CurrentMapData.width - 1);
+            int y = Mathf.Clamp(region.y, 0, CurrentMapData.height - 1);
+            int width = Mathf.Clamp(region.width, 1, CurrentMapData.width - x);
+            int height = Mathf.Clamp(region.height, 1, CurrentMapData.height - y);
+            previewRegions[i] = new RectInt(x, y, width, height);
+        }
+    }
+
+    public void RemoveWorkshopPreview(int index)
+    {
+        if (index < 0 || index >= previewRegions.Count) return;
+        previewRegions.RemoveAt(index);
+        previewRegion = previewRegions.Count > 0 ? previewRegions[0] : (RectInt?)null;
+        MapEditorWorkshopPreviewPanelBuilder.Ensure(this, toolToolbarOffset);
+        UpdateBrushCursorPreview();
+    }
+
+    public Texture2D CreateWorkshopPreviewTexture(RectInt region, int width, int height)
+    {
+        MapEditorMapExportService service = new MapEditorMapExportService(GetPngTileSprite);
+        return service.CreateFixedPreviewTexture(
+            CurrentMapData, GetExportCellPixels(), false, region, width, height);
     }
 
     public void RegisterCell(GridCell cell)
@@ -2946,6 +2999,9 @@ public class MapEditorManager : MonoBehaviour
     private void CreateToolToolbar()
     {
         toolbarState.EnsureToolbar(this, toolToolbarOffset, GetRecentResourcePaths());
+        MapEditorWorkshopPreviewPanelBuilder.Ensure(this, toolToolbarOffset);
+        Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
+        if (canvas != null) MapEditorMapInfoPanelBuilder.Ensure(canvas.transform, this);
         RefreshToolToolbarSelection();
         UpdateBrushPreview();
     }

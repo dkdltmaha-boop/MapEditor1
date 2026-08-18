@@ -11,6 +11,7 @@ public class MapEditorMapSaveService
     private MapEditorTilesetDefinition[] importedTilesets = System.Array.Empty<MapEditorTilesetDefinition>();
     private MapEditorLayerSetting[] layerSettings = System.Array.Empty<MapEditorLayerSetting>();
     private RectInt? previewRegion;
+    private RectInt[] previewRegions = System.Array.Empty<RectInt>();
     private MapEditorMovingRegionData[] movingRegions = System.Array.Empty<MapEditorMovingRegionData>();
 
     public MapEditorMapSaveService(int maxMapSize)
@@ -26,6 +27,13 @@ public class MapEditorMapSaveService
     public void SetPreviewRegion(RectInt? region)
     {
         previewRegion = region;
+    }
+
+    public void SetPreviewRegions(IReadOnlyList<RectInt> regions)
+    {
+        previewRegions = regions == null ? System.Array.Empty<RectInt>() : new RectInt[regions.Count];
+        for (int i = 0; i < previewRegions.Length; i++) previewRegions[i] = regions[i];
+        previewRegion = previewRegions.Length > 0 ? previewRegions[0] : (RectInt?)null;
     }
 
     public void SetLayerSettings(MapEditorLayerSetting[] settings)
@@ -134,6 +142,11 @@ public class MapEditorMapSaveService
             saveData.previewY = region.y;
             saveData.previewWidth = region.width;
             saveData.previewHeight = region.height;
+        }
+        saveData.previewRegions = new MapEditorPreviewRegionData[previewRegions.Length];
+        for (int i = 0; i < previewRegions.Length; i++)
+        {
+            saveData.previewRegions[i] = new MapEditorPreviewRegionData(previewRegions[i]);
         }
         EmbedUsedPngAssets(saveData);
         string json = JsonUtility.ToJson(saveData, true);

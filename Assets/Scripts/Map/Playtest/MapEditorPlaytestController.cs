@@ -49,6 +49,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         public Color32[] pixels;
         public Texture2D sourceTexture;
         public Color32[] sourcePixels;
+        public bool[] occupiedCells;
         public float nextTextureRefresh;
     }
 
@@ -345,6 +346,7 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
 
             int textureWidth = data.width * RegionPixelsPerTile;
             int textureHeight = data.height * RegionPixelsPerTile;
+            bool[] occupiedCells = BuildMovingRegionOccupancy(data);
             Color32[] pixels = new Color32[textureWidth * textureHeight];
             for (int y = 0; y < data.height; y++)
             {
@@ -387,7 +389,13 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
                 }
             }
 
-            ApplyMovingLayerMask(sourcePixels, pixels);
+            ApplyMovingLayerMask(
+                sourcePixels,
+                occupiedCells,
+                data.width,
+                data.height,
+                RegionPixelsPerTile,
+                textureWidth);
 
             Texture2D sourceTexture = new Texture2D(textureWidth, textureHeight, TextureFormat.RGBA32, false)
             {
@@ -430,7 +438,8 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
                 texture = texture,
                 pixels = pixels,
                 sourceTexture = sourceTexture,
-                sourcePixels = sourcePixels
+                sourcePixels = sourcePixels,
+                occupiedCells = occupiedCells
             };
             movingPreviews.Add(preview);
             UpdateMovingRegionVisual(preview);
@@ -544,24 +553,74 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
             }
         }
 
-        ApplyMovingLayerMask(preview.sourcePixels, preview.pixels);
+        ApplyMovingLayerMask(
+            preview.sourcePixels,
+            preview.occupiedCells,
+            preview.data.width,
+            preview.data.height,
+            RegionPixelsPerTile,
+            textureWidth);
         preview.sourceTexture.SetPixels32(preview.sourcePixels);
         preview.sourceTexture.Apply(false, false);
     }
 
-    private static void ApplyMovingLayerMask(Color32[] sourcePixels, Color32[] movingPixels)
+    private bool[] BuildMovingRegionOccupancy(MapEditorMovingRegionData data)
     {
-        if (sourcePixels == null || movingPixels == null)
+        bool[] occupied = new bool[data.width * data.height];
+        MapData map = manager.CurrentMapData;
+        if (map == null)
+        {
+            return occupied;
+        }
+
+        MapEditorLayerType ground = MapEditorLayerUtility.GetCanvasLayer(data.canvasLayerIndex, MapEditorLayerType.Ground);
+        MapEditorLayerType objects = MapEditorLayerUtility.GetCanvasLayer(data.canvasLayerIndex, MapEditorLayerType.Object);
+        MapEditorLayerType walls = MapEditorLayerUtility.GetCanvasLayer(data.canvasLayerIndex, MapEditorLayerType.WallVisual);
+        for (int y = 0; y < data.height; y++)
+        {
+            for (int x = 0; x < data.width; x++)
+            {
+                int mapX = data.x + x;
+                int mapY = data.y + y;
+                occupied[y * data.width + x] = map.GetTile(mapX, mapY, ground) != -1
+                    || map.GetTile(mapX, mapY, objects) != -1
+                    || map.GetTile(mapX, mapY, walls) != -1;
+            }
+        }
+
+        return occupied;
+    }
+
+    private static void ApplyMovingLayerMask(
+        Color32[] sourcePixels,
+        bool[] occupiedCells,
+        int regionWidth,
+        int regionHeight,
+        int pixelsPerTile,
+        int textureWidth)
+    {
+        if (sourcePixels == null || occupiedCells == null || regionWidth <= 0 || regionHeight <= 0
+            || pixelsPerTile <= 0 || textureWidth <= 0)
         {
             return;
         }
 
-        int length = Mathf.Min(sourcePixels.Length, movingPixels.Length);
-        for (int i = 0; i < length; i++)
+        Color32 clear = new Color32(0, 0, 0, 0);
+        for (int tileY = 0; tileY < regionHeight; tileY++)
         {
-            if (movingPixels[i].a == 0)
+            for (int tileX = 0; tileX < regionWidth; tileX++)
             {
-                sourcePixels[i] = new Color32(0, 0, 0, 0);
+                int cellIndex = tileY * regionWidth + tileX;
+                if (cellIndex < occupiedCells.Length && occupiedCells[cellIndex]) continue;
+
+                int pixelStartX = tileX * pixelsPerTile;
+                int pixelStartY = (regionHeight - tileY - 1) * pixelsPerTile;
+                for (int pixelY = 0; pixelY < pixelsPerTile; pixelY++)
+                {
+                    int row = (pixelStartY + pixelY) * textureWidth + pixelStartX;
+                    int rowEnd = Mathf.Min(row + pixelsPerTile, sourcePixels.Length);
+                    for (int pixel = row; pixel < rowEnd; pixel++) sourcePixels[pixel] = clear;
+                }
             }
         }
     }

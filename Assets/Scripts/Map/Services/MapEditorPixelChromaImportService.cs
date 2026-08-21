@@ -5,6 +5,12 @@ using UnityEngine;
 
 public sealed class MapEditorPixelChromaImportService
 {
+    [Serializable]
+    private sealed class FormatProbe
+    {
+        public string format = string.Empty;
+    }
+
     public bool ImportWithDialog(out MapSaveData saveData, out string path)
     {
         saveData = null;
@@ -37,7 +43,15 @@ public sealed class MapEditorPixelChromaImportService
 
         try
         {
-            exportData = JsonUtility.FromJson<PixelChromaMapExportData>(File.ReadAllText(path));
+            string json = File.ReadAllText(path);
+            FormatProbe probe = JsonUtility.FromJson<FormatProbe>(json);
+            if (probe == null || probe.format != PixelChromaExportContract.Format)
+            {
+                Debug.LogWarning("선택한 파일은 PixelChroma 게임 맵 파일이 아닙니다: " + path);
+                return false;
+            }
+
+            exportData = JsonUtility.FromJson<PixelChromaMapExportData>(json);
         }
         catch (Exception exception)
         {
@@ -54,6 +68,21 @@ public sealed class MapEditorPixelChromaImportService
         saveData = ConvertToSaveData(exportData, Path.GetDirectoryName(path));
         Debug.Log("PixelChroma 맵을 가져왔습니다: " + path);
         return true;
+    }
+
+    public bool IsPixelChromaMapFile(string path)
+    {
+        if (string.IsNullOrEmpty(path) || !File.Exists(path)) return false;
+
+        try
+        {
+            FormatProbe probe = JsonUtility.FromJson<FormatProbe>(File.ReadAllText(path));
+            return probe != null && probe.format == PixelChromaExportContract.Format;
+        }
+        catch (Exception)
+        {
+            return false;
+        }
     }
 
     private static bool IsValid(PixelChromaMapExportData exportData)

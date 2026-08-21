@@ -179,7 +179,7 @@ public class MapEditorMapSaveService
         return result;
     }
 
-    private bool TryLoadFromPath(string path, out MapSaveData saveData)
+    public bool TryLoadFromPath(string path, out MapSaveData saveData)
     {
         saveData = null;
 

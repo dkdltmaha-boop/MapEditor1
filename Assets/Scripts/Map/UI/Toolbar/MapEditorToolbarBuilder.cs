@@ -338,7 +338,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, L("맵 테스트", "Test Map"), "F5", MapEditorToolbarAction.Playtest, "PlaytestButton");
         EnsureToolbarDivider(toolbar);
         CreateToolbarLabel(toolbar, L("파일과 검사", "Files & Validation"));
-        EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
+        EnsureToolbarActionButton(toolbar, manager, L("맵 불러오기", "Load Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일셋", "Tilesets"), L("클릭", "Click"), MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
         EnsureToolbarActionButton(toolbar, manager, L("PNG 불러오기", "Load PNG"), L("클릭", "Click"), MapEditorToolbarAction.PngLoad, "LoadPNGButton");
         EnsureToolbarActionButton(toolbar, manager, L("임시 저장", "Save Draft"), "Ctrl+S", MapEditorToolbarAction.Save, "GameOutButton");

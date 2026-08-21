@@ -14,6 +14,9 @@ using Steamworks;
 
 public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 {
+    private const int MaxCreateBusyRetries = 4;
+    private const float CreateBusyRetryBaseDelaySeconds = 2f;
+
     [Tooltip("맵 데이터와 창작마당 메타데이터를 가진 매니저.")]
     public MapEditorManager mapEditor;
 
@@ -48,8 +51,12 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     // 나중에 콜백으로 결과가 오므로, 그 콜백을 받을 핸들러를 미리 만들어 둔다.
     private CallResult<CreateItemResult_t>        createItemCallResult;
     private CallResult<SubmitItemUpdateResult_t>  submitItemCallResult;
+    private int createBusyRetryCount;
+    private float createBusyRetryAt = -1f;
+    private bool previewFallbackAttempted;
 
     public bool IsBusy => phase == Phase.Creating || phase == Phase.Submitting;
+    public bool CompletedWithoutSteamPreview { get; private set; }
     public uint EffectiveAppId => mapEditor != null && mapEditor.steamAppId > 0
         ? mapEditor.steamAppId
         : (testAppId > 0 ? testAppId : 5023800u);
@@ -61,6 +68,13 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         if (manageSteamLifecycle && steamStartedByUs && !usingExternalSteamManager)
         {
             SteamAPI.RunCallbacks();
+        }
+
+        if (phase == Phase.Creating && createBusyRetryAt >= 0f
+            && Time.realtimeSinceStartup >= createBusyRetryAt)
+        {
+            createBusyRetryAt = -1f;
+            BeginCreateItem();
         }
 
         // 업로드 중이면 진행률을 UI 로 방출
@@ -88,6 +102,11 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         if (IsBusy) return;                                   // 중복 클릭 방지
         if (mapEditor == null) { Fail(L("MapEditorManager 미연결.", "MapEditorManager is not assigned.")); return; }
         if (!EnsureSteamReady()) return;                      // Steam 연결 확보(실패 시 내부에서 Fail)
+
+        createBusyRetryCount = 0;
+        createBusyRetryAt = -1f;
+        previewFallbackAttempted = false;
+        CompletedWithoutSteamPreview = false;
 
         // (1) 검증
         SetStatus(L("맵 검증 중...", "Validating map..."));
@@ -138,7 +157,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
             }
 
             usingExternalSteamManager = true;
-            return true;
+            return ValidateSteamSession();
         }
 
         if (!manageSteamLifecycle)
@@ -147,7 +166,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
             return false;
         }
 
-        if (steamStartedByUs) return true;
+        if (steamStartedByUs) return ValidateSteamSession();
 
         uint appId = EffectiveAppId;
         EnsureSteamAppIdFile(appId);
@@ -172,7 +191,56 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         }
 
         steamStartedByUs = true;
+        return ValidateSteamSession();
+    }
+
+    private bool ValidateSteamSession()
+    {
+        uint expectedAppId = EffectiveAppId;
+        uint activeAppId = SteamUtils.GetAppID().m_AppId;
+        if (activeAppId != expectedAppId)
+        {
+            Fail(L("Steam이 다른 App ID로 초기화되었습니다. 현재=", "Steam was initialized with a different App ID. Current=")
+                + activeAppId + L(", 필요=", ", expected=") + expectedAppId
+                + L(". 실행 중인 Steam 게임이나 업로더를 닫고 다시 실행하세요.",
+                    ". Close other running Steam games or uploaders, then restart."));
+            return false;
+        }
+
+        if (!SteamUser.BLoggedOn())
+        {
+            Fail(L("Steam 서버에 로그인되어 있지 않습니다. Steam 온라인 상태를 확인하세요.",
+                "Steam is not logged on to its servers. Check that Steam is online."));
+            return false;
+        }
+
+        PrepareSteamCloud();
+        Debug.Log("[RuntimeWorkshopUploader] Steam session ready. App ID=" + activeAppId);
         return true;
+    }
+
+    private void PrepareSteamCloud()
+    {
+        bool accountEnabled = SteamRemoteStorage.IsCloudEnabledForAccount();
+        bool appEnabled = SteamRemoteStorage.IsCloudEnabledForApp();
+        if (accountEnabled && !appEnabled)
+        {
+            SteamRemoteStorage.SetCloudEnabledForApp(true);
+            appEnabled = SteamRemoteStorage.IsCloudEnabledForApp();
+        }
+
+        if (SteamRemoteStorage.GetQuota(out ulong totalBytes, out ulong availableBytes))
+        {
+            Debug.Log("[RuntimeWorkshopUploader] Steam Cloud: account=" + accountEnabled
+                + ", app=" + appEnabled
+                + ", available=" + FormatBytes(availableBytes)
+                + "/" + FormatBytes(totalBytes));
+        }
+        else
+        {
+            Debug.LogWarning("[RuntimeWorkshopUploader] Steam Cloud quota could not be queried. account="
+                + accountEnabled + ", app=" + appEnabled);
+        }
     }
 
     // 왜: SteamAPI.Init 은 실행 폴더의 steam_appid.txt 를 읽어 "어떤 앱으로 붙을지" 판단한다.
@@ -222,12 +290,18 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
     private void OnCreateItem(CreateItemResult_t r, bool ioFailure)
     {
-        if (ioFailure || r.m_eResult != EResult.k_EResultOK)
+        if (!ioFailure && r.m_eResult == EResult.k_EResultBusy && ScheduleCreateBusyRetry())
         {
-            Fail(L("아이템 생성 실패: ", "Item creation failed: ") + (ioFailure ? L("IO 오류", "IO error") : r.m_eResult.ToString()));
             return;
         }
 
+        if (ioFailure || r.m_eResult != EResult.k_EResultOK)
+        {
+            Fail(L("아이템 생성 실패: ", "Item creation failed: ") + DescribeFailure(r.m_eResult, ioFailure));
+            return;
+        }
+
+        createBusyRetryAt = -1f;
         publishedFileId = r.m_nPublishedFileId;   // 결과: 이제 이 맵의 창작마당 고유 ID 확보
 
         // 최초 업로드 시 계정이 창작마당 약관에 동의해야 공개된다.
@@ -239,7 +313,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
         try
         {
-            SubmitContent();
+            SubmitContent(true);
         }
         catch (Exception e)
         {
@@ -248,7 +322,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     }
 
     // 2) 메타데이터 + 콘텐츠 폴더 붙여서 제출
-    private void SubmitContent()
+    private void SubmitContent(bool includePreviews)
     {
         phase = Phase.Submitting;
         SetStatus(L("콘텐츠 업로드 준비 중...", "Preparing content upload..."));
@@ -281,14 +355,14 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
         // 미리보기 이미지(≤1MB). 왜: 창작마당/메뉴 썸네일로 쓰임.
         string preview = Path.GetFullPath(Path.Combine(exportFolder, "preview.png"));
-        if (File.Exists(preview) && new FileInfo(preview).Length <= 1024 * 1024
+        if (includePreviews && File.Exists(preview) && new FileInfo(preview).Length <= 1024 * 1024
             && !SteamUGC.SetItemPreview(updateHandle, preview))
         {
             Fail(L("Steam 창작마당 미리보기 이미지를 설정하지 못했습니다.", "Could not set the Steam Workshop preview image."));
             return;
         }
 
-        if (cfg?.additionalPreviewFiles != null)
+        if (includePreviews && cfg?.additionalPreviewFiles != null)
         {
             for (int i = 0; i < cfg.additionalPreviewFiles.Length; i++)
             {
@@ -322,6 +396,27 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     // 3) 완료 콜백
     private void OnSubmitItemUpdate(SubmitItemUpdateResult_t r, bool ioFailure)
     {
+        if (!ioFailure
+            && !previewFallbackAttempted
+            && (r.m_eResult == EResult.k_EResultLimitExceeded || r.m_eResult == EResult.k_EResultAccessDenied))
+        {
+            previewFallbackAttempted = true;
+            CompletedWithoutSteamPreview = true;
+            SetStatus(L(
+                "Steam이 대표 이미지 저장을 거부했습니다. 같은 게시물에 이미지 없이 맵 콘텐츠를 다시 제출합니다.",
+                "Steam rejected preview storage. Retrying the same item without Steam preview images."));
+            try
+            {
+                SubmitContent(false);
+            }
+            catch (Exception e)
+            {
+                Fail(L("대표 이미지 제외 재제출 중 예외가 발생했습니다: ",
+                    "An exception occurred while resubmitting without previews: ") + e.Message);
+            }
+            return;
+        }
+
         if (ioFailure || r.m_eResult != EResult.k_EResultOK)
         {
             Fail(L("업로드 실패: ", "Upload failed: ") + DescribeFailure(r.m_eResult, ioFailure));
@@ -330,7 +425,11 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
         phase = Phase.Done;
         ProgressChanged?.Invoke(1f);
-        SetStatus(L("업로드 완료! PublishedFileId = ", "Upload complete! PublishedFileId = ") + publishedFileId.m_PublishedFileId);
+        SetStatus((CompletedWithoutSteamPreview
+            ? L("맵 업로드 완료(대표 이미지는 Steam 권한/할당량 문제로 제외). PublishedFileId = ",
+                "Map upload complete (Steam preview omitted due to permission/quota). PublishedFileId = ")
+            : L("업로드 완료! PublishedFileId = ", "Upload complete! PublishedFileId = "))
+            + publishedFileId.m_PublishedFileId);
         UploadSucceeded?.Invoke(publishedFileId.m_PublishedFileId);  // 결과: UI 가 성공 처리
     }
 
@@ -387,9 +486,40 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
                 return L("Steam 서버 응답 시간 초과. 네트워크를 확인하고 다시 시도하세요.", "Steam server timed out. Check the network and try again.");
             case EResult.k_EResultNotLoggedOn:
                 return L("Steam에 로그인되어 있지 않습니다.", "Not signed in to Steam.");
+            case EResult.k_EResultBusy:
+                return L(
+                    "Steam 창작마당이 다른 작업을 처리 중이라 요청을 받지 않았습니다. 자동 재시도 후에도 계속되면 Steam과 다른 업로더를 완전히 종료한 뒤 다시 실행하세요.",
+                    "Steam Workshop did not accept the request because it is busy. If automatic retries also fail, fully close Steam and other uploaders, then restart.");
+            case EResult.k_EResultLimitExceeded:
+                return L(
+                    "Steam 대표 이미지가 1MB를 넘었거나 이 계정의 Steam Cloud 할당량이 부족합니다.",
+                    "The Steam preview exceeds 1 MB or this account lacks available Steam Cloud quota.");
             default:
                 return result.ToString();
         }
+    }
+
+    private static string FormatBytes(ulong bytes)
+    {
+        const double megabyte = 1024d * 1024d;
+        return (bytes / megabyte).ToString("0.##") + " MB";
+    }
+
+    private bool ScheduleCreateBusyRetry()
+    {
+        if (createBusyRetryCount >= MaxCreateBusyRetries)
+        {
+            return false;
+        }
+
+        createBusyRetryCount++;
+        float delay = CreateBusyRetryBaseDelaySeconds * createBusyRetryCount;
+        createBusyRetryAt = Time.realtimeSinceStartup + delay;
+        SetStatus(L("Steam 창작마당이 처리 중입니다. ", "Steam Workshop is busy. Retrying in ")
+            + delay.ToString("0")
+            + L("초 후 자동 재시도합니다. (", " seconds. (")
+            + createBusyRetryCount + "/" + MaxCreateBusyRetries + ")");
+        return true;
     }
 
     private void SetStatus(string message)
@@ -411,6 +541,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
     private void Fail(string m)
     {
+        createBusyRetryAt = -1f;
         phase = Phase.Error;
         SetStatus(m);
         Debug.LogError("[RuntimeWorkshopUploader] " + m);
@@ -432,6 +563,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     public event Action<string> UploadFailed;
 
     public bool IsBusy => false;
+    public bool CompletedWithoutSteamPreview => false;
     public uint EffectiveAppId => mapEditor != null && mapEditor.steamAppId > 0
         ? mapEditor.steamAppId
         : (testAppId > 0 ? testAppId : 5023800u);

@@ -795,12 +795,12 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "An empty moving-layer cell was rendered as an opaque white tile.");
 
             Color32[] sourceCoverPixels = { new Color32(255, 255, 255, 255), new Color32(255, 255, 255, 255) };
-            Color32[] movingPixels = { new Color32(255, 0, 0, 255), new Color32(0, 0, 0, 0) };
+            bool[] occupiedMovingCells = { true, false };
             System.Reflection.MethodInfo applyMovingMask = typeof(MapEditorPlaytestController).GetMethod(
                 "ApplyMovingLayerMask",
                 System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static);
             Require(applyMovingMask != null, "The moving-region source mask helper is missing.");
-            applyMovingMask.Invoke(null, new object[] { sourceCoverPixels, movingPixels });
+            applyMovingMask.Invoke(null, new object[] { sourceCoverPixels, occupiedMovingCells, 2, 1, 1, 2 });
             Require(sourceCoverPixels[0].a == 255 && sourceCoverPixels[1].a == 0,
                 "The moving-region source cover still paints empty selection pixels white.");
 

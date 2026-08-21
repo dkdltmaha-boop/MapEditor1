@@ -2111,7 +2111,21 @@ public class MapEditorManager : MonoBehaviour
 
     public void ImportPixelChromaMap()
     {
-        if (pixelChromaImportService.ImportWithDialog(out MapSaveData saveData, out string path))
+        string path = MapEditorFileDialog.OpenFile(
+            MapEditorLocalization.Choose("맵 불러오기", "Load Map"),
+            "json");
+        if (string.IsNullOrEmpty(path))
+        {
+            return;
+        }
+
+        MapEditorFileDialog.RememberDirectory(path);
+        bool isGameMap = pixelChromaImportService.IsPixelChromaMapFile(path);
+        bool loaded = isGameMap
+            ? pixelChromaImportService.TryImport(path, out MapSaveData saveData)
+            : mapSaveService.TryLoadFromPath(path, out saveData);
+
+        if (loaded)
         {
             ApplyLoadedMap(saveData, path);
         }
@@ -4222,13 +4236,26 @@ public class MapEditorManager : MonoBehaviour
     private void OnWorkshopUploadSucceeded(ulong publishedFileId)
     {
         string itemUrl = "steam://url/CommunityFilePage/" + publishedFileId;
+        bool previewOmitted = subscribedWorkshopUploader != null
+            && subscribedWorkshopUploader.CompletedWithoutSteamPreview;
+        string completionMessage = previewOmitted
+            ? MapEditorLocalization.Choose(
+                "맵 콘텐츠 업로드는 완료됐지만 Steam이 대표 이미지 저장을 거부했습니다.\n"
+                    + "게시물 안의 preview.png는 유지됩니다. Steam 페이지 대표 이미지는 개발자 측 Cloud 권한/할당량 설정 후 다시 등록해야 합니다.\n"
+                    + "게시물 ID: " + publishedFileId,
+                "Map content uploaded, but Steam rejected preview storage.\n"
+                    + "preview.png remains inside the item. The Steam page thumbnail requires developer Cloud permission/quota configuration.\n"
+                    + "Published File ID: " + publishedFileId)
+            : MapEditorLocalization.Choose(
+                "PixelChroma 창작마당 전송이 완료되었습니다.\n게시물 ID: " + publishedFileId,
+                "PixelChroma Workshop upload completed.\nPublished File ID: " + publishedFileId);
         MapEditorModalPanel.ShowAction(
             this,
-            MapEditorLocalization.Choose("창작마당 업로드 완료", "Workshop Upload Complete"),
-            MapEditorLocalization.Choose(
-                "PixelChroma 창작마당 전송이 완료되었습니다.\n게시물 ID: " + publishedFileId,
-                "PixelChroma Workshop upload completed.\nPublished File ID: " + publishedFileId),
-            new Color(0.22f, 0.72f, 0.38f, 1f),
+            previewOmitted
+                ? MapEditorLocalization.Choose("맵 업로드 완료 · 대표 이미지 제외", "Map Uploaded · Steam Preview Omitted")
+                : MapEditorLocalization.Choose("창작마당 업로드 완료", "Workshop Upload Complete"),
+            completionMessage,
+            previewOmitted ? new Color(0.95f, 0.66f, 0.18f, 1f) : new Color(0.22f, 0.72f, 0.38f, 1f),
             MapEditorLocalization.Choose("게시물 열기", "Open Workshop Item"),
             () => Application.OpenURL(itemUrl));
     }

@@ -68,6 +68,25 @@ public sealed class MapEditorMovingPathListView
             Stretch(scrollView, new Vector2(4f, 4f), new Vector2(-4f, -(HeaderHeight + SpeedControlHeight)));
         }
 
+        RefreshLocalizedText();
+    }
+
+    public void RefreshLocalizedText()
+    {
+        Text headerText = root == null ? null : root.Find("Header")?.GetComponent<Text>();
+        if (headerText != null)
+        {
+            headerText.text = MapEditorLocalization.Choose("이동 경로", "Moving Paths");
+        }
+
+        Text speedLabel = root == null
+            ? null
+            : root.Find("SelectedPathControls/SpeedLabel")?.GetComponent<Text>();
+        if (speedLabel != null)
+        {
+            speedLabel.text = MapEditorLocalization.Choose("속도", "Speed");
+        }
+
         Refresh();
     }
 

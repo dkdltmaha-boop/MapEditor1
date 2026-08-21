@@ -36,6 +36,19 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
     private int currentFrameIndex;
     private bool previewPlaying;
     private float nextPreviewFrameTime;
+    private readonly Stack<TileCreatorState> undoHistory = new Stack<TileCreatorState>();
+    private readonly Stack<TileCreatorState> redoHistory = new Stack<TileCreatorState>();
+    private bool localEditInProgress;
+
+    public static bool IsOpen
+    {
+        get
+        {
+            Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
+            Transform root = canvas == null ? null : canvas.transform.Find(RootName);
+            return root != null && root.gameObject.activeInHierarchy;
+        }
+    }
 
     public static MapEditorTileCreatorWindow Open(MapEditorManager manager)
     {
@@ -55,6 +68,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (existing != null)
         {
+            ConfigureModalCanvas(existing.gameObject, canvas);
             existing.SetAsLastSibling();
             return existing.GetComponent<MapEditorTileCreatorWindow>();
         }
@@ -63,6 +77,8 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
             RootName,
             typeof(RectTransform),
             typeof(Image),
+            typeof(Canvas),
+            typeof(GraphicRaycaster),
             typeof(CanvasGroup),
             typeof(MapEditorUiTransition),
             typeof(MapEditorTileCreatorWindow));
@@ -74,6 +90,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         rootRect.offsetMin = Vector2.zero;
         rootRect.offsetMax = Vector2.zero;
         root.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.58f);
+        ConfigureModalCanvas(root, canvas);
 
         MapEditorTileCreatorWindow window = root.GetComponent<MapEditorTileCreatorWindow>();
         window.manager = manager;
@@ -81,6 +98,15 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         root.transform.SetAsLastSibling();
         root.GetComponent<MapEditorUiTransition>().PlayIn(window.GetPanelRect());
         return window;
+    }
+
+    private static void ConfigureModalCanvas(GameObject root, Canvas parentCanvas)
+    {
+        Canvas modalCanvas = root.GetComponent<Canvas>();
+        if (modalCanvas == null) modalCanvas = root.AddComponent<Canvas>();
+        if (root.GetComponent<GraphicRaycaster>() == null) root.AddComponent<GraphicRaycaster>();
+        modalCanvas.overrideSorting = true;
+        modalCanvas.sortingOrder = (parentCanvas == null ? 0 : parentCanvas.sortingOrder) + 100;
     }
 
     private RectTransform GetPanelRect()
@@ -97,10 +123,10 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         panelRect.anchorMax = new Vector2(0.5f, 0.5f);
         panelRect.pivot = new Vector2(0.5f, 0.5f);
         panelRect.anchoredPosition = Vector2.zero;
-        panelRect.sizeDelta = new Vector2(400f, 464f);
+        panelRect.sizeDelta = new Vector2(520f, 540f);
         panel.GetComponent<Image>().color = new Color(0.12f, 0.14f, 0.15f, 0.99f);
 
-        CreateLabel(panel.transform, "Title", "16x16 타일 만들기", new Vector2(16f, -12f), new Vector2(300f, 28f), 18, FontStyle.Bold, TextAnchor.MiddleLeft);
+        CreateLabel(panel.transform, "Title", L("16x16 타일 만들기", "Create 16x16 Tile"), new Vector2(16f, -12f), new Vector2(300f, 28f), 18, FontStyle.Bold, TextAnchor.MiddleLeft);
         CreateButton(panel.transform, "CloseButton", "X", new Vector2(-14f, -12f), new Vector2(30f, 28f), Close, true);
         BuildColorPanel(panel.transform);
         BuildSavedTilePanel(panel.transform);
@@ -135,29 +161,29 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         drawing.GetComponent<MapEditorTileCanvasInput>().Initialize(this);
         CreateGridOverlay(canvasFrame.transform);
 
-        CreateButton(panel.transform, "PreviousFrameButton", "<", new Vector2(16f, -410f), new Vector2(32f, 24f), PreviousFrame);
-        frameText = CreateLabel(panel.transform, "FrameStatus", "1 / 1", new Vector2(52f, -410f), new Vector2(58f, 24f), 10, FontStyle.Bold, TextAnchor.MiddleCenter);
-        CreateButton(panel.transform, "NextFrameButton", ">", new Vector2(114f, -410f), new Vector2(32f, 24f), NextFrame);
-        CreateButton(panel.transform, "AddFrameButton", "+", new Vector2(150f, -410f), new Vector2(32f, 24f), AddFrame);
-        CreateButton(panel.transform, "DuplicateFrameButton", "복제", new Vector2(186f, -410f), new Vector2(48f, 24f), DuplicateFrame);
-        CreateButton(panel.transform, "DeleteFrameButton", "삭제", new Vector2(238f, -410f), new Vector2(48f, 24f), DeleteFrame);
-        CreateButton(panel.transform, "PlayFramesButton", "재생", new Vector2(290f, -410f), new Vector2(44f, 24f), ToggleFramePreview);
-        CreateButton(panel.transform, "SaveAnimationButton", "애니 저장", new Vector2(338f, -410f), new Vector2(58f, 24f), SaveAnimation);
+        CreateButton(panel.transform, "PreviousFrameButton", "<", new Vector2(20f, -410f), new Vector2(32f, 24f), PreviousFrame);
+        frameText = CreateLabel(panel.transform, "FrameStatus", "1 / 1", new Vector2(56f, -410f), new Vector2(64f, 24f), 10, FontStyle.Bold, TextAnchor.MiddleCenter);
+        CreateButton(panel.transform, "NextFrameButton", ">", new Vector2(124f, -410f), new Vector2(32f, 24f), NextFrame);
+        CreateButton(panel.transform, "AddFrameButton", "+", new Vector2(160f, -410f), new Vector2(32f, 24f), AddFrame);
+        CreateButton(panel.transform, "DuplicateFrameButton", L("복제", "Duplicate"), new Vector2(196f, -410f), new Vector2(72f, 24f), DuplicateFrame);
+        CreateButton(panel.transform, "DeleteFrameButton", L("삭제", "Delete"), new Vector2(272f, -410f), new Vector2(62f, 24f), DeleteFrame);
+        CreateButton(panel.transform, "PlayFramesButton", L("재생", "Play"), new Vector2(338f, -410f), new Vector2(58f, 24f), ToggleFramePreview);
+        CreateButton(panel.transform, "SaveAnimationButton", L("애니 저장", "Save Anim"), new Vector2(400f, -410f), new Vector2(100f, 24f), SaveAnimation);
 
         statusText = CreateLabel(
             panel.transform,
             "Status",
-            "좌클릭: 그리기   우클릭: 지우기",
-            new Vector2(24f, -436f),
-            new Vector2(352f, 16f),
+            L("좌클릭: 그리기   우클릭: 지우기", "Left: Draw   Right: Erase"),
+            new Vector2(24f, -440f),
+            new Vector2(472f, 24f),
             11,
             FontStyle.Normal,
             TextAnchor.MiddleLeft);
 
-        CreateButton(panel.transform, "ClearButton", "전체 지우기", new Vector2(16f, 14f), new Vector2(88f, 28f), ClearTexture);
-        CreateButton(panel.transform, "SaveTileButton", "타일 저장", new Vector2(108f, 14f), new Vector2(88f, 28f), SaveCurrentTile);
-        CreateButton(panel.transform, "UseButton", "브러시로 사용", new Vector2(200f, 14f), new Vector2(112f, 28f), UseAsBrush);
-        CreateButton(panel.transform, "DoneButton", "닫기", new Vector2(316f, 14f), new Vector2(68f, 28f), Close);
+        CreateButton(panel.transform, "ClearButton", L("전체 지우기", "Clear All"), new Vector2(20f, 14f), new Vector2(110f, 30f), ClearTexture);
+        CreateButton(panel.transform, "SaveTileButton", L("타일 저장", "Save Tile"), new Vector2(134f, 14f), new Vector2(110f, 30f), SaveCurrentTile);
+        CreateButton(panel.transform, "UseButton", L("브러시로 사용", "Use as Brush"), new Vector2(248f, 14f), new Vector2(140f, 30f), UseAsBrush);
+        CreateButton(panel.transform, "DoneButton", L("닫기", "Close"), new Vector2(392f, 14f), new Vector2(108f, 30f), Close);
     }
 
     private void SaveCurrentFrame()
@@ -183,6 +209,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
     private void AddFrame()
     {
         StopFramePreview();
+        RecordUndoState();
         SaveCurrentFrame();
         animationFrames.Insert(currentFrameIndex + 1, new Color32[TileResolution * TileResolution]);
         ShowFrame(currentFrameIndex + 1);
@@ -191,6 +218,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
     private void DuplicateFrame()
     {
         StopFramePreview();
+        RecordUndoState();
         SaveCurrentFrame();
         animationFrames.Insert(currentFrameIndex + 1, (Color32[])animationFrames[currentFrameIndex].Clone());
         ShowFrame(currentFrameIndex + 1);
@@ -206,6 +234,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
             return;
         }
 
+        RecordUndoState();
         animationFrames.RemoveAt(currentFrameIndex);
         currentFrameIndex = Mathf.Clamp(currentFrameIndex, 0, animationFrames.Count - 1);
         tileTexture.SetPixels32(animationFrames[currentFrameIndex]);
@@ -217,14 +246,14 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
     {
         if (animationFrames.Count < 2)
         {
-            statusText.text = "재생하려면 프레임이 2개 이상 필요합니다.";
+            statusText.text = L("재생하려면 프레임이 2개 이상 필요합니다.", "At least two frames are required for playback.");
             return;
         }
 
         SaveCurrentFrame();
         previewPlaying = !previewPlaying;
         nextPreviewFrameTime = Time.unscaledTime;
-        statusText.text = previewPlaying ? "애니메이션 미리보기 재생 중" : "애니메이션 미리보기 정지";
+        statusText.text = previewPlaying ? L("애니메이션 미리보기 재생 중", "Animation preview playing") : L("애니메이션 미리보기 정지", "Animation preview stopped");
     }
 
     private void StopFramePreview()
@@ -243,7 +272,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         SaveCurrentFrame();
         if (animationFrames.Count < 2)
         {
-            statusText.text = "애니메이션은 프레임이 2개 이상 필요합니다.";
+            statusText.text = L("애니메이션은 프레임이 2개 이상 필요합니다.", "An animation requires at least two frames.");
             return;
         }
 
@@ -280,7 +309,9 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
             animationFrames.Count,
             8f,
             true);
-        statusText.text = imported ? "도트 애니메이션을 저장하고 브러시로 선택했습니다." : "도트 애니메이션 저장에 실패했습니다.";
+        statusText.text = imported
+            ? L("도트 애니메이션을 저장하고 브러시로 선택했습니다.", "Saved the pixel animation and selected it as the brush.")
+            : L("도트 애니메이션 저장에 실패했습니다.", "Could not save the pixel animation.");
     }
 
     public void PaintAt(Vector2 normalizedPosition, bool erase)
@@ -303,8 +334,15 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         tileTexture.Apply(false, false);
         tileDirty = true;
         statusText.text = erase
-            ? "지운 위치: " + x + ", " + (TileResolution - 1 - y)
-            : "그린 위치: " + x + ", " + (TileResolution - 1 - y);
+            ? L("지운 위치: ", "Erased: ") + x + ", " + (TileResolution - 1 - y)
+            : L("그린 위치: ", "Drawn: ") + x + ", " + (TileResolution - 1 - y);
+    }
+
+    public void BeginLocalEdit()
+    {
+        if (localEditInProgress) return;
+        RecordUndoState();
+        localEditInProgress = true;
     }
 
     private void ClearTexture()
@@ -313,6 +351,9 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         {
             return;
         }
+
+
+        if (animationFrames.Count > 0) RecordUndoState();
 
         Color[] pixels = new Color[TileResolution * TileResolution];
 
@@ -328,7 +369,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (statusText != null)
         {
-            statusText.text = "캔버스를 비웠습니다.";
+            statusText.text = L("캔버스를 비웠습니다.", "Cleared the canvas.");
         }
     }
 
@@ -367,7 +408,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (!string.IsNullOrEmpty(path))
         {
-            statusText.text = "내 타일에 저장했습니다: " + Path.GetFileNameWithoutExtension(path);
+            statusText.text = L("내 타일에 저장했습니다: ", "Saved to My Tiles: ") + Path.GetFileNameWithoutExtension(path);
             RefreshSavedTiles();
         }
     }
@@ -376,7 +417,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
     {
         if (!HasVisiblePixel())
         {
-            statusText.text = "한 픽셀 이상 그린 뒤 저장해 주세요.";
+            statusText.text = L("한 픽셀 이상 그린 뒤 저장해 주세요.", "Draw at least one pixel before saving.");
             return string.Empty;
         }
 
@@ -412,8 +453,8 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
     private void BuildColorPanel(Transform parent)
     {
-        GameObject panel = CreateSidePanel(parent, "ColorPanel", new Vector2(-315f, 0f));
-        CreateLabel(panel.transform, "ColorTitle", "그리기 색상", new Vector2(12f, -10f), new Vector2(186f, 24f), 14, FontStyle.Bold, TextAnchor.MiddleLeft);
+        GameObject panel = CreateSidePanel(parent, "ColorPanel", new Vector2(-380f, 0f));
+        CreateLabel(panel.transform, "ColorTitle", L("그리기 색상", "Drawing Color"), new Vector2(12f, -10f), new Vector2(186f, 24f), 14, FontStyle.Bold, TextAnchor.MiddleLeft);
 
         drawingColor = manager == null ? Color.red : manager.selectedColor;
         Color.RGBToHSV(drawingColor, out hue, out saturation, out value);
@@ -450,7 +491,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         CreateLabel(
             panel.transform,
             "ColorHelp",
-            "색상 영역과 아래 막대를\n드래그해 색을 바꿀 수 있습니다.",
+            L("색상 영역과 아래 막대를\n드래그해 색을 바꿀 수 있습니다.", "Drag the color area and the bar below\nto change the color."),
             new Vector2(16f, -270f),
             new Vector2(178f, 42f),
             10,
@@ -462,9 +503,9 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
     private void BuildSavedTilePanel(Transform parent)
     {
-        GameObject panel = CreateSidePanel(parent, "SavedTilePanel", new Vector2(315f, 0f));
-        CreateLabel(panel.transform, "SavedTitle", "내 타일", new Vector2(12f, -10f), new Vector2(186f, 24f), 14, FontStyle.Bold, TextAnchor.MiddleLeft);
-        CreateLabel(panel.transform, "SavedHelp", "클릭하면 다시 편집", new Vector2(12f, -34f), new Vector2(186f, 18f), 9, FontStyle.Normal, TextAnchor.MiddleLeft);
+        GameObject panel = CreateSidePanel(parent, "SavedTilePanel", new Vector2(380f, 0f));
+        CreateLabel(panel.transform, "SavedTitle", L("내 타일", "My Tiles"), new Vector2(12f, -10f), new Vector2(186f, 24f), 14, FontStyle.Bold, TextAnchor.MiddleLeft);
+        CreateLabel(panel.transform, "SavedHelp", L("클릭하면 다시 편집", "Click to edit again"), new Vector2(12f, -34f), new Vector2(186f, 18f), 9, FontStyle.Normal, TextAnchor.MiddleLeft);
 
         GameObject gridObject = CreateUiObject("SavedTileGrid", panel.transform, typeof(GridLayoutGroup));
         RectTransform gridRect = gridObject.GetComponent<RectTransform>();
@@ -478,7 +519,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         grid.childAlignment = TextAnchor.UpperLeft;
         savedTileGrid = gridObject.transform;
 
-        CreateButton(panel.transform, "DeleteSavedTileButton", "선택 타일 삭제", new Vector2(14f, 12f), new Vector2(182f, 28f), DeleteSelectedTile);
+        CreateButton(panel.transform, "DeleteSavedTileButton", L("선택 타일 삭제", "Delete Selected Tile"), new Vector2(14f, 12f), new Vector2(182f, 28f), DeleteSelectedTile);
         RefreshSavedTiles();
     }
 
@@ -507,7 +548,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (!ColorUtility.TryParseHtmlString(normalized, out Color parsed))
         {
-            statusText.text = "HEX 색상 형식을 확인해 주세요.";
+            statusText.text = L("HEX 색상 형식을 확인해 주세요.", "Check the HEX color format.");
             RefreshColorUi(false);
             return;
         }
@@ -650,7 +691,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         Text label = CreateLabel(
             buttonObject.transform,
             "NewTileLabel",
-            "+\n새 타일",
+            L("+\n새 타일", "+\nNew Tile"),
             Vector2.zero,
             new Vector2(54f, 54f),
             10,
@@ -672,6 +713,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         }
 
         StopFramePreview();
+        RecordUndoState();
         currentTilePath = string.Empty;
         currentFrameIndex = 0;
         animationFrames.Clear();
@@ -687,7 +729,7 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (statusText != null)
         {
-            statusText.text = "새 타일을 만들 준비가 되었습니다.";
+            statusText.text = L("새 타일을 만들 준비가 되었습니다.", "Ready to create a new tile.");
         }
     }
 
@@ -697,18 +739,19 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
         if (loaded == null)
         {
-            statusText.text = "저장된 타일을 불러올 수 없습니다.";
+            statusText.text = L("저장된 타일을 불러올 수 없습니다.", "Could not load the saved tile.");
             return;
         }
 
         if (loaded.width != TileResolution || loaded.height != TileResolution)
         {
             MapEditorObjectUtility.DestroyObject(loaded);
-            statusText.text = "16x16 타일만 다시 편집할 수 있습니다.";
+            statusText.text = L("16x16 타일만 다시 편집할 수 있습니다.", "Only 16x16 tiles can be edited again.");
             return;
         }
 
         StopFramePreview();
+        RecordUndoState();
         Color32[] loadedPixels = loaded.GetPixels32();
         tileTexture.SetPixels32(loadedPixels);
         tileTexture.Apply(false, false);
@@ -720,14 +763,14 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         tileDirty = false;
         RefreshFrameText();
         RefreshSavedTiles();
-        statusText.text = "저장된 타일을 불러왔습니다.";
+        statusText.text = L("저장된 타일을 불러왔습니다.", "Loaded the saved tile.");
     }
 
     private void DeleteSelectedTile()
     {
         if (string.IsNullOrEmpty(currentTilePath))
         {
-            statusText.text = "삭제할 타일을 먼저 선택해 주세요.";
+            statusText.text = L("삭제할 타일을 먼저 선택해 주세요.", "Select a tile to delete first.");
             return;
         }
 
@@ -742,11 +785,11 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
 
             ClearTexture();
             RefreshSavedTiles();
-            statusText.text = "타일을 삭제했습니다: " + Path.GetFileNameWithoutExtension(pathToDelete);
+            statusText.text = L("타일을 삭제했습니다: ", "Deleted tile: ") + Path.GetFileNameWithoutExtension(pathToDelete);
         }
         catch (Exception exception)
         {
-            statusText.text = "타일을 삭제하지 못했습니다.";
+            statusText.text = L("타일을 삭제하지 못했습니다.", "Could not delete the tile.");
             Debug.LogWarning("저장 타일 삭제 실패: " + exception.Message);
         }
     }
@@ -792,6 +835,69 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         }
     }
 
+    private void RecordUndoState()
+    {
+        if (tileTexture == null || animationFrames.Count == 0) return;
+        SaveCurrentFrame();
+        undoHistory.Push(CaptureState());
+        while (undoHistory.Count > 50)
+        {
+            TileCreatorState[] states = undoHistory.ToArray();
+            undoHistory.Clear();
+            for (int i = Mathf.Min(49, states.Length - 1); i >= 0; i--) undoHistory.Push(states[i]);
+        }
+        redoHistory.Clear();
+    }
+
+    private TileCreatorState CaptureState()
+    {
+        TileCreatorState state = new TileCreatorState
+        {
+            currentFrameIndex = currentFrameIndex,
+            currentTilePath = currentTilePath
+        };
+        for (int i = 0; i < animationFrames.Count; i++)
+        {
+            state.frames.Add((Color32[])animationFrames[i].Clone());
+        }
+        return state;
+    }
+
+    private void UndoLocalEdit()
+    {
+        if (undoHistory.Count == 0) return;
+        SaveCurrentFrame();
+        redoHistory.Push(CaptureState());
+        ApplyState(undoHistory.Pop());
+        statusText.text = L("타일 만들기 실행을 취소했습니다.", "Undid the tile edit.");
+    }
+
+    private void RedoLocalEdit()
+    {
+        if (redoHistory.Count == 0) return;
+        SaveCurrentFrame();
+        undoHistory.Push(CaptureState());
+        ApplyState(redoHistory.Pop());
+        statusText.text = L("타일 만들기 실행을 다시 적용했습니다.", "Redid the tile edit.");
+    }
+
+    private void ApplyState(TileCreatorState state)
+    {
+        StopFramePreview();
+        animationFrames.Clear();
+        for (int i = 0; i < state.frames.Count; i++)
+        {
+            animationFrames.Add((Color32[])state.frames[i].Clone());
+        }
+        if (animationFrames.Count == 0) animationFrames.Add(new Color32[TileResolution * TileResolution]);
+        currentFrameIndex = Mathf.Clamp(state.currentFrameIndex, 0, animationFrames.Count - 1);
+        currentTilePath = state.currentTilePath ?? string.Empty;
+        tileTexture.SetPixels32(animationFrames[currentFrameIndex]);
+        tileTexture.Apply(false, false);
+        tileDirty = true;
+        RefreshFrameText();
+    }
+
     private void Update()
     {
         if (previewPlaying && animationFrames.Count > 1 && Time.unscaledTime >= nextPreviewFrameTime)
@@ -802,6 +908,12 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
             nextPreviewFrameTime = Time.unscaledTime + 0.125f;
             RefreshFrameText();
         }
+
+        if (!Input.GetMouseButton(0) && !Input.GetMouseButton(1)) localEditInProgress = false;
+
+        bool control = Input.GetKey(KeyCode.LeftControl) || Input.GetKey(KeyCode.RightControl);
+        if (control && Input.GetKeyDown(KeyCode.Z)) UndoLocalEdit();
+        else if (control && Input.GetKeyDown(KeyCode.Y)) RedoLocalEdit();
 
         if (Application.isPlaying && Input.GetKeyDown(KeyCode.Escape))
         {
@@ -957,6 +1069,18 @@ public sealed class MapEditorTileCreatorWindow : MonoBehaviour
         result.transform.SetParent(parent, false);
         return result;
     }
+
+    private static string L(string korean, string english)
+    {
+        return MapEditorLocalization.Choose(korean, english);
+    }
+
+    private sealed class TileCreatorState
+    {
+        public readonly List<Color32[]> frames = new List<Color32[]>();
+        public int currentFrameIndex;
+        public string currentTilePath;
+    }
 }
 
 public sealed class MapEditorTileCanvasInput : MonoBehaviour, IPointerDownHandler, IDragHandler
@@ -972,6 +1096,11 @@ public sealed class MapEditorTileCanvasInput : MonoBehaviour, IPointerDownHandle
 
     public void OnPointerDown(PointerEventData eventData)
     {
+        if (eventData.button == PointerEventData.InputButton.Left
+            || eventData.button == PointerEventData.InputButton.Right)
+        {
+            owner?.BeginLocalEdit();
+        }
         Paint(eventData);
     }
 

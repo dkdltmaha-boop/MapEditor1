@@ -230,7 +230,9 @@ public sealed class MapEditorTilesetLibraryService
             definition = new MapEditorTilesetDefinition
             {
                 id = id,
-                displayName = string.IsNullOrWhiteSpace(displayName) ? "타일셋 묶음" : displayName.Trim(),
+                displayName = string.IsNullOrWhiteSpace(displayName)
+                    ? MapEditorLocalization.Choose("타일셋 묶음", "Tileset Collection")
+                    : displayName.Trim(),
                 sourcePath = validPaths[0],
                 sourcePaths = validPaths.ToArray(),
                 atlasPath = atlasPath,
@@ -406,6 +408,42 @@ public sealed class MapEditorTilesetLibraryService
                 null,
                 displayName,
                 sourceFrameTileIds,
+                0,
+                false,
+                framesPerSecond,
+                loop,
+                out animation,
+                out error))
+        {
+            return false;
+        }
+
+        List<MapEditorTilesetAnimationDefinition> animations = GetMutableAnimations(definition);
+        animations.Add(animation);
+        definition.animations = animations.ToArray();
+        SaveAnimationChanges(definition);
+        return true;
+    }
+
+    public bool AddGridAnimation(
+        string tilesetId,
+        string displayName,
+        int frameGridSize,
+        IReadOnlyList<int> sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out MapEditorTilesetAnimationDefinition animation,
+        out string error)
+    {
+        animation = null;
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        if (!TryBuildAnimation(
+                definition,
+                null,
+                displayName,
+                sourceFrameTileIds,
+                frameGridSize,
+                true,
                 framesPerSecond,
                 loop,
                 out animation,
@@ -443,6 +481,46 @@ public sealed class MapEditorTilesetLibraryService
                 animationId,
                 displayName,
                 sourceFrameTileIds,
+                0,
+                false,
+                framesPerSecond,
+                loop,
+                out MapEditorTilesetAnimationDefinition updated,
+                out error))
+        {
+            return false;
+        }
+
+        definition.animations[animationIndex] = updated;
+        SaveAnimationChanges(definition);
+        return true;
+    }
+
+    public bool UpdateGridAnimation(
+        string tilesetId,
+        string animationId,
+        string displayName,
+        int frameGridSize,
+        IReadOnlyList<int> sourceFrameTileIds,
+        float framesPerSecond,
+        bool loop,
+        out string error)
+    {
+        MapEditorTilesetDefinition definition = FindById(tilesetId);
+        int animationIndex = FindAnimationIndex(definition, animationId);
+        if (animationIndex < 0)
+        {
+            error = definition == null ? "Tileset was not found." : "Animation was not found.";
+            return false;
+        }
+
+        if (!TryBuildAnimation(
+                definition,
+                animationId,
+                displayName,
+                sourceFrameTileIds,
+                frameGridSize,
+                true,
                 framesPerSecond,
                 loop,
                 out MapEditorTilesetAnimationDefinition updated,
@@ -493,18 +571,44 @@ public sealed class MapEditorTilesetLibraryService
         }
 
         int tileId = MapEditorPngTilesetService.GetBaseImageIndex(imageIndex);
+        int imageGridSize = GetEncodedPaletteGridSize(imageIndex, tileset.atlasGridSize);
+        MapEditorTilesetAnimationDefinition gridFallback = null;
 
         for (int i = 0; i < tileset.animations.Length; i++)
         {
             MapEditorTilesetAnimationDefinition candidate = tileset.animations[i];
-            if (candidate != null && candidate.ContainsTile(tileId))
+            int candidateGridSize = candidate != null && candidate.frameGridSize > 0
+                ? MapEditorManager.NormalizePngPaletteGridSize(candidate.frameGridSize)
+                : Mathf.Max(1, tileset.atlasGridSize);
+            if (candidate != null && candidateGridSize == imageGridSize && candidate.ContainsTile(tileId))
             {
                 animation = candidate;
                 return true;
             }
+
+            // Older UI call sites encoded the first frame with the tileset grid. Keep them loadable,
+            // then the manager normalizes the brush to the animation's own grid.
+            if (candidate != null && gridFallback == null && candidate.ContainsTile(tileId))
+            {
+                gridFallback = candidate;
+            }
         }
 
-        return false;
+        animation = gridFallback;
+        return animation != null;
+    }
+
+    private static int GetEncodedPaletteGridSize(int imageIndex, int fallbackGridSize)
+    {
+        const int flexibleTileMarker = 1 << 30;
+        const int flexibleGridShift = 14;
+        if ((imageIndex & flexibleTileMarker) == 0)
+        {
+            return Mathf.Max(1, fallbackGridSize);
+        }
+
+        int code = (imageIndex >> flexibleGridShift) & 0x3;
+        return 16 << code;
     }
 
     private static bool TryCreateContiguousFrameIds(int startTileId, int frameCount, out int[] frameTileIds, out string error)
@@ -538,6 +642,8 @@ public sealed class MapEditorTilesetLibraryService
         string existingAnimationId,
         string displayName,
         IReadOnlyList<int> sourceFrameTileIds,
+        int frameGridSize,
+        bool useGridFrames,
         float framesPerSecond,
         bool loop,
         out MapEditorTilesetAnimationDefinition animation,
@@ -568,7 +674,12 @@ public sealed class MapEditorTilesetLibraryService
             return false;
         }
 
-        int tileCount = definition.TileCount;
+        int normalizedFrameGridSize = useGridFrames
+            ? MapEditorManager.NormalizePngPaletteGridSize(frameGridSize)
+            : Mathf.Max(1, definition.atlasGridSize);
+        int tileCount = useGridFrames
+            ? normalizedFrameGridSize * normalizedFrameGridSize
+            : definition.TileCount;
         int[] atlasFrameTileIds = new int[frameCount];
         HashSet<int> uniqueFrames = new HashSet<int>();
 
@@ -581,14 +692,20 @@ public sealed class MapEditorTilesetLibraryService
                 return false;
             }
 
-            int atlasTileId = ToAtlasTileId(definition, sourceTileId);
+            int atlasTileId = useGridFrames
+                ? ToGridTileId(normalizedFrameGridSize, sourceTileId)
+                : ToAtlasTileId(definition, sourceTileId);
             if (!uniqueFrames.Add(atlasTileId))
             {
                 error = "An animation cannot use the same frame more than once.";
                 return false;
             }
 
-            if (IsFrameUsedByAnotherAnimation(definition, existingAnimationId, atlasTileId))
+            if (IsFrameUsedByAnotherAnimation(
+                    definition,
+                    existingAnimationId,
+                    normalizedFrameGridSize,
+                    atlasTileId))
             {
                 error = "Tile " + sourceTileId + " is already used by another animation.";
                 return false;
@@ -612,6 +729,7 @@ public sealed class MapEditorTilesetLibraryService
             startTileId = sourceFrameTileIds[0],
             frameCount = frameCount,
             frameTileIds = atlasFrameTileIds,
+            frameGridSize = useGridFrames ? normalizedFrameGridSize : 0,
             framesPerSecond = framesPerSecond,
             loop = loop
         };
@@ -621,6 +739,7 @@ public sealed class MapEditorTilesetLibraryService
     private static bool IsFrameUsedByAnotherAnimation(
         MapEditorTilesetDefinition definition,
         string ignoredAnimationId,
+        int frameGridSize,
         int atlasTileId)
     {
         if (definition.animations == null)
@@ -636,13 +755,36 @@ public sealed class MapEditorTilesetLibraryService
                 continue;
             }
 
-            if (candidate.ContainsTile(atlasTileId))
+            int candidateGridSize = candidate.frameGridSize > 0
+                ? MapEditorManager.NormalizePngPaletteGridSize(candidate.frameGridSize)
+                : Mathf.Max(1, definition.atlasGridSize);
+            int candidateFrameCount = Mathf.Max(1, candidate.frameCount);
+            for (int frameIndex = 0; frameIndex < candidateFrameCount; frameIndex++)
             {
-                return true;
+                if (GridCellsOverlap(
+                        frameGridSize,
+                        atlasTileId,
+                        candidateGridSize,
+                        candidate.GetFrameTileId(frameIndex)))
+                {
+                    return true;
+                }
             }
         }
 
         return false;
+    }
+
+    private static bool GridCellsOverlap(int firstGrid, int firstTileId, int secondGrid, int secondTileId)
+    {
+        int firstX = firstTileId % firstGrid;
+        int firstY = firstTileId / firstGrid;
+        int secondX = secondTileId % secondGrid;
+        int secondY = secondTileId / secondGrid;
+        return firstX * secondGrid < (secondX + 1) * firstGrid
+            && secondX * firstGrid < (firstX + 1) * secondGrid
+            && firstY * secondGrid < (secondY + 1) * firstGrid
+            && secondY * firstGrid < (firstY + 1) * secondGrid;
     }
 
     private static List<MapEditorTilesetAnimationDefinition> GetMutableAnimations(MapEditorTilesetDefinition definition)
@@ -698,6 +840,14 @@ public sealed class MapEditorTilesetLibraryService
         int sourceColumn = Mathf.Max(0, sourceTileId % sourceColumns);
         int atlasRowFromBottom = Mathf.Max(0, definition.atlasGridSize - 1 - sourceRowFromTop);
         return atlasRowFromBottom * definition.atlasGridSize + sourceColumn;
+    }
+
+    private static int ToGridTileId(int gridSize, int sourceTileId)
+    {
+        int sourceRowFromTop = Mathf.Max(0, sourceTileId / gridSize);
+        int sourceColumn = Mathf.Max(0, sourceTileId % gridSize);
+        int rowFromBottom = Mathf.Max(0, gridSize - 1 - sourceRowFromTop);
+        return rowFromBottom * gridSize + sourceColumn;
     }
 
     public static bool IsNormalizedAtlasPath(string atlasPath)

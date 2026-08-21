@@ -66,7 +66,7 @@ public static class MapEditorWorkshopPreviewPanelBuilder
 
     private static void CreateTitle(Transform parent)
     {
-        Text text = CreateText(parent, "창작마당 프리뷰", 12, 18f);
+        Text text = CreateText(parent, L("창작마당 프리뷰", "Workshop Previews"), 12, 18f);
         text.fontStyle = FontStyle.Bold;
     }
 
@@ -82,7 +82,7 @@ public static class MapEditorWorkshopPreviewPanelBuilder
         Button button = buttonObject.GetComponent<Button>();
         button.targetGraphic = image;
         button.onClick.AddListener(manager.SetPreviewRegionTool);
-        Text label = CreateText(buttonObject.transform, "+ 프리뷰 촬영 (맵에서 드래그)", 10, 0f);
+        Text label = CreateText(buttonObject.transform, L("+ 프리뷰 촬영 (맵에서 드래그)", "+ Capture Preview (Drag on Map)"), 10, 0f);
         Stretch(label.rectTransform);
         label.alignment = TextAnchor.MiddleCenter;
     }
@@ -121,7 +121,7 @@ public static class MapEditorWorkshopPreviewPanelBuilder
 
         if (manager.PreviewRegions.Count == 0)
         {
-            Text empty = CreateText(contentObject.transform, "아직 촬영한 프리뷰가 없습니다.", 9, 34f);
+            Text empty = CreateText(contentObject.transform, L("아직 촬영한 프리뷰가 없습니다.", "No previews captured yet."), 9, 34f);
             empty.alignment = TextAnchor.MiddleCenter;
             empty.color = new Color(0.7f, 0.7f, 0.7f, 1f);
             return;
@@ -151,7 +151,7 @@ public static class MapEditorWorkshopPreviewPanelBuilder
         imageObject.GetComponent<MapEditorOwnedPreviewTexture>().texture = texture;
 
         Text info = CreateText(row.transform,
-            (index == 0 ? "대표 " : "추가 ") + (index + 1) + "\n" + region.width + "×" + region.height,
+            (index == 0 ? L("대표 ", "Main ") : L("추가 ", "Extra ")) + (index + 1) + "\n" + region.width + "×" + region.height,
             9, 44f);
         info.rectTransform.sizeDelta = new Vector2(54f, 44f);
         info.alignment = TextAnchor.MiddleLeft;
@@ -188,6 +188,11 @@ public static class MapEditorWorkshopPreviewPanelBuilder
         rect.anchorMax = Vector2.one;
         rect.offsetMin = Vector2.zero;
         rect.offsetMax = Vector2.zero;
+    }
+
+    private static string L(string korean, string english)
+    {
+        return MapEditorLocalization.Choose(korean, english);
     }
 
     private static void ClearChildren(Transform parent)

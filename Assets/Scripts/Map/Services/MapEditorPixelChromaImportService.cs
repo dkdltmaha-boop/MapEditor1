@@ -10,7 +10,9 @@ public sealed class MapEditorPixelChromaImportService
         saveData = null;
         path = string.Empty;
 
-        path = MapEditorFileDialog.OpenFile("PixelChroma 맵 가져오기", "json");
+        path = MapEditorFileDialog.OpenFile(
+            MapEditorLocalization.Choose("PixelChroma 맵 가져오기", "Import PixelChroma Map"),
+            "json");
 
         if (string.IsNullOrEmpty(path))
         {

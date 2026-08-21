@@ -71,7 +71,10 @@ public class MapEditorMapSaveService
     {
         if (string.IsNullOrEmpty(currentMapFilePath))
         {
-            string path = MapEditorFileDialog.SaveFile("편집용 맵 저장", DefaultSaveFileName, "json");
+            string path = MapEditorFileDialog.SaveFile(
+                MapEditorLocalization.Choose("편집용 맵 저장", "Save Editable Map"),
+                DefaultSaveFileName,
+                "json");
 
             if (string.IsNullOrEmpty(path))
             {
@@ -102,7 +105,9 @@ public class MapEditorMapSaveService
 
     public bool Load(out MapSaveData saveData, out string path)
     {
-        path = MapEditorFileDialog.OpenFile("편집용 맵 불러오기", "json");
+        path = MapEditorFileDialog.OpenFile(
+            MapEditorLocalization.Choose("편집용 맵 불러오기", "Load Editable Map"),
+            "json");
 
         if (string.IsNullOrEmpty(path))
         {

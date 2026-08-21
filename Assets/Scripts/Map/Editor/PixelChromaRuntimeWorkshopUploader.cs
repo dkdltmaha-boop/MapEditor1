@@ -14,11 +14,11 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     [Tooltip("맵 데이터와 창작마당 메타데이터를 가진 매니저.")]
     public MapEditorManager mapEditor;
 
-    [Tooltip("테스트 대상 App ID. 480 = SpaceWar 공용 테스트 앱. 실제 App ID가 생기면 교체.")]
-    public uint testAppId = 480;
+    [Tooltip("PixelChroma Steam App ID.")]
+    public uint testAppId = 5023800u;
 
-    [Tooltip("테스트 중엔 항상 Unlisted 로 올려 공개 노출을 막는다.")]
-    public bool forceUnlistedForTest = true;
+    [Tooltip("활성화하면 업로드 공개 범위를 강제로 미등록으로 설정합니다.")]
+    public bool forceUnlistedForTest;
 
     [Tooltip("이 컴포넌트가 SteamAPI.Init/Shutdown/RunCallbacks 를 직접 관리한다. 이미 SteamManager 가 있으면 끈다.")]
     public bool manageSteamLifecycle = true;
@@ -116,7 +116,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
         if (!manageSteamLifecycle) return true;  // 외부 SteamManager 가 이미 Init/Runcallbacks 담당
         if (steamStartedByUs) return true;
 
-        EnsureSteamAppIdFile();   // 480 을 Steam 에 알림(아래 함수 참고)
+        EnsureSteamAppIdFile();   // PixelChroma App ID를 Steam에 알림(아래 함수 참고)
 
         try
         {
@@ -137,7 +137,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
     }
 
     // 왜: SteamAPI.Init 은 실행 폴더의 steam_appid.txt 를 읽어 "어떤 앱으로 붙을지" 판단한다.
-    // 이 파일이 480 이어야 SpaceWar 로 연결된다. (에디터에선 working dir = 프로젝트 루트)
+    // Steam API가 PixelChroma 앱 컨텍스트로 초기화되도록 프로젝트 루트에 App ID를 기록한다.
     private void EnsureSteamAppIdFile()
     {
         string path = Path.Combine(Directory.GetCurrentDirectory(), "steam_appid.txt");
@@ -243,7 +243,7 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 
     private ERemoteStoragePublishedFileVisibility ResolveVisibility(PixelChromaSteamWorkshopUploadConfig cfg)
     {
-        if (forceUnlistedForTest)                              // 480 샌드박스 보호
+        if (forceUnlistedForTest)                              // 테스트 업로드 공개 방지
             return ERemoteStoragePublishedFileVisibility.k_ERemoteStoragePublishedFileVisibilityUnlisted;
 
         switch ((cfg?.visibility ?? "Unlisted").Trim().ToLowerInvariant())
@@ -282,8 +282,8 @@ public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 public sealed class PixelChromaRuntimeWorkshopUploader : MonoBehaviour
 {
     public MapEditorManager mapEditor;
-    public uint testAppId = 480;
-    public bool forceUnlistedForTest = true;
+    public uint testAppId = 5023800u;
+    public bool forceUnlistedForTest;
     public bool manageSteamLifecycle = true;
 
     public event Action<string> StatusChanged;

@@ -124,7 +124,9 @@ public sealed class MapEditorWorkshopExportService
         bool emptyCellsTransparent)
     {
         string defaultFolder = SanitizeId(string.IsNullOrWhiteSpace(mapId) ? "workshop_map" : mapId);
-        string folderPath = MapEditorFileDialog.SelectFolder("PixelChroma 창작마당 패키지 내보내기", defaultFolder);
+        string folderPath = MapEditorFileDialog.SelectFolder(
+            MapEditorLocalization.Choose("PixelChroma 창작마당 패키지 내보내기", "Export PixelChroma Workshop Package"),
+            defaultFolder);
 
         if (string.IsNullOrEmpty(folderPath))
         {

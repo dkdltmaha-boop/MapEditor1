@@ -36,7 +36,7 @@ public static class MapEditorPixelChromaValidationService
 
         if (mapData == null)
         {
-            Fail(report, "맵 데이터가 없습니다.");
+            Fail(report, L("맵 데이터가 없습니다.", "Map data is missing."));
             return Finish(report);
         }
 
@@ -47,15 +47,15 @@ public static class MapEditorPixelChromaValidationService
             || mapData.width > MapEditorManager.MaxMapSize
             || mapData.height > MapEditorManager.MaxMapSize)
         {
-            Fail(report, "맵 크기가 허용 범위를 벗어났습니다.");
+            Fail(report, L("맵 크기가 허용 범위를 벗어났습니다.", "The map size is outside the allowed range."));
         }
         else
         {
-            Pass(report, "맵 크기: " + mapData.width + "×" + mapData.height);
+            Pass(report, L("맵 크기: ", "Map size: ") + mapData.width + "×" + mapData.height);
 
             if (mapData.width < MinimumPlayableDimension || mapData.height < MinimumPlayableDimension)
             {
-                Fail(report, "플레이 맵은 가로와 세로가 각각 최소 " + MinimumPlayableDimension + "칸이어야 합니다. 현재 " + mapData.width + "×" + mapData.height + "입니다.");
+                Fail(report, L("플레이 맵은 가로와 세로가 각각 최소 ", "A playable map must be at least ") + MinimumPlayableDimension + L("칸이어야 합니다. 현재 ", " cells wide and high. Current size: ") + mapData.width + "×" + mapData.height + L("입니다.", "."));
             }
         }
 
@@ -75,61 +75,61 @@ public static class MapEditorPixelChromaValidationService
 
         if (report.animatedTileCount > 0 && report.invalidAnimationCount == 0)
         {
-            Pass(report, "애니메이션 타일: " + report.animatedTileCount + "개 / 정의 " + report.animationDefinitionCount + "개");
+            Pass(report, L("애니메이션 타일: ", "Animated tiles: ") + report.animatedTileCount + L("개 / 정의 ", " / definitions ") + report.animationDefinitionCount);
         }
 
         if (report.paintedTileCount == 0)
         {
-            Fail(report, "맵에 배치된 타일이 없습니다.");
+            Fail(report, L("맵에 배치된 타일이 없습니다.", "No tiles are placed on the map."));
         }
 
         if (report.groundTileCount == 0)
         {
-            Fail(report, "플레이 가능한 바닥 타일이 없습니다.");
+            Fail(report, L("플레이 가능한 바닥 타일이 없습니다.", "There are no playable ground tiles."));
         }
         else
         {
-            Pass(report, "바닥 타일: " + report.groundTileCount + "개");
+            Pass(report, L("바닥 타일: ", "Ground tiles: ") + report.groundTileCount);
         }
 
         if (report.wallTileCount == 0)
         {
-            Fail(report, "충돌벽이 없습니다. PixelChroma 스테이지처럼 이동 영역을 막는 Wall/Collision 타일을 배치하세요.");
+            Fail(report, L("충돌벽이 없습니다. PixelChroma 스테이지처럼 이동 영역을 막는 Wall/Collision 타일을 배치하세요.", "No collision walls are present. Place Wall/Collision tiles around the playable area."));
         }
         else
         {
-            Pass(report, "충돌벽: " + report.wallTileCount + "개");
+            Pass(report, L("충돌벽: ", "Collision walls: ") + report.wallTileCount);
         }
 
         if (report.objectTileCount == 0)
         {
-            Warn(report, "오브젝트 레이어가 비어 있습니다.");
+            Warn(report, L("오브젝트 레이어가 비어 있습니다.", "The Object layer is empty."));
         }
         else
         {
-            Pass(report, "오브젝트 타일: " + report.objectTileCount + "개");
+            Pass(report, L("오브젝트 타일: ", "Object tiles: ") + report.objectTileCount);
         }
 
         if (missingTilesets.Count > 0)
         {
             foreach (string missingTileset in missingTilesets)
             {
-                Fail(report, "원본 타일셋 파일을 찾을 수 없습니다: " + missingTileset);
+                Fail(report, L("원본 타일셋 파일을 찾을 수 없습니다: ", "Tileset source file not found: ") + missingTileset);
             }
         }
         else
         {
-            Pass(report, "사용된 이미지 파일을 모두 확인했습니다.");
+            Pass(report, L("사용된 이미지 파일을 모두 확인했습니다.", "All used image files were verified."));
         }
 
         if (report.tilesetCount > RecommendedMaximumTilesets)
         {
-            Warn(report, "타일셋을 " + report.tilesetCount + "개 사용했습니다. 로딩 부담을 줄이려면 " + RecommendedMaximumTilesets + "개 이하를 권장합니다.");
+            Warn(report, L("타일셋을 ", "The map uses ") + report.tilesetCount + L("개 사용했습니다. 로딩 부담을 줄이려면 ", " tilesets. For faster loading, use no more than ") + RecommendedMaximumTilesets + L("개 이하를 권장합니다.", "."));
         }
 
         if (report.animatedTileCount > RecommendedMaximumAnimatedTiles)
         {
-            Warn(report, "애니메이션 타일이 " + report.animatedTileCount + "개입니다. 원활한 플레이를 위해 " + RecommendedMaximumAnimatedTiles + "개 이하를 권장합니다.");
+            Warn(report, L("애니메이션 타일이 ", "There are ") + report.animatedTileCount + L("개입니다. 원활한 플레이를 위해 ", " animated tiles. For smooth play, use no more than ") + RecommendedMaximumAnimatedTiles + L("개 이하를 권장합니다.", "."));
         }
 
         AnalyzePlayableArea(mapData, report);
@@ -144,15 +144,15 @@ public static class MapEditorPixelChromaValidationService
             : report.groundCellCount / (float)(mapData.width * mapData.height);
         if (groundCoverage < MinimumGroundCoverage)
         {
-            Fail(report, "실제 바닥 면적이 전체 맵의 5%보다 작습니다. 맵 크기를 줄이거나 플레이 영역을 넓히세요.");
+            Fail(report, L("실제 바닥 면적이 전체 맵의 5%보다 작습니다. 맵 크기를 줄이거나 플레이 영역을 넓히세요.", "Ground covers less than 5% of the map. Reduce the map size or expand the playable area."));
         }
         else if (groundCoverage < RecommendedGroundCoverage)
         {
-            Warn(report, "바닥 사용 면적이 전체 맵의 15%보다 작습니다.");
+            Warn(report, L("바닥 사용 면적이 전체 맵의 15%보다 작습니다.", "Ground covers less than 15% of the map."));
         }
         else
         {
-            Pass(report, "바닥 사용 면적: " + Mathf.RoundToInt(groundCoverage * 100f) + "%");
+            Pass(report, L("바닥 사용 면적: ", "Ground coverage: ") + Mathf.RoundToInt(groundCoverage * 100f) + "%");
         }
 
         return Finish(report);
@@ -182,7 +182,7 @@ public static class MapEditorPixelChromaValidationService
     {
         if (!previewRegion.HasValue)
         {
-            Fail(report, "프리뷰 이미지 영역이 지정되지 않았습니다. 프리뷰 영역 도구로 맵의 대표 장면을 드래그하세요.");
+            Fail(report, L("프리뷰 이미지 영역이 지정되지 않았습니다. 프리뷰 영역 도구로 맵의 대표 장면을 드래그하세요.", "No preview region is set. Drag a representative map area with the preview tool."));
             return;
         }
 
@@ -193,7 +193,7 @@ public static class MapEditorPixelChromaValidationService
 
         if (region.width < MinimumPreviewDimension || region.height < MinimumPreviewDimension)
         {
-            Fail(report, "프리뷰 영역은 가로와 세로가 각각 최소 " + MinimumPreviewDimension + "칸이어야 합니다. 현재 " + region.width + "×" + region.height + "입니다.");
+            Fail(report, L("프리뷰 영역은 가로와 세로가 각각 최소 ", "The preview must be at least ") + MinimumPreviewDimension + L("칸이어야 합니다. 현재 ", " cells wide and high. Current size: ") + region.width + "×" + region.height + L("입니다.", "."));
             return;
         }
 
@@ -202,7 +202,7 @@ public static class MapEditorPixelChromaValidationService
             || region.xMax > mapData.width
             || region.yMax > mapData.height)
         {
-            Fail(report, "프리뷰 영역이 맵 범위를 벗어났습니다. 맵 안쪽에서 다시 지정하세요.");
+            Fail(report, L("프리뷰 영역이 맵 범위를 벗어났습니다. 맵 안쪽에서 다시 지정하세요.", "The preview region extends outside the map. Select it again inside the map."));
             return;
         }
 
@@ -219,11 +219,11 @@ public static class MapEditorPixelChromaValidationService
 
         if (report.previewPaintedCellCount == 0)
         {
-            Fail(report, "프리뷰 영역에 표시할 타일이 없습니다. 맵 내용이 보이는 영역을 지정하세요.");
+            Fail(report, L("프리뷰 영역에 표시할 타일이 없습니다. 맵 내용이 보이는 영역을 지정하세요.", "The preview region contains no visible tiles. Select an area containing map content."));
             return;
         }
 
-        Pass(report, "프리뷰 이미지 영역: " + region.width + "×" + region.height + " / 표시 타일 " + report.previewPaintedCellCount + "칸");
+        Pass(report, L("프리뷰 이미지 영역: ", "Preview region: ") + region.width + "×" + region.height + L(" / 표시 타일 ", " / visible tiles ") + report.previewPaintedCellCount);
     }
 
     private static void AnalyzePlayableArea(MapData mapData, PixelChromaMapValidationReport report)
@@ -273,38 +273,38 @@ public static class MapEditorPixelChromaValidationService
 
         if (report.walkableTileCount < MinimumWalkableTileCount)
         {
-            Fail(report, "이동 가능한 바닥이 " + report.walkableTileCount + "칸뿐입니다. 최소 " + MinimumWalkableTileCount + "칸을 확보하세요.");
+            Fail(report, L("이동 가능한 바닥이 ", "Only ") + report.walkableTileCount + L("칸뿐입니다. 최소 ", " walkable cells are available. Provide at least ") + MinimumWalkableTileCount + L("칸을 확보하세요.", "."));
         }
         else
         {
-            Pass(report, "이동 가능한 바닥: " + report.walkableTileCount + "칸");
+            Pass(report, L("이동 가능한 바닥: ", "Walkable ground: ") + report.walkableTileCount);
         }
 
         if (report.boundaryLeakCount > 0)
         {
-            Fail(report, "이동 영역의 열린 가장자리가 " + report.boundaryLeakCount + "칸 있습니다. 예: " + FormatPosition(firstBoundaryLeak) + ". 바닥이 끝나는 곳과 맵 외곽을 충돌벽으로 막으세요.");
+            Fail(report, L("이동 영역의 열린 가장자리가 ", "The playable area has ") + report.boundaryLeakCount + L("칸 있습니다. 예: ", " open boundary cells. Example: ") + FormatPosition(firstBoundaryLeak) + L(". 바닥이 끝나는 곳과 맵 외곽을 충돌벽으로 막으세요.", ". Block ground edges and map boundaries with collision walls."));
         }
         else if (report.walkableTileCount > 0)
         {
-            Pass(report, "이동 영역의 모든 가장자리가 충돌벽으로 닫혀 있습니다.");
+            Pass(report, L("이동 영역의 모든 가장자리가 충돌벽으로 닫혀 있습니다.", "All playable-area boundaries are closed by collision walls."));
         }
 
         if (report.isolatedGroundTileCount > 0)
         {
-            Fail(report, "상하좌우로 이동할 수 없는 고립 바닥이 " + report.isolatedGroundTileCount + "칸 있습니다. 예: " + FormatPosition(firstIsolatedGround) + ".");
+            Fail(report, L("상하좌우로 이동할 수 없는 고립 바닥이 ", "There are ") + report.isolatedGroundTileCount + L("칸 있습니다. 예: ", " isolated ground cells. Example: ") + FormatPosition(firstIsolatedGround) + ".");
         }
         else if (report.walkableTileCount > 0)
         {
-            Pass(report, "한 칸짜리 고립 바닥이 없습니다.");
+            Pass(report, L("한 칸짜리 고립 바닥이 없습니다.", "There are no isolated single-cell ground tiles."));
         }
 
         if (report.unvisualizedWallTileCount > 0)
         {
-            Warn(report, "표시 타일이 없는 투명 충돌벽이 " + report.unvisualizedWallTileCount + "칸 있습니다. 예: " + FormatPosition(firstUnvisualizedWall) + ". 의도한 벽인지 확인하세요.");
+            Warn(report, L("표시 타일이 없는 투명 충돌벽이 ", "There are ") + report.unvisualizedWallTileCount + L("칸 있습니다. 예: ", " invisible collision walls. Example: ") + FormatPosition(firstUnvisualizedWall) + L(". 의도한 벽인지 확인하세요.", ". Verify that these walls are intentional."));
         }
         else if (report.wallTileCount > 0)
         {
-            Pass(report, "모든 충돌벽 위치에 표시 타일이 있습니다.");
+            Pass(report, L("모든 충돌벽 위치에 표시 타일이 있습니다.", "Every collision wall has a visible tile."));
         }
     }
 
@@ -376,7 +376,7 @@ public static class MapEditorPixelChromaValidationService
                             if (!TryValidateAnimation(tileset, animation, out string animationError))
                             {
                                 report.invalidAnimationCount++;
-                                Fail(report, "애니메이션 타일을 내보낼 수 없습니다: " + animationError);
+                                Fail(report, L("애니메이션 타일을 내보낼 수 없습니다: ", "Could not export animated tile: ") + animationError);
                             }
                         }
 
@@ -386,7 +386,7 @@ public static class MapEditorPixelChromaValidationService
                     string imageTileKey = imagePath + "#" + imageIndex;
                     if (validatedImageTiles.Add(imageTileKey) && !CanCreateImageTile(imagePath, imageIndex))
                     {
-                        Fail(report, "이미지 타일을 만들 수 없습니다: " + imagePath + " #" + imageIndex);
+                        Fail(report, L("이미지 타일을 만들 수 없습니다: ", "Could not create image tile: ") + imagePath + " #" + imageIndex);
                     }
                 }
             }
@@ -402,7 +402,7 @@ public static class MapEditorPixelChromaValidationService
 
         if (tileset == null || animation == null)
         {
-            error = "타일셋 또는 애니메이션 정의가 없습니다.";
+            error = L("타일셋 또는 애니메이션 정의가 없습니다.", "The tileset or animation definition is missing.");
             return false;
         }
 
@@ -412,7 +412,7 @@ public static class MapEditorPixelChromaValidationService
         if (frameCount < MapEditorTilesetLibraryService.MinAnimationFrameCount
             || frameCount > MapEditorTilesetLibraryService.MaxAnimationFrameCount)
         {
-            error = GetAnimationLabel(tileset, animation) + "의 프레임 수가 2~32 범위를 벗어났습니다.";
+            error = GetAnimationLabel(tileset, animation) + L("의 프레임 수가 2~32 범위를 벗어났습니다.", " has a frame count outside the 2-32 range.");
             return false;
         }
 
@@ -421,14 +421,14 @@ public static class MapEditorPixelChromaValidationService
             || animation.framesPerSecond < MapEditorTilesetLibraryService.MinAnimationFramesPerSecond
             || animation.framesPerSecond > MapEditorTilesetLibraryService.MaxAnimationFramesPerSecond)
         {
-            error = GetAnimationLabel(tileset, animation) + "의 재생 속도가 1~30 FPS 범위를 벗어났습니다.";
+            error = GetAnimationLabel(tileset, animation) + L("의 재생 속도가 1~30 FPS 범위를 벗어났습니다.", " has a playback speed outside the 1-30 FPS range.");
             return false;
         }
 
-        int gridSize = tileset.atlasGridSize;
+        int gridSize = animation.GetFrameGridSize(tileset.atlasGridSize);
         if (gridSize <= 0 || tileset.columns <= 0 || tileset.rows <= 0)
         {
-            error = GetAnimationLabel(tileset, animation) + "의 타일셋 격자 정보가 올바르지 않습니다.";
+            error = GetAnimationLabel(tileset, animation) + L("의 타일셋 격자 정보가 올바르지 않습니다.", " has invalid tileset-grid data.");
             return false;
         }
 
@@ -440,27 +440,33 @@ public static class MapEditorPixelChromaValidationService
             int rowFromBottom = frameTileId / gridSize;
             int sourceRowFromTop = gridSize - 1 - rowFromBottom;
 
+            bool outsideLegacyContent = animation.frameGridSize <= 0
+                && (column < 0
+                    || column >= tileset.columns
+                    || sourceRowFromTop < 0
+                    || sourceRowFromTop >= tileset.rows);
             if (frameTileId < 0
                 || frameTileId >= gridSize * gridSize
-                || column < 0
-                || column >= tileset.columns
-                || sourceRowFromTop < 0
-                || sourceRowFromTop >= tileset.rows)
+                || outsideLegacyContent)
             {
-                error = GetAnimationLabel(tileset, animation) + "의 " + (frameIndex + 1) + "번째 프레임이 타일셋 범위 밖입니다.";
+                error = GetAnimationLabel(tileset, animation)
+                    + L("의 ", " frame ") + (frameIndex + 1)
+                    + L("번째 프레임이 타일셋 범위 밖입니다.", " is outside the tileset bounds.");
                 return false;
             }
 
             if (!uniqueFrames.Add(frameTileId))
             {
-                error = GetAnimationLabel(tileset, animation) + "에 중복 프레임이 있습니다.";
+                error = GetAnimationLabel(tileset, animation) + L("에 중복 프레임이 있습니다.", " contains duplicate frames.");
                 return false;
             }
 
             int frameImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(gridSize, frameTileId);
             if (!CanCreateImageTile(tileset.atlasPath, frameImageIndex))
             {
-                error = GetAnimationLabel(tileset, animation) + "의 " + (frameIndex + 1) + "번째 프레임을 읽을 수 없습니다.";
+                error = GetAnimationLabel(tileset, animation)
+                    + L("의 ", " frame ") + (frameIndex + 1)
+                    + L("번째 프레임을 읽을 수 없습니다.", " could not be read.");
                 return false;
             }
         }
@@ -517,11 +523,11 @@ public static class MapEditorPixelChromaValidationService
     {
         if (spawnPoints.Count == 0)
         {
-            Fail(report, "시작 위치가 없습니다. 시작 위치 도구로 최소 한 곳을 지정하세요.");
+            Fail(report, L("시작 위치가 없습니다. 시작 위치 도구로 최소 한 곳을 지정하세요.", "No spawn is set. Place at least one with the Shared Spawn tool."));
             return;
         }
 
-        HashSet<Vector2Int> positions = new HashSet<Vector2Int>();
+        HashSet<string> rolePositions = new HashSet<string>(System.StringComparer.OrdinalIgnoreCase);
         int runnerCount = 0;
         int seekerCount = 0;
 
@@ -529,49 +535,53 @@ public static class MapEditorPixelChromaValidationService
         {
             MapEditorSpawnPointData spawn = spawnPoints[i];
             bool seeker = string.Equals(spawn.role, "Seeker", System.StringComparison.OrdinalIgnoreCase);
-            string roleLabel = seeker ? "술래 시작 위치" : "플레이어 시작 위치";
+            string roleLabel = seeker
+                ? L("술래 시작 위치", "Seeker spawn")
+                : L("플레이어 시작 위치", "Runner spawn");
             string label = string.IsNullOrEmpty(spawn.id) ? roleLabel : spawn.id + " (" + roleLabel + ")";
             if (seeker) seekerCount++;
             else runnerCount++;
 
             if (!mapData.IsInside(spawn.x, spawn.y))
             {
-                Fail(report, label + "가 맵 범위 밖에 있습니다.");
+                Fail(report, label + L("가 맵 범위 밖에 있습니다.", " is outside the map."));
                 continue;
             }
 
             Vector2Int position = new Vector2Int(spawn.x, spawn.y);
-            if (!positions.Add(position))
+            string normalizedRole = seeker ? "Seeker" : "Runner";
+            string rolePositionKey = normalizedRole + ":" + position.x + ":" + position.y;
+            if (!rolePositions.Add(rolePositionKey))
             {
-                Fail(report, label + "가 다른 시작 위치와 겹칩니다. 시작 위치는 한 칸에 하나만 둘 수 있습니다.");
+                Fail(report, label + L("가 같은 역할의 다른 시작 위치와 겹칩니다.", " overlaps another spawn for the same role."));
             }
 
             if (IsWall(mapData, spawn.x, spawn.y))
             {
-                Fail(report, label + "가 Wall 위에 있습니다.");
+                Fail(report, label + L("가 Wall 위에 있습니다.", " is on a Wall tile."));
             }
             else if (!HasGround(mapData, spawn.x, spawn.y))
             {
-                Fail(report, label + " 아래에 바닥 타일이 없습니다.");
+                Fail(report, label + L(" 아래에 바닥 타일이 없습니다.", " has no ground tile underneath."));
             }
             else if (!HasWalkableNeighbor(mapData, spawn.x, spawn.y))
             {
-                Fail(report, label + "가 이동할 수 없는 한 칸 공간에 갇혀 있습니다.");
+                Fail(report, label + L("가 이동할 수 없는 한 칸 공간에 갇혀 있습니다.", " is trapped in a non-walkable single-cell space."));
             }
             else
             {
-                Pass(report, label + " 배치가 정상입니다.");
+                Pass(report, label + L(" 배치가 정상입니다.", " placement is valid."));
             }
         }
 
         if (runnerCount == 0)
         {
-            Fail(report, "플레이어 시작 위치가 없습니다. '플레이어 시작' 도구로 한 곳을 지정하세요.");
+            Fail(report, L("플레이어 시작 위치가 없습니다. '공용 시작 위치' 도구로 한 곳을 지정하세요.", "No runner spawn is set. Place one with the Shared Spawn tool."));
         }
 
         if (seekerCount == 0)
         {
-            Fail(report, "술래 시작 위치가 없습니다. '술래 시작' 도구로 한 곳을 지정하세요.");
+            Fail(report, L("술래 시작 위치가 없습니다. '공용 시작 위치' 도구로 한 곳을 지정하세요.", "No seeker spawn is set. Place one with the Shared Spawn tool."));
         }
     }
 
@@ -628,15 +638,15 @@ public static class MapEditorPixelChromaValidationService
             {
                 allSpawnsReachable = false;
                 string roleLabel = string.Equals(spawn.role, "Seeker", System.StringComparison.OrdinalIgnoreCase)
-                    ? "술래 시작 위치"
-                    : "플레이어 시작 위치";
-                Fail(report, roleLabel + "까지 이동 가능한 경로가 없습니다.");
+                    ? L("술래 시작 위치", "the seeker spawn")
+                    : L("플레이어 시작 위치", "the runner spawn");
+                Fail(report, L(roleLabel + "까지 이동 가능한 경로가 없습니다.", "There is no walkable path to " + roleLabel + "."));
             }
         }
 
         if (allSpawnsReachable && spawnPoints.Count > 1)
         {
-            Pass(report, "모든 시작 위치가 서로 연결되어 있습니다.");
+            Pass(report, L("모든 시작 위치가 서로 연결되어 있습니다.", "All spawn points are connected."));
         }
 
         Vector2Int firstUnreachable = new Vector2Int(-1, -1);
@@ -654,11 +664,11 @@ public static class MapEditorPixelChromaValidationService
 
         if (report.unreachableWalkableTileCount > 0)
         {
-            Fail(report, "시작 위치에서 도달할 수 없는 바닥이 " + report.unreachableWalkableTileCount + "칸 있습니다. 예: " + FormatPosition(firstUnreachable) + ". 끊어진 통로를 연결하세요.");
+            Fail(report, L("시작 위치에서 도달할 수 없는 바닥이 ", "There are ") + report.unreachableWalkableTileCount + L("칸 있습니다. 예: ", " ground cells unreachable from a spawn. Example: ") + FormatPosition(firstUnreachable) + L(". 끊어진 통로를 연결하세요.", ". Connect the disconnected paths."));
         }
         else if (report.walkableTileCount > 0)
         {
-            Pass(report, "모든 이동 가능한 바닥이 시작 위치와 연결되어 있습니다.");
+            Pass(report, L("모든 이동 가능한 바닥이 시작 위치와 연결되어 있습니다.", "All walkable ground is connected to a spawn."));
         }
     }
 
@@ -757,6 +767,11 @@ public static class MapEditorPixelChromaValidationService
         return "(" + position.x + ", " + position.y + ")";
     }
 
+    private static string L(string korean, string english)
+    {
+        return MapEditorLocalization.Choose(korean, english);
+    }
+
     private static void Pass(PixelChromaMapValidationReport report, string message)
     {
         report.passedChecks.Add(message);
@@ -787,17 +802,17 @@ public static class MapEditorPixelChromaValidationService
 
         for (int i = 0; i < report.errors.Count; i++)
         {
-            Debug.LogError("PixelChroma 맵 검사 실패: " + report.errors[i]);
+            Debug.LogError(L("PixelChroma 맵 검사 실패: ", "PixelChroma map validation failed: ") + report.errors[i]);
         }
 
         for (int i = 0; i < report.warnings.Count; i++)
         {
-            Debug.LogWarning("PixelChroma 맵 검사 경고: " + report.warnings[i]);
+            Debug.LogWarning(L("PixelChroma 맵 검사 경고: ", "PixelChroma map validation warning: ") + report.warnings[i]);
         }
 
         if (report.isValid)
         {
-            Debug.Log("PixelChroma 맵 검사에 합격했습니다.");
+            Debug.Log(L("PixelChroma 맵 검사에 합격했습니다.", "PixelChroma map validation passed."));
         }
     }
 }

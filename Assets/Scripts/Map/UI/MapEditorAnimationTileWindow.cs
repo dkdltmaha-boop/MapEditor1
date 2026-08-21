@@ -3,15 +3,17 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 using UnityEngine;
+using UnityEngine.EventSystems;
 using UnityEngine.UI;
 
 public sealed class MapEditorAnimationTileWindow : MonoBehaviour
 {
     private const string RootName = "MapEditor_AnimationTileWindow";
-    private const float PanelWidth = 840f;
-    private const float PanelHeight = 470f;
-    private const float SidebarLeft = 650f;
-    private const float SidebarWidth = 172f;
+    private const float PanelWidth = 1120f;
+    private const float PanelHeight = 700f;
+    private const float MainWidth = 684f;
+    private const float SidebarLeft = 720f;
+    private const float SidebarWidth = 382f;
 
     private MapEditorManager manager;
     private int tilesetIndex;
@@ -29,8 +31,16 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
     private Button deleteButton;
     private Button useBrushButton;
     private RectTransform animationListContent;
+    private RectTransform framePaletteContent;
+    private Image framePaletteAtlasImage;
+    private MapEditorAnimationFramePaletteGraphic framePaletteOverlay;
+    private RectTransform framePaletteBadgeRoot;
+    private readonly List<Image> framePaletteSizeButtonImages = new List<Image>();
+    private int framePaletteCellSize = 16;
     private Image animationPreviewImage;
     private MapEditorAnimatedTilePlayer animationPreviewPlayer;
+
+    public int FramePaletteGridSize => framePaletteCellSize;
 
     public static MapEditorAnimationTileWindow Open(MapEditorManager manager)
     {
@@ -48,6 +58,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         Transform existing = canvas.transform.Find(RootName);
         if (existing != null)
         {
+            ConfigureModalCanvas(existing.gameObject, canvas);
             existing.SetAsLastSibling();
             return existing.GetComponent<MapEditorAnimationTileWindow>();
         }
@@ -56,6 +67,8 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             RootName,
             canvas.transform,
             typeof(Image),
+            typeof(Canvas),
+            typeof(GraphicRaycaster),
             typeof(CanvasGroup),
             typeof(MapEditorUiTransition),
             typeof(MapEditorAnimationTileWindow));
@@ -65,6 +78,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         rootRect.offsetMin = Vector2.zero;
         rootRect.offsetMax = Vector2.zero;
         root.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.62f);
+        ConfigureModalCanvas(root, canvas);
 
         MapEditorAnimationTileWindow window = root.GetComponent<MapEditorAnimationTileWindow>();
         window.manager = manager;
@@ -72,6 +86,16 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         root.transform.SetAsLastSibling();
         root.GetComponent<MapEditorUiTransition>().PlayIn(panel);
         return window;
+    }
+
+    private static void ConfigureModalCanvas(GameObject root, Canvas parentCanvas)
+    {
+        if (root == null) return;
+        Canvas modalCanvas = root.GetComponent<Canvas>();
+        if (modalCanvas == null) modalCanvas = root.AddComponent<Canvas>();
+        if (root.GetComponent<GraphicRaycaster>() == null) root.AddComponent<GraphicRaycaster>();
+        modalCanvas.overrideSorting = true;
+        modalCanvas.sortingOrder = (parentCanvas == null ? 0 : parentCanvas.sortingOrder) + 100;
     }
 
     private RectTransform Build()
@@ -129,9 +153,13 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         fpsInput.GetComponent<RectTransform>().sizeDelta = new Vector2(120f, 30f);
         loopToggle = CreateToggle(panel, L("반복 재생", "Loop"), new Vector2(286f, -256f));
 
+        framesInput.onValueChanged.AddListener(_ => RefreshDraftFrames());
+        fpsInput.onValueChanged.AddListener(_ => RefreshDraftPreview());
+        loopToggle.onValueChanged.AddListener(_ => RefreshDraftPreview());
+
         GameObject infoBox = CreateUiObject("InfoBox", panel, typeof(Image));
         RectTransform infoRect = infoBox.GetComponent<RectTransform>();
-        ConfigureTopLeft(infoRect, new Vector2(18f, -304f), new Vector2(604f, 84f));
+        ConfigureTopLeft(infoRect, new Vector2(18f, -304f), new Vector2(MainWidth, 84f));
         infoBox.GetComponent<Image>().color = new Color(0.055f, 0.065f, 0.075f, 1f);
         tilesetInfoText = CreateLabel(
             infoBox.transform,
@@ -140,8 +168,20 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             12,
             FontStyle.Normal,
             new Vector2(12f, -8f),
-            new Vector2(580f, 64f),
+            new Vector2(MainWidth - 24f, 64f),
             TextAnchor.UpperLeft);
+
+        CreateLabel(
+            panel,
+            "FramePaletteTitle",
+            L("전체 타일셋 · 고르는 순서대로 프레임 추가", "Full Tileset · Frames follow click order"),
+            13,
+            FontStyle.Bold,
+            new Vector2(18f, -398f),
+            new Vector2(330f, 22f),
+            TextAnchor.MiddleLeft);
+        BuildFramePaletteSizeSelector(panel);
+        BuildFramePalette(panel);
 
         statusText = CreateLabel(
             panel,
@@ -149,15 +189,15 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             string.Empty,
             12,
             FontStyle.Normal,
-            new Vector2(18f, -394f),
-            new Vector2(604f, 22f),
+            new Vector2(18f, -638f),
+            new Vector2(MainWidth, 22f),
             TextAnchor.MiddleLeft);
 
         CreateButton(panel, "RefreshButton", L("목록 새로고침", "Refresh"), new Vector2(18f, 16f), new Vector2(126f, 34f), RefreshTilesets);
         CreateButton(panel, "ImportTilesetButton", L("타일셋 불러오기", "Import Tileset"), new Vector2(152f, 16f), new Vector2(136f, 34f), OpenTilesetImporter);
-        CreateButton(panel, "SaveButton", L("저장", "Save"), new Vector2(362f, 16f), new Vector2(86f, 34f), SaveAnimation, false, true);
-        deleteButton = CreateButton(panel, "DeleteButton", L("삭제", "Delete"), new Vector2(456f, 16f), new Vector2(72f, 34f), DeleteAnimation, false, false, true);
-        CreateButton(panel, "DoneButton", L("닫기", "Close"), new Vector2(536f, 16f), new Vector2(86f, 34f), Close);
+        CreateButton(panel, "SaveButton", L("저장", "Save"), new Vector2(442f, 16f), new Vector2(86f, 34f), SaveAnimation, false, true);
+        deleteButton = CreateButton(panel, "DeleteButton", L("삭제", "Delete"), new Vector2(536f, 16f), new Vector2(72f, 34f), DeleteAnimation, false, false, true);
+        CreateButton(panel, "DoneButton", L("닫기", "Close"), new Vector2(616f, 16f), new Vector2(86f, 34f), Close);
 
         loopToggle.isOn = true;
         fpsInput.text = "8";
@@ -169,7 +209,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
     {
         GameObject dividerObject = CreateUiObject("SidebarDivider", panel, typeof(Image));
         RectTransform dividerRect = dividerObject.GetComponent<RectTransform>();
-        ConfigureTopLeft(dividerRect, new Vector2(638f, -54f), new Vector2(1f, 386f));
+        ConfigureTopLeft(dividerRect, new Vector2(708f, -54f), new Vector2(1f, 616f));
         dividerObject.GetComponent<Image>().color = new Color(0.28f, 0.31f, 0.34f, 0.8f);
 
         CreateLabel(
@@ -189,7 +229,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             typeof(RectMask2D),
             typeof(ScrollRect));
         RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
-        ConfigureTopLeft(viewportRect, new Vector2(SidebarLeft, -84f), new Vector2(SidebarWidth, 208f));
+        ConfigureTopLeft(viewportRect, new Vector2(SidebarLeft, -84f), new Vector2(SidebarWidth, 160f));
         viewportObject.GetComponent<Image>().color = new Color(0.045f, 0.055f, 0.065f, 1f);
 
         GameObject contentObject = CreateUiObject("AnimationListContent", viewportObject.transform);
@@ -198,7 +238,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         animationListContent.anchorMax = new Vector2(1f, 1f);
         animationListContent.pivot = new Vector2(0.5f, 1f);
         animationListContent.anchoredPosition = Vector2.zero;
-        animationListContent.sizeDelta = new Vector2(0f, 208f);
+        animationListContent.sizeDelta = new Vector2(0f, 160f);
 
         ScrollRect scroll = viewportObject.GetComponent<ScrollRect>();
         scroll.viewport = viewportRect;
@@ -214,13 +254,13 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             L("재생 미리보기", "Playback Preview"),
             13,
             FontStyle.Bold,
-            new Vector2(SidebarLeft, -304f),
+            new Vector2(SidebarLeft, -260f),
             new Vector2(SidebarWidth, 22f),
             TextAnchor.MiddleLeft);
 
         GameObject previewBox = CreateUiObject("AnimationPreview", panel, typeof(Image));
         RectTransform previewBoxRect = previewBox.GetComponent<RectTransform>();
-        ConfigureTopLeft(previewBoxRect, new Vector2(SidebarLeft, -330f), new Vector2(SidebarWidth, 70f));
+        ConfigureTopLeft(previewBoxRect, new Vector2(SidebarLeft, -286f), new Vector2(SidebarWidth, 250f));
         previewBox.GetComponent<Image>().color = new Color(0.045f, 0.055f, 0.065f, 1f);
 
         GameObject previewObject = CreateUiObject(
@@ -245,12 +285,271 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             panel,
             "UseAnimationBrushButton",
             L("브러시로 사용", "Use as Brush"),
-            new Vector2(SidebarLeft, -408f),
+            new Vector2(SidebarLeft, -550f),
             new Vector2(SidebarWidth, 30f),
             UseSelectedAnimationAsBrush,
             false,
             true);
         useBrushButton.interactable = false;
+    }
+
+    private void BuildFramePalette(Transform panel)
+    {
+        GameObject viewportObject = CreateUiObject(
+            "FramePaletteViewport", panel, typeof(Image), typeof(RectMask2D), typeof(ScrollRect));
+        RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
+        ConfigureTopLeft(viewportRect, new Vector2(18f, -436f), new Vector2(MainWidth, 190f));
+        viewportObject.GetComponent<Image>().color = new Color(0.045f, 0.055f, 0.065f, 1f);
+
+        GameObject contentObject = CreateUiObject("FramePaletteContent", viewportObject.transform);
+        framePaletteContent = contentObject.GetComponent<RectTransform>();
+        framePaletteContent.anchorMin = new Vector2(0f, 1f);
+        framePaletteContent.anchorMax = new Vector2(1f, 1f);
+        framePaletteContent.pivot = new Vector2(0.5f, 1f);
+        framePaletteContent.anchoredPosition = Vector2.zero;
+        framePaletteContent.sizeDelta = new Vector2(0f, MainWidth);
+
+        GameObject atlasObject = CreateUiObject("Atlas", framePaletteContent, typeof(Image));
+        framePaletteAtlasImage = atlasObject.GetComponent<Image>();
+        framePaletteAtlasImage.preserveAspect = true;
+        framePaletteAtlasImage.raycastTarget = false;
+        Stretch(atlasObject.GetComponent<RectTransform>());
+
+        GameObject overlayObject = CreateUiObject(
+            "GridOverlay",
+            framePaletteContent,
+            typeof(CanvasRenderer),
+            typeof(MapEditorAnimationFramePaletteGraphic),
+            typeof(MapEditorAnimationFramePaletteInput));
+        Stretch(overlayObject.GetComponent<RectTransform>());
+        framePaletteOverlay = overlayObject.GetComponent<MapEditorAnimationFramePaletteGraphic>();
+        framePaletteOverlay.raycastTarget = true;
+        overlayObject.GetComponent<MapEditorAnimationFramePaletteInput>().Configure(this);
+
+        GameObject badgeObject = CreateUiObject("SelectedOrder", framePaletteContent);
+        framePaletteBadgeRoot = badgeObject.GetComponent<RectTransform>();
+        Stretch(framePaletteBadgeRoot);
+
+        ScrollRect scroll = viewportObject.GetComponent<ScrollRect>();
+        scroll.viewport = viewportRect;
+        scroll.content = framePaletteContent;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 28f;
+    }
+
+    private void BuildFramePaletteSizeSelector(Transform panel)
+    {
+        CreateLabel(panel, "FramePaletteSizeLabel", L("분할 단위", "Grid division"), 11, FontStyle.Normal,
+            new Vector2(352f, -398f), new Vector2(72f, 22f), TextAnchor.MiddleRight);
+
+        int[] sizes = { 16, 32, 64, 128 };
+        for (int i = 0; i < sizes.Length; i++)
+        {
+            int capturedSize = sizes[i];
+            Button button = CreateButton(
+                panel,
+                "FramePaletteSize" + capturedSize + "Button",
+                capturedSize + "×" + capturedSize,
+                new Vector2(430f + i * 64f, -398f),
+                new Vector2(60f, 24f),
+                () => SetFramePaletteCellSize(capturedSize));
+            framePaletteSizeButtonImages.Add(button.GetComponent<Image>());
+        }
+
+        RefreshFramePaletteSizeButtons();
+    }
+
+    private void SetFramePaletteCellSize(int size)
+    {
+        int normalized = MapEditorManager.NormalizePngPaletteGridSize(size);
+        if (framePaletteCellSize == normalized) return;
+        framePaletteCellSize = normalized;
+        framesInput.text = string.Empty;
+        RefreshFramePaletteSizeButtons();
+        RefreshTilesetGridInfo(GetSelectedTileset());
+        RefreshFramePalette(GetSelectedTileset());
+        RefreshDraftPreview();
+    }
+
+    private void RefreshFramePaletteSizeButtons()
+    {
+        int[] sizes = { 16, 32, 64, 128 };
+        for (int i = 0; i < framePaletteSizeButtonImages.Count && i < sizes.Length; i++)
+        {
+            framePaletteSizeButtonImages[i].color = sizes[i] == framePaletteCellSize
+                ? new Color(0.18f, 0.48f, 0.95f, 1f)
+                : new Color(0.23f, 0.25f, 0.28f, 1f);
+        }
+    }
+
+    private void RefreshFramePalette(MapEditorTilesetDefinition tileset)
+    {
+        if (framePaletteContent == null || framePaletteAtlasImage == null || framePaletteOverlay == null) return;
+        if (framePaletteBadgeRoot != null)
+        {
+            for (int i = framePaletteBadgeRoot.childCount - 1; i >= 0; i--)
+                MapEditorObjectUtility.DestroyObject(framePaletteBadgeRoot.GetChild(i).gameObject);
+        }
+        if (tileset == null || manager == null)
+        {
+            framePaletteAtlasImage.sprite = null;
+            framePaletteOverlay.Configure(framePaletteCellSize, null, null);
+            return;
+        }
+
+        List<int> parsedFrames = ParseFrameIdsLoose(framesInput.text);
+        HashSet<int> selected = new HashSet<int>(parsedFrames);
+        HashSet<int> occupiedByOtherAnimations = GetOccupiedSourceFrameIds(tileset);
+        framePaletteAtlasImage.sprite = manager.GetPngFullImageSprite(tileset.atlasPath);
+        framePaletteOverlay.Configure(framePaletteCellSize, selected, occupiedByOtherAnimations);
+
+        float cellSize = MainWidth / framePaletteCellSize;
+        if (framePaletteBadgeRoot == null || cellSize < 12f) return;
+        for (int order = 0; order < parsedFrames.Count; order++)
+        {
+            int tileId = parsedFrames[order];
+            if (tileId < 0 || tileId >= framePaletteCellSize * framePaletteCellSize) continue;
+            int x = tileId % framePaletteCellSize;
+            int y = tileId / framePaletteCellSize;
+            Text badge = CreateLabel(
+                framePaletteBadgeRoot,
+                "Order_" + order,
+                (order + 1).ToString(),
+                9,
+                FontStyle.Bold,
+                new Vector2(x * cellSize, -y * cellSize),
+                new Vector2(cellSize, cellSize),
+                TextAnchor.LowerRight);
+            badge.raycastTarget = false;
+        }
+    }
+
+    public void ToggleFrameTile(int tileId)
+    {
+        MapEditorTilesetDefinition tileset = GetSelectedTileset();
+        if (tileset != null && GetOccupiedSourceFrameIds(tileset).Contains(tileId))
+        {
+            SetStatus(L(
+                "다른 애니메이션이 이미 사용하는 타일입니다.",
+                "This tile is already used by another animation."), false);
+            return;
+        }
+
+        List<int> frames = ParseFrameIdsLoose(framesInput.text);
+        int existing = frames.IndexOf(tileId);
+        if (existing >= 0) frames.RemoveAt(existing);
+        else if (frames.Count < MapEditorTilesetLibraryService.MaxAnimationFrameCount) frames.Add(tileId);
+
+        SetFrameIds(frames);
+        RefreshFramePalette(GetSelectedTileset());
+        RefreshDraftPreview();
+    }
+
+    private HashSet<int> GetOccupiedSourceFrameIds(MapEditorTilesetDefinition tileset)
+    {
+        HashSet<int> occupied = new HashSet<int>();
+        if (tileset?.animations == null) return occupied;
+
+        for (int animationListIndex = 0; animationListIndex < tileset.animations.Length; animationListIndex++)
+        {
+            MapEditorTilesetAnimationDefinition animation = tileset.animations[animationListIndex];
+            if (animation == null
+                || (!string.IsNullOrEmpty(selectedAnimationId)
+                    && string.Equals(animation.id, selectedAnimationId, StringComparison.Ordinal)))
+            {
+                continue;
+            }
+
+            int animationGridSize = MapEditorManager.NormalizePngPaletteGridSize(
+                animation.GetFrameGridSize(tileset.atlasGridSize));
+
+            int frameCount = Mathf.Max(1, animation.frameCount);
+            for (int frameIndex = 0; frameIndex < frameCount; frameIndex++)
+            {
+                AddOverlappingSourceGridTiles(
+                    occupied,
+                    framePaletteCellSize,
+                    animationGridSize,
+                    animation.GetFrameTileId(frameIndex));
+            }
+        }
+
+        return occupied;
+    }
+
+    private static void AddOverlappingSourceGridTiles(
+        HashSet<int> occupied,
+        int targetGridSize,
+        int sourceGridSize,
+        int sourceGridTileId)
+    {
+        int sourceX = sourceGridTileId % sourceGridSize;
+        int sourceYFromBottom = sourceGridTileId / sourceGridSize;
+        int firstX = Mathf.FloorToInt(sourceX * targetGridSize / (float)sourceGridSize);
+        int lastX = Mathf.CeilToInt((sourceX + 1) * targetGridSize / (float)sourceGridSize) - 1;
+        int firstY = Mathf.FloorToInt(sourceYFromBottom * targetGridSize / (float)sourceGridSize);
+        int lastY = Mathf.CeilToInt((sourceYFromBottom + 1) * targetGridSize / (float)sourceGridSize) - 1;
+        for (int yFromBottom = firstY; yFromBottom <= lastY; yFromBottom++)
+        {
+            int rowFromTop = targetGridSize - 1 - yFromBottom;
+            for (int x = firstX; x <= lastX; x++) occupied.Add(rowFromTop * targetGridSize + x);
+        }
+    }
+
+    public void ReorderFrameTile(int sourceTileId, int targetTileId)
+    {
+        List<int> frames = ParseFrameIdsLoose(framesInput.text);
+        int sourceIndex = frames.IndexOf(sourceTileId);
+        int targetIndex = frames.IndexOf(targetTileId);
+        if (sourceIndex < 0 || targetIndex < 0 || sourceIndex == targetIndex) return;
+
+        frames.RemoveAt(sourceIndex);
+        targetIndex = frames.IndexOf(targetTileId);
+        frames.Insert(targetIndex, sourceTileId);
+        SetFrameIds(frames);
+        RefreshFramePalette(GetSelectedTileset());
+        RefreshDraftPreview();
+    }
+
+    private void SetFrameIds(IReadOnlyList<int> frames)
+    {
+        StringBuilder value = new StringBuilder();
+        for (int i = 0; i < frames.Count; i++)
+        {
+            if (i > 0) value.Append(", ");
+            value.Append(frames[i]);
+        }
+        framesInput.text = value.ToString();
+    }
+
+    private static List<int> ParseFrameIdsLoose(string value)
+    {
+        List<int> result = new List<int>();
+        string[] parts = (value ?? string.Empty).Split(
+            new[] { ',', ';', ' ', '\t', '\r', '\n' }, StringSplitOptions.RemoveEmptyEntries);
+        for (int i = 0; i < parts.Length && result.Count < MapEditorTilesetLibraryService.MaxAnimationFrameCount; i++)
+        {
+            if (int.TryParse(parts[i], NumberStyles.Integer, CultureInfo.InvariantCulture, out int tileId)
+                && tileId >= 0
+                && !result.Contains(tileId))
+            {
+                result.Add(tileId);
+            }
+        }
+        return result;
+    }
+
+    private void RefreshDraftFrames()
+    {
+        RefreshFramePalette(GetSelectedTileset());
+        RefreshDraftPreview();
+    }
+
+    private void RefreshDraftPreview()
+    {
+        RefreshAnimationPreview(GetSelectedTileset(), GetSelectedAnimation(GetSelectedTileset()));
     }
 
     private void RefreshAnimationSidebar(
@@ -355,26 +654,41 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         animationPreviewImage.sprite = null;
         animationPreviewImage.enabled = false;
 
-        if (tileset == null || animation == null || manager == null)
+        if (tileset == null || manager == null)
         {
             return;
         }
 
-        int firstFrameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
-            tileset.atlasGridSize,
-            animation.GetFrameTileId(0));
-        Sprite[] frames = manager.GetAnimationFrames(tileset.atlasPath, firstFrameIndex);
-        if (frames == null || frames.Length < 2)
+        List<int> sourceFrameIds = ParseFrameIdsLoose(framesInput == null ? string.Empty : framesInput.text);
+        if (sourceFrameIds.Count == 0)
         {
             return;
         }
+
+
+        List<Sprite> draftFrames = new List<Sprite>(sourceFrameIds.Count);
+        for (int i = 0; i < sourceFrameIds.Count; i++)
+        {
+            int sourceTileId = sourceFrameIds[i];
+            if (sourceTileId < 0 || sourceTileId >= framePaletteCellSize * framePaletteCellSize) continue;
+            Sprite sprite = manager.GetPaletteTileSprite(
+                tileset.atlasPath,
+                framePaletteCellSize,
+                ToGridTileId(framePaletteCellSize, sourceTileId));
+            if (sprite != null) draftFrames.Add(sprite);
+        }
+
+        if (draftFrames.Count == 0) return;
+
+        float fps = 8f;
+        if (fpsInput != null && !TryParseFps(fpsInput.text, out fps)) fps = 8f;
 
         animationPreviewImage.enabled = true;
         animationPreviewPlayer.Configure(
             animationPreviewImage,
-            frames,
-            animation.framesPerSecond,
-            animation.loop);
+            draftFrames.ToArray(),
+            fps,
+            loopToggle == null || loopToggle.isOn);
     }
 
     private void SelectAnimationAt(int index)
@@ -406,6 +720,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             SetStatus(L("편집할 타일셋이 없습니다.", "There is no tileset to edit."), false);
             SetEditingEnabled(false);
             RefreshAnimationSidebar(null, null);
+            RefreshFramePalette(null);
             return;
         }
 
@@ -479,6 +794,9 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         animationIndex = -1;
         selectedAnimationId = string.Empty;
         RefreshSelectionFields();
+        SetStatus(L(
+            "팔레트에서 새 애니메이션에 사용할 타일을 순서대로 2개 이상 고르세요.",
+            "Choose at least two tiles for the new animation in playback order."), true);
         nameInput.ActivateInputField();
     }
 
@@ -491,16 +809,15 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         }
 
         tilesetValueText.text = tileset.displayName;
-        int tileCount = tileset.TileCount;
-        tilesetInfoText.text = string.Format(
-            L(
-                "타일 {0}개 ({1}x{2})\n프레임 번호는 왼쪽 위부터 0으로 시작합니다. 2~32개, 1~30 FPS",
-                "{0} tiles ({1}x{2})\nFrame numbers start at 0 from the top-left. 2-32 frames, 1-30 FPS"),
-            tileCount,
-            tileset.columns,
-            tileset.rows);
-
         MapEditorTilesetAnimationDefinition animation = GetSelectedAnimation(tileset);
+        if (animation != null)
+        {
+            framePaletteCellSize = MapEditorManager.NormalizePngPaletteGridSize(
+                animation.GetFrameGridSize(tileset.atlasGridSize));
+            RefreshFramePaletteSizeButtons();
+        }
+        RefreshTilesetGridInfo(tileset);
+
         bool editingExisting = animation != null;
         deleteButton.interactable = editingExisting;
         useBrushButton.interactable = editingExisting;
@@ -510,11 +827,12 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             animationIndex = -1;
             selectedAnimationId = string.Empty;
             animationValueText.text = L("새 애니메이션", "New animation");
-            nameInput.text = L("새 애니메이션", "New Animation");
-            framesInput.text = tileCount >= 4 ? "0, 1, 2, 3" : "0, 1";
+            nameInput.text = L("새 애니메이션 ", "New Animation ") + ((tileset.animations?.Length ?? 0) + 1);
+            framesInput.text = string.Empty;
             fpsInput.text = "8";
             loopToggle.isOn = true;
             RefreshAnimationSidebar(tileset, null);
+            RefreshFramePalette(tileset);
             return;
         }
 
@@ -525,6 +843,19 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         fpsInput.text = animation.framesPerSecond.ToString("0.##", CultureInfo.InvariantCulture);
         loopToggle.isOn = animation.loop;
         RefreshAnimationSidebar(tileset, animation);
+        RefreshFramePalette(tileset);
+    }
+
+    private void RefreshTilesetGridInfo(MapEditorTilesetDefinition tileset)
+    {
+        if (tilesetInfoText == null || tileset == null) return;
+        int tileCount = framePaletteCellSize * framePaletteCellSize;
+        tilesetInfoText.text = string.Format(
+            L(
+                "{0}×{0} 분할 / 프레임 셀 {1}개\n프레임 번호는 왼쪽 위부터 0으로 시작합니다. 2~32개, 1~30 FPS",
+                "{0}×{0} division / {1} frame cells\nFrame numbers start at 0 from the top-left. 2-32 frames, 1-30 FPS"),
+            framePaletteCellSize,
+            tileCount);
     }
 
     private void SaveAnimation()
@@ -555,6 +886,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             success = manager.AddTilesetAnimation(
                 tileset.id,
                 nameInput.text,
+                framePaletteCellSize,
                 frameIds,
                 fps,
                 loopToggle.isOn,
@@ -572,6 +904,7 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
                 tileset.id,
                 selectedAnimationId,
                 nameInput.text,
+                framePaletteCellSize,
                 frameIds,
                 fps,
                 loopToggle.isOn,
@@ -618,18 +951,13 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
             return;
         }
 
-        int firstFrameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
-            tileset.atlasGridSize,
-            animation.GetFrameTileId(0));
-        Sprite[] frames = manager.GetAnimationFrames(tileset.atlasPath, firstFrameIndex);
-        if (frames == null || frames.Length < 2 || frames[0] == null)
+        if (!manager.SelectAnimationTileBrush(tileset.id, animation.id))
         {
             SetStatus(L("애니메이션 프레임을 불러오지 못했습니다.", "Could not load the animation frames."), false);
             return;
         }
 
-        manager.SelectImageBrush(frames[0], tileset.atlasPath, firstFrameIndex);
-        Close();
+        CloseImmediately();
     }
 
     private void OpenTilesetImporter()
@@ -749,7 +1077,9 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
                 builder.Append(", ");
             }
 
-            builder.Append(ToSourceTileId(tileset, animation.GetFrameTileId(i)));
+            int gridSize = MapEditorManager.NormalizePngPaletteGridSize(
+                animation.GetFrameGridSize(tileset.atlasGridSize));
+            builder.Append(ToSourceGridTileId(gridSize, animation.GetFrameTileId(i)));
         }
 
         return builder.ToString();
@@ -762,6 +1092,32 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         int column = Mathf.Max(0, atlasTileId % gridSize);
         int sourceRowFromTop = Mathf.Max(0, gridSize - 1 - atlasRowFromBottom);
         return sourceRowFromTop * Mathf.Max(1, tileset.columns) + column;
+    }
+
+    private static int ToAtlasTileId(MapEditorTilesetDefinition tileset, int sourceTileId)
+    {
+        int sourceColumns = Mathf.Max(1, tileset.columns);
+        int sourceRowFromTop = Mathf.Max(0, sourceTileId / sourceColumns);
+        int sourceColumn = Mathf.Max(0, sourceTileId % sourceColumns);
+        int atlasGridSize = Mathf.Max(1, tileset.atlasGridSize);
+        int atlasRowFromBottom = Mathf.Max(0, atlasGridSize - 1 - sourceRowFromTop);
+        return atlasRowFromBottom * atlasGridSize + sourceColumn;
+    }
+
+    private static int ToGridTileId(int gridSize, int sourceTileId)
+    {
+        int sourceRowFromTop = Mathf.Max(0, sourceTileId / gridSize);
+        int sourceColumn = Mathf.Max(0, sourceTileId % gridSize);
+        int rowFromBottom = Mathf.Max(0, gridSize - 1 - sourceRowFromTop);
+        return rowFromBottom * gridSize + sourceColumn;
+    }
+
+    private static int ToSourceGridTileId(int gridSize, int gridTileId)
+    {
+        int rowFromBottom = Mathf.Max(0, gridTileId / gridSize);
+        int column = Mathf.Max(0, gridTileId % gridSize);
+        int sourceRowFromTop = Mathf.Max(0, gridSize - 1 - rowFromBottom);
+        return sourceRowFromTop * gridSize + column;
     }
 
     private static string LocalizeServiceError(string error)
@@ -798,6 +1154,12 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         {
             MapEditorObjectUtility.DestroyObject(gameObject);
         }
+    }
+
+    private void CloseImmediately()
+    {
+        gameObject.SetActive(false);
+        MapEditorObjectUtility.DestroyObject(gameObject);
     }
 
     private static void CreateSelectorRow(
@@ -980,6 +1342,14 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
         rect.offsetMax = new Vector2(-right, 0f);
     }
 
+    private static void Stretch(RectTransform rect)
+    {
+        rect.anchorMin = Vector2.zero;
+        rect.anchorMax = Vector2.one;
+        rect.offsetMin = Vector2.zero;
+        rect.offsetMax = Vector2.zero;
+    }
+
     private static GameObject CreateUiObject(string name, Transform parent, params Type[] components)
     {
         Type[] allComponents = new Type[components.Length + 1];
@@ -993,5 +1363,38 @@ public sealed class MapEditorAnimationTileWindow : MonoBehaviour
     private static string L(string korean, string english)
     {
         return MapEditorLocalization.Choose(korean, english);
+    }
+}
+
+public sealed class MapEditorAnimationFrameDragItem : MonoBehaviour, IBeginDragHandler, IEndDragHandler
+{
+    public MapEditorAnimationTileWindow window;
+    public int tileId;
+    private CanvasGroup canvasGroup;
+
+    public void OnBeginDrag(PointerEventData eventData)
+    {
+        canvasGroup = GetComponent<CanvasGroup>();
+        if (canvasGroup == null) canvasGroup = gameObject.AddComponent<CanvasGroup>();
+        canvasGroup.alpha = 0.65f;
+        canvasGroup.blocksRaycasts = false;
+    }
+
+    public void OnEndDrag(PointerEventData eventData)
+    {
+        if (canvasGroup != null)
+        {
+            canvasGroup.alpha = 1f;
+            canvasGroup.blocksRaycasts = true;
+        }
+
+        GameObject targetObject = eventData.pointerCurrentRaycast.gameObject;
+        MapEditorAnimationFrameDragItem target = targetObject == null
+            ? null
+            : targetObject.GetComponentInParent<MapEditorAnimationFrameDragItem>();
+        if (window != null && target != null && target != this)
+        {
+            window.ReorderFrameTile(tileId, target.tileId);
+        }
     }
 }

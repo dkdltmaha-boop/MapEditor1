@@ -35,28 +35,39 @@ public static class MapEditorModalPanel
         }
 
         StringBuilder body = new StringBuilder();
+        if (!report.isValid)
+        {
+            AppendSection(body, MapEditorLocalization.Choose("불합격 요소", "Failed Checks"), "✕ ", report.errors);
+            Show(
+                manager,
+                MapEditorLocalization.Choose("맵 검사 불합격", "Map Validation Failed"),
+                body.ToString(),
+                new Color(0.92f, 0.3f, 0.26f, 1f));
+            return;
+        }
+
         AppendWorkshopRequirements(body);
-        AppendSection(body, "합격 요소", "✓ ", report.passedChecks);
-        AppendSection(body, "불합격 요소", "✕ ", report.errors);
-        AppendSection(body, "권장 사항", "• ", report.warnings);
+        AppendSection(body, MapEditorLocalization.Choose("합격 요소", "Passed Checks"), "✓ ", report.passedChecks);
+        AppendSection(body, MapEditorLocalization.Choose("불합격 요소", "Failed Checks"), "✕ ", report.errors);
+        AppendSection(body, MapEditorLocalization.Choose("권장 사항", "Recommendations"), "• ", report.warnings);
 
         body.AppendLine();
-        body.Append("타일 ").Append(report.paintedTileCount)
-            .Append("  |  바닥 ").Append(report.groundTileCount)
-            .Append("  |  이동 가능 ").Append(report.walkableTileCount)
-            .Append("  |  오브젝트 ").Append(report.objectTileCount)
+        body.Append(MapEditorLocalization.Choose("타일 ", "Tiles ")).Append(report.paintedTileCount)
+            .Append(MapEditorLocalization.Choose("  |  바닥 ", "  |  Ground ")).Append(report.groundTileCount)
+            .Append(MapEditorLocalization.Choose("  |  이동 가능 ", "  |  Walkable ")).Append(report.walkableTileCount)
+            .Append(MapEditorLocalization.Choose("  |  오브젝트 ", "  |  Objects ")).Append(report.objectTileCount)
             .Append("  |  Wall ").Append(report.wallTileCount)
             .Append("  |  ").Append(MapEditorLocalization.Choose("애니메이션 ", "Animation ")).Append(report.animatedTileCount)
-            .Append("  |  스폰 ").Append(report.spawnPointCount)
+            .Append(MapEditorLocalization.Choose("  |  스폰 ", "  |  Spawns ")).Append(report.spawnPointCount)
             .AppendLine()
-            .Append("열린 경계 ").Append(report.boundaryLeakCount)
-            .Append("  |  도달 불가 ").Append(report.unreachableWalkableTileCount)
-            .Append("  |  고립 바닥 ").Append(report.isolatedGroundTileCount)
+            .Append(MapEditorLocalization.Choose("열린 경계 ", "Open Boundaries ")).Append(report.boundaryLeakCount)
+            .Append(MapEditorLocalization.Choose("  |  도달 불가 ", "  |  Unreachable ")).Append(report.unreachableWalkableTileCount)
+            .Append(MapEditorLocalization.Choose("  |  고립 바닥 ", "  |  Isolated Ground ")).Append(report.isolatedGroundTileCount)
             .AppendLine()
-            .Append("프리뷰 ")
+            .Append(MapEditorLocalization.Choose("프리뷰 ", "Preview "))
             .Append(report.previewRegionSet
-                ? report.previewWidth + "×" + report.previewHeight + " / 표시 타일 " + report.previewPaintedCellCount
-                : "미지정");
+                ? report.previewWidth + "×" + report.previewHeight + MapEditorLocalization.Choose(" / 표시 타일 ", " / Visible Tiles ") + report.previewPaintedCellCount
+                : MapEditorLocalization.Choose("미지정", "Not Set"));
 
         string title = MapEditorLocalization.Choose(
             report.isValid ? "맵 검사 합격" : "맵 검사 불합격",
@@ -96,8 +107,8 @@ public static class MapEditorModalPanel
             "• 바닥 면적 5% 이상, 열린 가장자리·고립·도달 불가 바닥 없음",
             "• At least 5% floor coverage with no open edges, isolated cells, or unreachable floor"));
         builder.AppendLine(MapEditorLocalization.Choose(
-            "• 충돌벽 존재, 시작 위치가 바닥 위에 있고 서로 겹치지 않음",
-            "• Collision walls exist and start points are valid, grounded, and unique"));
+            "• 충돌벽 존재, 플레이어와 술래가 같은 공용 시작 위치의 바닥 위에 있음",
+            "• Collision walls exist and both roles share a valid grounded spawn"));
         builder.AppendLine(MapEditorLocalization.Choose(
             "• 사용하는 이미지·타일셋·애니메이션 데이터를 정상적으로 읽을 수 있음",
             "• Referenced images, tilesets, and animation data are readable"));
@@ -135,7 +146,22 @@ public static class MapEditorModalPanel
         builder.AppendLine();
     }
 
-    private static void CloseCurrent()
+    public static void ShowCopyrightNotice(MapEditorManager manager)
+    {
+        StringBuilder body = new StringBuilder();
+        body.AppendLine(MapEditorLocalization.Choose(
+            "맵과 타일을 만들기 전에 아래 내용을 확인해 주세요.",
+            "Please review the following before creating maps or tiles."));
+        body.AppendLine();
+        AppendWorkshopContentPolicy(body);
+        Show(
+            manager,
+            MapEditorLocalization.Choose("저작권 및 업로드 권고", "Copyright & Upload Notice"),
+            body.ToString(),
+            new Color(0.95f, 0.66f, 0.18f, 1f));
+    }
+
+    public static void CloseCurrent()
     {
         Canvas canvas = MapEditorSceneUiBuilder.FindEditorCanvas();
         Transform existing = canvas == null ? null : canvas.transform.Find(ObjectName);
@@ -152,10 +178,8 @@ public static class MapEditorModalPanel
             "도구 선택\n" +
             "B  브러시                 L  직선\n" +
             "G  사각형 채우기\n" +
-            "W  벽                     E  레이어 지우개\n" +
-            "Shift+E  브러시 지우개\n" +
-            "S  영역 선택              P  프리뷰 영역\n" +
-            "P  프리뷰 영역 지정\n\n" +
+            "W  충돌벽 브러시           E  지우개\n" +
+            "S  영역 선택              P  프리뷰 영역 지정\n\n" +
             "그리기와 이미지\n" +
             "Shift + 클릭  같은 영역 채우기\n" +
             "[ / ]          브러시·지우개 크기 줄이기 / 키우기\n" +
@@ -172,6 +196,11 @@ public static class MapEditorModalPanel
             "Esc / Delete   선택 영역 해제\n" +
             "Ctrl + Z       실행 취소\n" +
             "Ctrl + Y       다시 실행\n\n" +
+            "타일과 리소스\n" +
+            "최근 리소스     드래그해 표시 순서 변경\n" +
+            "즐겨찾기 타일   현재 브러시를 저장하고 다시 선택\n" +
+            "애니메이션 타일 타일셋별 여러 애니메이션 제작·선택\n" +
+            "타일 만들기 창  Ctrl+Z / Y로 픽셀·프레임 실행 취소/다시 실행\n\n" +
             "파일\n" +
             "Ctrl + S       편집용 맵 저장\n" +
             "Ctrl + L       편집용 맵 불러오기\n" +
@@ -183,12 +212,13 @@ public static class MapEditorModalPanel
             "1. 검사 후 창작마당 업로드 버튼을 누릅니다.\n" +
             "2. 맵 검사에 합격하면 패키지를 만들고 Steam으로 전송합니다.\n" +
             "3. 완료 창의 게시물 열기로 업로드 결과를 확인합니다.\n\n" +
-            "테스트 App ID 480은 Spacewar의 미등록 게시물로 업로드됩니다.\n" +
-            "PixelChroma 창작마당에는 실제 게임 App ID 설정이 필요합니다.";
+            "창작마당 프리뷰는 여러 장 촬영할 수 있으며 첫 번째 이미지가 대표 이미지입니다.\n" +
+            "업로드 대상은 PixelChroma Steam 창작마당(App ID 5023800)입니다.";
         const string englishGuide =
             "Tools\n" +
-            "B  Brush                  W  Wall\n" +
-            "E  Erase layer             S  Select area\n" +
+            "B  Brush                  L  Line\n" +
+            "G  Rectangle fill          W  Collision brush\n" +
+            "E  Eraser                  S  Select area\n" +
             "P  Set preview area\n\n" +
             "Painting and images\n" +
             "Shift + Click  Fill connected area\n" +
@@ -203,6 +233,11 @@ public static class MapEditorModalPanel
             "Ctrl + C / X / V  Copy / cut / paste\n" +
             "Esc / Delete     Clear selection\n" +
             "Ctrl + Z / Y     Undo / redo\n\n" +
+            "Tiles and resources\n" +
+            "Recent Resources  Drag to reorder\n" +
+            "Favorite Tiles    Save and reselect the current brush\n" +
+            "Animated Tiles    Create and select multiple animations per tileset\n" +
+            "Tile Creator      Ctrl+Z / Y undoes/redoes pixels and frames locally\n\n" +
             "Files and view\n" +
             "Ctrl + S / L     Save / load editable map\n" +
             "Mouse wheel      Zoom map\n" +
@@ -212,8 +247,8 @@ public static class MapEditorModalPanel
             "1. Click Validate & Upload Workshop.\n" +
             "2. After validation passes, the package is sent to Steam.\n" +
             "3. Open the Workshop item from the completion dialog.\n\n" +
-            "Test App ID 480 creates an unlisted Spacewar item.\n" +
-            "The real game App ID is required for the PixelChroma Workshop.";
+            "Capture multiple Workshop previews; the first image is the main preview.\n" +
+            "Uploads target the PixelChroma Steam Workshop (App ID 5023800).";
 
         Show(
             manager,
@@ -457,7 +492,7 @@ public static class MapEditorModalPanel
 
         if (messages == null || messages.Count == 0)
         {
-            builder.AppendLine("  없음");
+            builder.AppendLine(MapEditorLocalization.Choose("  없음", "  None"));
         }
         else
         {

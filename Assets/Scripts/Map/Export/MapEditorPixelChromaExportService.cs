@@ -35,7 +35,10 @@ public sealed class MapEditorPixelChromaExportService
     public bool ExportWithDialog(MapData mapData, string mapId, int cellSize, int spawnX, int spawnY, IReadOnlyList<MapEditorSpawnPointData> spawnPoints)
     {
         string defaultName = string.IsNullOrWhiteSpace(mapId) ? "pixelchroma_map.json" : SanitizeId(mapId) + ".json";
-        string path = MapEditorFileDialog.SaveFile("PixelChroma용 맵 내보내기", defaultName, "json");
+        string path = MapEditorFileDialog.SaveFile(
+            MapEditorLocalization.Choose("PixelChroma용 맵 내보내기", "Export PixelChroma Map"),
+            defaultName,
+            "json");
 
         if (string.IsNullOrEmpty(path))
         {
@@ -118,7 +121,7 @@ public sealed class MapEditorPixelChromaExportService
             MapEditorMovingRegionData region = movingRegions[i];
             if (region == null)
             {
-                error = "비어 있는 이동 구역 데이터가 있습니다.";
+                error = MapEditorLocalization.Choose("비어 있는 이동 구역 데이터가 있습니다.", "A moving-region entry is empty.");
                 return false;
             }
 
@@ -127,19 +130,19 @@ public sealed class MapEditorPixelChromaExportService
                 || region.x + region.width > mapData.width
                 || region.y + region.height > mapData.height)
             {
-                error = region.displayName + " 구역이 맵 범위를 벗어났습니다.";
+                error = region.displayName + MapEditorLocalization.Choose(" 구역이 맵 범위를 벗어났습니다.", " is outside the map bounds.");
                 return false;
             }
 
             if (region.canvasLayerIndex < 0 || region.canvasLayerIndex >= MapEditorLayerUtility.CanvasLayerCount)
             {
-                error = region.displayName + " 이동 구역의 대상 레이어가 올바르지 않습니다.";
+                error = region.displayName + MapEditorLocalization.Choose(" 이동 구역의 대상 레이어가 올바르지 않습니다.", " has an invalid target layer.");
                 return false;
             }
 
             if (region.path == null || region.path.Length < 2 || region.path.Length > 256)
             {
-                error = region.displayName + " 경로는 2개 이상, 256개 이하의 지점이 필요합니다.";
+                error = region.displayName + MapEditorLocalization.Choose(" 경로는 2개 이상, 256개 이하의 지점이 필요합니다.", " requires between 2 and 256 path points.");
                 return false;
             }
 
@@ -148,7 +151,7 @@ public sealed class MapEditorPixelChromaExportService
                 MapEditorPathPointData point = region.path[pointIndex];
                 if (point == null || !mapData.IsInside(point.x, point.y))
                 {
-                    error = region.displayName + " 경로 지점이 맵 범위를 벗어났습니다.";
+                    error = region.displayName + MapEditorLocalization.Choose(" 경로 지점이 맵 범위를 벗어났습니다.", " has a path point outside the map bounds.");
                     return false;
                 }
             }
@@ -156,7 +159,7 @@ public sealed class MapEditorPixelChromaExportService
             if (region.tilesPerSecond <= 0f || region.tilesPerSecond > 20f
                 || region.waitSeconds < 0f || region.waitSeconds > 60f)
             {
-                error = region.displayName + " 이동 속도 또는 대기 시간이 허용 범위를 벗어났습니다.";
+                error = region.displayName + MapEditorLocalization.Choose(" 이동 속도 또는 대기 시간이 허용 범위를 벗어났습니다.", " has a speed or wait time outside the allowed range.");
                 return false;
             }
         }
@@ -850,7 +853,9 @@ public sealed class MapEditorPixelChromaExportService
 
                 for (int frame = 0; frame < tile.animationFrames.Length; frame++)
                 {
-                    int frameImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(tileset.atlasGridSize, animation.GetFrameTileId(frame));
+                    int frameImageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                        animation.GetFrameGridSize(tileset.atlasGridSize),
+                        animation.GetFrameTileId(frame));
                     Sprite frameSprite = pngTilesets.GetTileSprite(
                         imagePath,
                         frameImageIndex,

@@ -41,6 +41,8 @@ public sealed class MapEditorTilesetAnimationDefinition
     public int startTileId;
     public int frameCount = 1;
     public int[] frameTileIds = Array.Empty<int>();
+    // 0 keeps the legacy imported-tile layout. Otherwise frames use this full-atlas grid division.
+    public int frameGridSize;
     public float framesPerSecond = 8f;
     public bool loop = true;
 
@@ -62,6 +64,11 @@ public sealed class MapEditorTilesetAnimationDefinition
         }
 
         return startTileId + Math.Max(0, frameIndex);
+    }
+
+    public int GetFrameGridSize(int fallbackGridSize)
+    {
+        return frameGridSize > 0 ? frameGridSize : Math.Max(1, fallbackGridSize);
     }
 }
 

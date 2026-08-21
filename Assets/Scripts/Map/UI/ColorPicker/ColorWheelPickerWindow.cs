@@ -202,8 +202,10 @@ public class ColorWheelPickerWindow : MonoBehaviour
 
     public void RefreshLocalizedText()
     {
+        SetExistingText("Title", MapEditorLocalization.Choose("색상", "Color"));
         UpdateColorDetails();
-        movingPathListView?.Refresh();
+        movingPathListView?.RefreshLocalizedText();
+        pngPaletteView?.RefreshLocalizedText();
 
         Transform wallTileLabel = transform.Find(WallTileSelectorObjectName + "/WallTileLabel");
         Text wallText = wallTileLabel == null ? null : wallTileLabel.GetComponent<Text>();
@@ -213,13 +215,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
             ApplySectionHeadingStyle(wallText);
         }
 
-        Transform sizeLabel = transform.Find(ExportCellSizeSelectorObjectName + "/DotSizeLabel");
-        Text sizeText = sizeLabel == null ? null : sizeLabel.GetComponent<Text>();
-        if (sizeText != null)
-        {
-            sizeText.text = MapEditorLocalization.Choose("그리기 크기", "Paint Size");
-            ApplySectionHeadingStyle(sizeText);
-        }
+        EnsureExportCellSizeSelector();
 
         RefreshHexInputLabels(transform.Find(HexColorInputObjectName));
     }
@@ -864,7 +860,7 @@ public class ColorWheelPickerWindow : MonoBehaviour
         textRect.offsetMax = Vector2.zero;
 
         Text text = textObject.GetComponent<Text>();
-        text.text = "타일";
+        text.text = MapEditorLocalization.Choose("타일", "Tile");
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleCenter;

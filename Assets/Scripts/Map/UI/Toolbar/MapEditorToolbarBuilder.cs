@@ -8,6 +8,8 @@ public struct MapEditorToolbarRefs
     public Text brushPreviewText;
     public Text validationStatusText;
     public Transform recentPngListRoot;
+    public Transform favoriteTileListRoot;
+    public Transform animationTileListRoot;
     public Dictionary<EditorToolType, Image> toolButtonImages;
     public Image runnerSpawnButtonImage;
     public Image seekerSpawnButtonImage;
@@ -30,6 +32,12 @@ public static class MapEditorToolbarBuilder
     private const string LegacyRecentPngListObjectName = "RecentTilesets";
     private const string RecentResourceScrollObjectName = "RecentResourceScroll";
     private const string RecentResourceContentObjectName = "RecentResourceContent";
+    private const string AnimationTileListObjectName = "Toolbar_AnimationTileList";
+    private const string AnimationTileScrollObjectName = "AnimationTileScroll";
+    private const string AnimationTileContentObjectName = "AnimationTileContent";
+    private const string FavoriteTileListObjectName = "Toolbar_FavoriteTileList";
+    private const string FavoriteTileScrollObjectName = "FavoriteTileScroll";
+    private const string FavoriteTileContentObjectName = "FavoriteTileContent";
     private const float ToolbarWidth = 176f;
     private const float ToolbarMinHeight = 584f;
     private const float ToolbarHintHeight = 13f;
@@ -37,6 +45,8 @@ public static class MapEditorToolbarBuilder
     private const float ToolbarPreviewHeight = 22f;
     private const float ToolbarValidationHeight = 26f;
     private const float ToolbarRecentHeight = 180f;
+    private const float ToolbarAnimationHeight = 116f;
+    private const float ToolbarFavoriteHeight = 116f;
     private const int ToolbarHintFontSize = 9;
     private const int ToolbarLabelFontSize = 12;
     private const float QuitButtonSafeInset = 42f;
@@ -77,6 +87,8 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarContents(toolbar, manager);
         CacheToolbarRefs(toolbar, ref refs);
         RefreshRecentPngList(refs.recentPngListRoot, manager, recentPngPaths);
+        RefreshFavoriteTileList(refs.favoriteTileListRoot, manager);
+        RefreshAnimationTileList(refs.animationTileListRoot, manager);
         return refs;
     }
 
@@ -98,12 +110,104 @@ public static class MapEditorToolbarBuilder
             return;
         }
 
+        Button openButton = MapEditorToolbarButtonFactory.CreateActionButton(
+            recentPngListRoot,
+            manager,
+            L("+ 파일 직접 열기", "+ Open File"),
+            string.Empty,
+            MapEditorToolbarAction.None,
+            "RecentResourceOpenFileButton");
+        openButton.onClick.RemoveAllListeners();
+        openButton.onClick.AddListener(() => manager?.LoadPngPalette());
+
         foreach (string path in paths)
         {
             MapEditorToolbarButtonFactory.CreateRecentPngButton(recentPngListRoot, manager, path);
         }
 
         ResetRecentResourceScroll(recentPngListRoot);
+    }
+
+    public static void RefreshFavoriteTileList(Transform favoriteTileListRoot, MapEditorManager manager)
+    {
+        if (favoriteTileListRoot == null) return;
+        for (int i = favoriteTileListRoot.childCount - 1; i >= 0; i--)
+        {
+            MapEditorObjectUtility.DestroyObject(favoriteTileListRoot.GetChild(i).gameObject);
+        }
+
+        Button addButton = MapEditorToolbarButtonFactory.CreateActionButton(
+            favoriteTileListRoot,
+            manager,
+            L("★ 현재 타일 추가", "★ Add Current Tile"),
+            string.Empty,
+            MapEditorToolbarAction.None,
+            "AddCurrentFavoriteTileButton");
+        addButton.onClick.RemoveAllListeners();
+        addButton.onClick.AddListener(() => manager?.AddSelectedTileToFavorites());
+
+        IReadOnlyList<MapEditorFavoriteTileData> favorites = manager?.GetFavoriteTiles();
+        if (favorites != null)
+        {
+            for (int i = 0; i < favorites.Count; i++)
+            {
+                MapEditorToolbarButtonFactory.CreateFavoriteTileButton(
+                    favoriteTileListRoot,
+                    manager,
+                    favorites[i]);
+            }
+        }
+
+        ResetRecentResourceScroll(favoriteTileListRoot);
+    }
+
+    public static void RefreshAnimationTileList(Transform animationTileListRoot, MapEditorManager manager)
+    {
+        if (animationTileListRoot == null) return;
+
+        for (int i = animationTileListRoot.childCount - 1; i >= 0; i--)
+        {
+            MapEditorObjectUtility.DestroyObject(animationTileListRoot.GetChild(i).gameObject);
+        }
+
+        int animationCount = 0;
+        IReadOnlyList<MapEditorTilesetDefinition> tilesets = manager == null
+            ? null
+            : manager.GetImportedTilesets();
+        if (tilesets != null)
+        {
+            for (int tilesetIndex = 0; tilesetIndex < tilesets.Count; tilesetIndex++)
+            {
+                MapEditorTilesetDefinition tileset = tilesets[tilesetIndex];
+                if (tileset?.animations == null) continue;
+                for (int animationIndex = 0; animationIndex < tileset.animations.Length; animationIndex++)
+                {
+                    MapEditorTilesetAnimationDefinition animation = tileset.animations[animationIndex];
+                    if (animation == null) continue;
+                    MapEditorToolbarButtonFactory.CreateAnimationTileButton(
+                        animationTileListRoot,
+                        manager,
+                        tileset,
+                        animation);
+                    animationCount++;
+                }
+            }
+        }
+
+        if (animationCount == 0)
+        {
+            GameObject emptyObject = new GameObject("EmptyAnimationTiles", typeof(RectTransform), typeof(Text));
+            emptyObject.transform.SetParent(animationTileListRoot, false);
+            emptyObject.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, 30f);
+            Text emptyText = emptyObject.GetComponent<Text>();
+            emptyText.text = L("저장된 애니메이션 타일 없음", "No saved animated tiles");
+            emptyText.font = MapEditorFontProvider.Default;
+            emptyText.fontSize = 9;
+            emptyText.alignment = TextAnchor.MiddleCenter;
+            emptyText.color = new Color(0.62f, 0.65f, 0.68f, 1f);
+        }
+
+        ResetRecentResourceScroll(animationTileListRoot);
     }
 
     public static void RefreshLayout(Vector2 offset)
@@ -227,8 +331,7 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarToolButton(toolbar, manager, L("사각형 채우기", "Rectangle Fill"), "G", EditorToolType.RectangleFill, MapEditorToolbarAction.RectangleFill, "RectangleFillToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("지우개", "Eraser"), "E", EditorToolType.Eraser, MapEditorToolbarAction.Eraser, "EraserToolButton");
         EnsureToolbarToolButton(toolbar, manager, L("선택", "Select"), "S", EditorToolType.Selection, MapEditorToolbarAction.Select, "SelectToolButton");
-        EnsureToolbarToolButton(toolbar, manager, L("플레이어 시작", "Runner Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
-        EnsureToolbarToolButton(toolbar, manager, L("술래 시작", "Seeker Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSeekerSpawn, "SeekerSpawnToolButton");
+        EnsureToolbarToolButton(toolbar, manager, L("공용 시작 위치", "Shared Spawn"), L("클릭", "Click"), EditorToolType.Spawn, MapEditorToolbarAction.SetSpawn, "SpawnToolButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일 만들기", "Create Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenTileCreator, "TileCreatorButton");
         EnsureToolbarActionButton(toolbar, manager, L("애니메이션 타일", "Animated Tile"), L("클릭", "Click"), MapEditorToolbarAction.OpenAnimationTileEditor, "AnimationTileButton");
         EnsureToolbarActionButton(toolbar, manager, L("이동 경로", "Moving Path"), L("선택 후 클릭", "Select / Click"), MapEditorToolbarAction.MovingRegion, "MovingRegionButton");
@@ -238,12 +341,14 @@ public static class MapEditorToolbarBuilder
         EnsureToolbarActionButton(toolbar, manager, L("게임 맵 가져오기", "Import Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ImportPixelChromaMap, "ImportMapButton");
         EnsureToolbarActionButton(toolbar, manager, L("타일셋", "Tilesets"), L("클릭", "Click"), MapEditorToolbarAction.OpenTilesetLibrary, "TilesetsButton");
         EnsureToolbarActionButton(toolbar, manager, L("PNG 불러오기", "Load PNG"), L("클릭", "Click"), MapEditorToolbarAction.PngLoad, "LoadPNGButton");
-        EnsureToolbarActionButton(toolbar, manager, L("게임용 내보내기", "Export Game Map"), L("클릭", "Click"), MapEditorToolbarAction.ExportPixelChroma, "GameOutButton");
+        EnsureToolbarActionButton(toolbar, manager, L("임시 저장", "Save Draft"), "Ctrl+S", MapEditorToolbarAction.Save, "GameOutButton");
         EnsureToolbarActionButton(toolbar, manager, L("검사 후 창작마당 업로드", "Validate & Upload Workshop"), L("클릭", "Click"), MapEditorToolbarAction.UploadWorkshop, "WorkshopButton");
         EnsureToolbarActionButton(toolbar, manager, L("도움말", "Help"), "F1", MapEditorToolbarAction.PackageGuide, "HelpButton");
         EnsureToolbarActionButton(toolbar, manager, L("전체 지우기", "Clear All"), L("클릭", "Click"), MapEditorToolbarAction.ClearAll, "ClearAllButton");
         EnsureValidationStatus(toolbar);
         EnsureRecentPngList(toolbar);
+        EnsureFavoriteTileList(toolbar);
+        EnsureAnimationTileList(toolbar);
     }
 
     private static string L(string korean, string english)
@@ -298,6 +403,8 @@ public static class MapEditorToolbarBuilder
         Transform validation = toolbar.Find(ValidationStatusObjectName);
         refs.validationStatusText = validation == null ? null : validation.GetComponent<Text>();
         refs.recentPngListRoot = EnsureRecentPngList(toolbar);
+        refs.favoriteTileListRoot = EnsureFavoriteTileList(toolbar);
+        refs.animationTileListRoot = EnsureAnimationTileList(toolbar);
     }
 
     private static void EnsureToolbarDivider(Transform parent)
@@ -488,6 +595,127 @@ public static class MapEditorToolbarBuilder
         return CreateRecentResourceScroll(root.transform);
     }
 
+    private static Transform EnsureAnimationTileList(Transform parent)
+    {
+        Transform existing = parent.Find(AnimationTileListObjectName);
+        if (existing != null)
+        {
+            Transform existingContent = existing.Find(
+                AnimationTileScrollObjectName + "/Viewport/" + AnimationTileContentObjectName);
+            if (existingContent != null) return existingContent;
+            MapEditorObjectUtility.DestroyObject(existing.gameObject);
+        }
+
+        GameObject root = new GameObject(AnimationTileListObjectName, typeof(RectTransform), typeof(VerticalLayoutGroup));
+        root.transform.SetParent(parent, false);
+        root.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, ToolbarAnimationHeight);
+
+        VerticalLayoutGroup layout = root.GetComponent<VerticalLayoutGroup>();
+        layout.spacing = 1f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+
+        CreateToolbarLabel(root.transform, L("애니메이션 타일", "Animated Tiles"));
+        return CreateAnimationTileScroll(root.transform);
+    }
+
+    private static Transform EnsureFavoriteTileList(Transform parent)
+    {
+        Transform existing = parent.Find(FavoriteTileListObjectName);
+        if (existing != null)
+        {
+            Transform content = existing.Find(FavoriteTileScrollObjectName + "/Viewport/" + FavoriteTileContentObjectName);
+            if (content != null) return content;
+            MapEditorObjectUtility.DestroyObject(existing.gameObject);
+        }
+
+        GameObject root = new GameObject(FavoriteTileListObjectName, typeof(RectTransform), typeof(VerticalLayoutGroup));
+        root.transform.SetParent(parent, false);
+        root.GetComponent<RectTransform>().sizeDelta = new Vector2(0f, ToolbarFavoriteHeight);
+        VerticalLayoutGroup layout = root.GetComponent<VerticalLayoutGroup>();
+        layout.spacing = 1f;
+        layout.childControlWidth = true;
+        layout.childControlHeight = false;
+        layout.childForceExpandWidth = true;
+        layout.childForceExpandHeight = false;
+        CreateToolbarLabel(root.transform, L("즐겨찾기 타일", "Favorite Tiles"));
+        return CreateCompactListScroll(
+            root.transform,
+            FavoriteTileScrollObjectName,
+            FavoriteTileContentObjectName,
+            ToolbarFavoriteHeight);
+    }
+
+    private static Transform CreateAnimationTileScroll(Transform parent)
+    {
+        return CreateCompactListScroll(
+            parent,
+            AnimationTileScrollObjectName,
+            AnimationTileContentObjectName,
+            ToolbarAnimationHeight);
+    }
+
+    private static Transform CreateCompactListScroll(
+        Transform parent,
+        string scrollObjectName,
+        string contentObjectName,
+        float sectionHeight)
+    {
+        GameObject scrollObject = new GameObject(
+            scrollObjectName,
+            typeof(RectTransform),
+            typeof(Image),
+            typeof(ScrollRect));
+        scrollObject.transform.SetParent(parent, false);
+        RectTransform scrollRect = scrollObject.GetComponent<RectTransform>();
+        scrollRect.sizeDelta = new Vector2(0f, sectionHeight - ToolbarLabelHeight - 1f);
+        scrollObject.GetComponent<Image>().color = new Color(0.05f, 0.05f, 0.05f, 0.55f);
+
+        GameObject viewportObject = new GameObject("Viewport", typeof(RectTransform), typeof(Image), typeof(RectMask2D));
+        viewportObject.transform.SetParent(scrollObject.transform, false);
+        RectTransform viewportRect = viewportObject.GetComponent<RectTransform>();
+        viewportRect.anchorMin = Vector2.zero;
+        viewportRect.anchorMax = Vector2.one;
+        viewportRect.offsetMin = Vector2.zero;
+        viewportRect.offsetMax = new Vector2(-8f, 0f);
+        Image viewportImage = viewportObject.GetComponent<Image>();
+        viewportImage.color = new Color(0f, 0f, 0f, 0.01f);
+        viewportImage.raycastTarget = true;
+
+        GameObject contentObject = new GameObject(
+            contentObjectName,
+            typeof(RectTransform),
+            typeof(VerticalLayoutGroup),
+            typeof(ContentSizeFitter));
+        contentObject.transform.SetParent(viewportObject.transform, false);
+        RectTransform contentRect = contentObject.GetComponent<RectTransform>();
+        contentRect.anchorMin = new Vector2(0f, 1f);
+        contentRect.anchorMax = new Vector2(1f, 1f);
+        contentRect.pivot = new Vector2(0.5f, 1f);
+        contentRect.anchoredPosition = Vector2.zero;
+        contentRect.sizeDelta = Vector2.zero;
+        VerticalLayoutGroup contentLayout = contentObject.GetComponent<VerticalLayoutGroup>();
+        contentLayout.spacing = 2f;
+        contentLayout.childControlWidth = true;
+        contentLayout.childControlHeight = false;
+        contentLayout.childForceExpandWidth = true;
+        contentLayout.childForceExpandHeight = false;
+        ContentSizeFitter fitter = contentObject.GetComponent<ContentSizeFitter>();
+        fitter.horizontalFit = ContentSizeFitter.FitMode.Unconstrained;
+        fitter.verticalFit = ContentSizeFitter.FitMode.PreferredSize;
+
+        ScrollRect scroll = scrollObject.GetComponent<ScrollRect>();
+        scroll.content = contentRect;
+        scroll.viewport = viewportRect;
+        scroll.horizontal = false;
+        scroll.vertical = true;
+        scroll.movementType = ScrollRect.MovementType.Clamped;
+        scroll.scrollSensitivity = 22f;
+        return contentObject.transform;
+    }
+
     private static Transform CreateRecentResourceScroll(Transform parent)
     {
         GameObject scrollObject = new GameObject(
@@ -661,7 +889,7 @@ public static class MapEditorToolbarBuilder
         rect.sizeDelta = new Vector2(0f, ToolbarValidationHeight);
 
         Text text = statusObject.GetComponent<Text>();
-        text.text = "맵 검사\n검사 안 함";
+        text.text = L("맵 검사\n검사 안 함", "Map Validation\nNot Run");
         text.font = MapEditorFontProvider.Default;
         text.fontSize = 9;
         text.alignment = TextAnchor.MiddleLeft;
@@ -800,7 +1028,7 @@ public static class MapEditorLayerPanelBuilder
             MapEditorObjectUtility.DestroyObject(child.gameObject);
         }
 
-        CreateLabel(panel, "레이어");
+        CreateLabel(panel, MapEditorLocalization.Choose("레이어", "Layers"));
 
         GameObject viewportObject = new GameObject(
             "LayerScrollViewport",
@@ -902,7 +1130,7 @@ public static class MapEditorLayerPanelBuilder
         selectHandler.manager = manager;
         selectHandler.action = MapEditorToolbarAction.SetCanvas;
         selectHandler.intArgument = canvasIndex;
-        CreateCenteredText(selectObject.transform, "선택", ButtonFontSize);
+        CreateCenteredText(selectObject.transform, MapEditorLocalization.Choose("선택", "Select"), ButtonFontSize);
 
         foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
         {
@@ -940,7 +1168,7 @@ public static class MapEditorLayerPanelBuilder
         InputField input = inputObject.GetComponent<InputField>();
         input.targetGraphic = background;
         input.textComponent = text;
-        input.text = manager == null ? "레이어 " + (canvasIndex + 1) : manager.GetCanvasDisplayName(canvasIndex);
+        input.text = manager == null ? MapEditorLocalization.Choose("레이어 ", "Layer ") + (canvasIndex + 1) : manager.GetCanvasDisplayName(canvasIndex);
         input.characterLimit = 18;
         input.lineType = InputField.LineType.SingleLine;
 
@@ -1070,7 +1298,7 @@ public static class MapEditorLayerPanelBuilder
         textRect.offsetMax = new Vector2(-4f, 0f);
 
         Text text = textObject.GetComponent<Text>();
-        text.text = "선택";
+        text.text = MapEditorLocalization.Choose("선택", "Select");
         text.font = MapEditorFontProvider.Default;
         text.fontSize = ButtonFontSize;
         text.alignment = TextAnchor.MiddleCenter;
@@ -1169,8 +1397,8 @@ public static class MapEditorLayerPanelBuilder
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
 
-        CreateLayerManagementButton(rowObject.transform, manager, "+ 레이어", MapEditorToolbarAction.AddCanvas, MapEditorLayerType.Ground, 83f);
-        CreateLayerManagementButton(rowObject.transform, manager, "레이어 삭제", MapEditorToolbarAction.DeleteCanvas, MapEditorLayerType.Ground, 83f);
+        CreateLayerManagementButton(rowObject.transform, manager, MapEditorLocalization.Choose("+ 레이어", "+ Layer"), MapEditorToolbarAction.AddCanvas, MapEditorLayerType.Ground, 83f);
+        CreateLayerManagementButton(rowObject.transform, manager, MapEditorLocalization.Choose("레이어 삭제", "Delete Layer"), MapEditorToolbarAction.DeleteCanvas, MapEditorLayerType.Ground, 83f);
     }
 
     private static void CreateLayerManagementButton(

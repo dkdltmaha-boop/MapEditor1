@@ -116,6 +116,30 @@ public static class MapEditorSizeConfigurationSmokeTest
                 && recentScroll.content != null
                 && recentScroll.content.name == "RecentResourceContent",
                 "Recent Resources scroll viewport or masked content is not configured.");
+            Transform animationTileScrollTransform = FindDescendant(toolbar, "AnimationTileScroll");
+            ScrollRect animationTileScroll = animationTileScrollTransform == null
+                ? null
+                : animationTileScrollTransform.GetComponent<ScrollRect>();
+            Require(animationTileScroll != null
+                && animationTileScroll.vertical
+                && !animationTileScroll.horizontal
+                && animationTileScroll.viewport != null
+                && animationTileScroll.viewport.GetComponent<RectMask2D>() != null
+                && animationTileScroll.content != null
+                && animationTileScroll.content.name == "AnimationTileContent",
+                "Animated Tiles is missing its dedicated scroll list below Recent Resources.");
+            Transform favoriteTileScrollTransform = FindDescendant(toolbar, "FavoriteTileScroll");
+            ScrollRect favoriteTileScroll = favoriteTileScrollTransform == null
+                ? null
+                : favoriteTileScrollTransform.GetComponent<ScrollRect>();
+            Require(favoriteTileScroll != null
+                && favoriteTileScroll.vertical
+                && favoriteTileScroll.content != null
+                && favoriteTileScroll.content.name == "FavoriteTileContent"
+                && FindDescendant(favoriteTileScroll.content, "AddCurrentFavoriteTileButton")?.GetComponent<Button>() != null,
+                "Favorite Tiles is missing its scroll list or Add Current Tile action.");
+            Require(FindDescendant(recentScroll.content, "RecentResourceOpenFileButton")?.GetComponent<Button>() != null,
+                "Recent Resources is missing its direct file-open action.");
             RequireToolbarButton(toolbar, "BrushToolButton", "브러시 · 바닥", MapEditorToolbarAction.Brush);
             RequireToolbarButton(toolbar, "BrushRoleMenuButton", "▼", MapEditorToolbarAction.ToggleBrushRoleMenu);
             Require(FindDescendant(toolbar, "WallToolButton") == null,
@@ -142,8 +166,9 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(manager.HasPlaytestCollisionAt(0, 0),
                 "Playtest does not recognize the WallCollision layer.");
             manager.SetCurrentMapDataForLoad(originalMapData);
-            RequireToolbarButton(toolbar, "SpawnToolButton", "플레이어 시작", MapEditorToolbarAction.SetSpawn);
-            RequireToolbarButton(toolbar, "SeekerSpawnToolButton", "술래 시작", MapEditorToolbarAction.SetSeekerSpawn);
+            RequireToolbarButton(toolbar, "SpawnToolButton", "공용 시작 위치", MapEditorToolbarAction.SetSpawn);
+            Require(toolbar.Find("SeekerSpawnToolButton") == null,
+                "Legacy separate seeker spawn button is still visible.");
             Require(toolbar.Find("ValidateButton") == null,
                 "Standalone Validate Map button is still visible.");
             Require(toolbar.Find("PNGOutButton") == null,
@@ -168,9 +193,21 @@ public static class MapEditorSizeConfigurationSmokeTest
                 && FindDescendant(animationRoot, "ImportTilesetButton")?.GetComponent<Button>() != null,
                 "Animation tile editor actions are missing.");
             Require(FindDescendant(animationRoot, "AnimationListContent") != null
+                && FindDescendant(animationRoot, "FramePaletteContent") != null
+                && FindDescendant(animationRoot, "GridOverlay")?.GetComponent<MapEditorAnimationFramePaletteGraphic>() != null
+                && FindDescendant(animationRoot, "GridOverlay")?.GetComponent<MapEditorAnimationFramePaletteInput>() != null
+                && FindDescendant(animationRoot, "GridOverlay")?.GetComponent<CanvasRenderer>() != null
                 && FindDescendant(animationRoot, "AnimationPreviewImage")?.GetComponent<Image>() != null
                 && FindDescendant(animationRoot, "AnimationPreviewImage")?.GetComponent<MapEditorAnimatedTilePlayer>() != null,
-                "Animation tile editor list or playback preview is missing.");
+                "Animation tile editor list, frame palette, or playback preview is missing.");
+            Require(FindDescendant(animationRoot, "FramePaletteSize16Button")?.GetComponent<Button>() != null
+                && FindDescendant(animationRoot, "FramePaletteSize32Button")?.GetComponent<Button>() != null
+                && FindDescendant(animationRoot, "FramePaletteSize64Button")?.GetComponent<Button>() != null
+                && FindDescendant(animationRoot, "FramePaletteSize128Button")?.GetComponent<Button>() != null,
+                "Animation tile editor is missing one or more 16x16-128x128 grid divisions.");
+            FindDescendant(animationRoot, "FramePaletteSize32Button").GetComponent<Button>().onClick.Invoke();
+            Require(animationWindow.FramePaletteGridSize == 32,
+                "Animation frame palette did not switch to a real 32x32 grid division.");
             Require(FindDescendant(animationRoot, "UseAnimationBrushButton")?.GetComponent<Button>() != null,
                 "Animation tile editor is missing the Use as Brush action.");
             MapEditorObjectUtility.DestroyObject(animationRoot.gameObject);
@@ -207,6 +244,13 @@ public static class MapEditorSizeConfigurationSmokeTest
                 "Workshop preview panel or capture button is missing below the layer panel.");
             Require(canvas.transform.Find("MapEditor_MapInfoPanel/Stats")?.GetComponent<Text>() != null,
                 "Map statistics panel was not created below the tilemap workspace.");
+            Transform mapInfoPanel = canvas.transform.Find("MapEditor_MapInfoPanel");
+            MapEditorMapInfoPanel mapInfoController = mapInfoPanel?.GetComponent<MapEditorMapInfoPanel>();
+            Require(mapInfoController != null, "Map statistics panel controller is missing.");
+            UnityEngine.Object.DestroyImmediate(mapInfoController);
+            MapEditorMapInfoPanelBuilder.Ensure(canvas.transform, manager);
+            Require(mapInfoPanel.GetComponent<MapEditorMapInfoPanel>() != null,
+                "Map statistics panel did not repair its missing controller component.");
             Require(FindDescendant(toolbar, "PreviewRegionToolButton") == null,
                 "Preview capture is still present in the tool toolbar instead of its own panel.");
 
@@ -445,27 +489,46 @@ public static class MapEditorSizeConfigurationSmokeTest
 
             manager.pixelChromaSpawnPoints.Clear();
             manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"));
+            manager.pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SeekerSpawn", 1, 1, "Seeker"));
             manager.CurrentMapData.SetTileOnLayer(
                 1, 1, MapEditorLayerType.Ground, MapEditorManager.CustomColorTileId,
                 Color.green, string.Empty, -1, 0, false, false);
             manager.CurrentMapData.SetTileOnLayer(
                 1, 1, MapEditorLayerType.Object, MapEditorManager.CustomColorTileId,
                 Color.yellow, string.Empty, -1, 0, false, false);
+            manager.movingRegions.Add(new MapEditorMovingRegionData
+            {
+                id = "ClearAllMovingRegion",
+                displayName = "Clear All Moving Region",
+                canvasLayerIndex = 0,
+                x = 1,
+                y = 1,
+                width = 1,
+                height = 1,
+                path = new[]
+                {
+                    new MapEditorPathPointData(1, 1),
+                    new MapEditorPathPointData(2, 1)
+                }
+            });
             manager.ClearMap();
             Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == -1
                 && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == -1
-                && manager.pixelChromaSpawnPoints.Count == 0,
-                "Clear All did not clear overlapping layers and start points.");
+                && manager.pixelChromaSpawnPoints.Count == 0
+                && manager.MovingRegionCount == 0,
+                "Clear All did not clear overlapping layers, start points, and moving paths.");
             manager.Undo();
             Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == MapEditorManager.CustomColorTileId
                 && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == MapEditorManager.CustomColorTileId
-                && manager.pixelChromaSpawnPoints.Count == 1,
-                "Undo did not restore every layer and the start point after Clear All.");
+                && manager.pixelChromaSpawnPoints.Count == 2
+                && manager.MovingRegionCount == 1,
+                "Undo did not restore every layer, the shared start point, and the moving path after Clear All.");
             manager.Redo();
             Require(manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Ground) == -1
                 && manager.CurrentMapData.GetTile(1, 1, MapEditorLayerType.Object) == -1
-                && manager.pixelChromaSpawnPoints.Count == 0,
-                "Redo did not clear the map again after Clear All undo.");
+                && manager.pixelChromaSpawnPoints.Count == 0
+                && manager.MovingRegionCount == 0,
+                "Redo did not clear the map and moving path again after Clear All undo.");
 
             manager.SetActiveLayer(MapEditorLayerType.Spawn);
             manager.ClearActiveLayer();
@@ -480,12 +543,14 @@ public static class MapEditorSizeConfigurationSmokeTest
             Require(failedValidationModal != null,
                 "Workshop export did not show validation before opening a save dialog.");
             Text failedValidationText = failedValidationModal.Find("Panel/Viewport/Content")?.GetComponent<Text>();
-            Require(failedValidationText != null && failedValidationText.text.Contains("창작마당 합격 조건"),
-                "Workshop validation did not explain its pass requirements.");
             Require(failedValidationText != null
-                && failedValidationText.text.Contains("PixelChroma Workshop 콘텐츠 정책")
-                && failedValidationText.text.Contains("타 게임에서 무단 추출한 에셋의 업로드를 금지합니다."),
-                "Workshop validation did not show the content policy notice.");
+                && missingSpawnReport.errors.Exists(error => failedValidationText.text.Contains(error)),
+                "Failed Workshop validation did not show its failing checks.");
+            if (missingSpawnReport.passedChecks.Count > 0)
+            {
+                Require(!failedValidationText.text.Contains(missingSpawnReport.passedChecks[0]),
+                    "Failed Workshop validation still shows passing checks.");
+            }
             Require(failedValidationModal.Find("Panel/FooterActionButton") == null,
                 "Failed validation incorrectly allows Workshop export to continue.");
 

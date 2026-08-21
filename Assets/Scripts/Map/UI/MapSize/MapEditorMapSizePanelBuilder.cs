@@ -41,7 +41,7 @@ public static class MapEditorMapSizePanelBuilder
         ConfigurePanel(panel, toolbarOffset);
         ClearChildren(panel);
 
-        Text panelTitle = CreateLabel(panel, "맵 크기", 12, 16f);
+        Text panelTitle = CreateLabel(panel, L("맵 크기", "Map Size"), 12, 16f);
         panelTitle.fontStyle = FontStyle.Bold;
         Text currentSizeText = CreateCurrentSizeLabel(panel, manager);
         InputField widthInput = CreateValueControls(panel, manager, currentSizeText, true);
@@ -141,7 +141,7 @@ public static class MapEditorMapSizePanelBuilder
         rowLayout.childForceExpandWidth = false;
         rowLayout.childForceExpandHeight = true;
 
-        CreateSmallText(rowObject.transform, widthControl ? "너비" : "높이", 48f);
+        CreateSmallText(rowObject.transform, widthControl ? L("너비", "Width") : L("높이", "Height"), 48f);
         int value = widthControl ? manager.mapWidth : manager.mapHeight;
         InputField input = CreateInput(rowObject.transform, value);
         CreateSlider(groupObject.transform, manager, currentSizeText, input, widthControl, widthControl ? "WidthSlider" : "HeightSlider");
@@ -173,7 +173,7 @@ public static class MapEditorMapSizePanelBuilder
             ? new Color(0.18f, 0.48f, 0.95f, 1f)
             : new Color(0.24f, 0.24f, 0.24f, 1f);
 
-        Text label = CreateSmallText(buttonObject.transform, "플레이어 크기 비교 (드래그)", 164f);
+        Text label = CreateSmallText(buttonObject.transform, L("플레이어 크기 비교 (드래그)", "Player Size Guide (Drag)"), 164f);
         label.alignment = TextAnchor.MiddleCenter;
         RectTransform labelRect = label.rectTransform;
         labelRect.anchorMin = Vector2.zero;
@@ -332,5 +332,10 @@ public static class MapEditorMapSizePanelBuilder
                 MapEditorObjectUtility.DestroyObject(child.gameObject);
             }
         }
+    }
+
+    private static string L(string korean, string english)
+    {
+        return MapEditorLocalization.Choose(korean, english);
     }
 }

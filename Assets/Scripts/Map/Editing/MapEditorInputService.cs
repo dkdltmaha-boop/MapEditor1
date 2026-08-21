@@ -50,6 +50,11 @@ public class MapEditorInputService
 
     private void HandleKeyboardShortcuts()
     {
+        if (MapEditorTileCreatorWindow.IsOpen)
+        {
+            return;
+        }
+
         if (EventSystem.current != null
             && EventSystem.current.currentSelectedGameObject != null
             && EventSystem.current.currentSelectedGameObject.GetComponent<InputField>() != null)

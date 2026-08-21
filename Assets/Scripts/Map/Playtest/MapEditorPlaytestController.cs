@@ -442,8 +442,6 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         for (int i = 0; i < movingPreviews.Count; i++)
         {
             MovingRegionPreview preview = movingPreviews[i];
-            Vector2 previousTopLeft = preview.currentTopLeft;
-            bool carryPlayer = IsPlayerStandingOn(preview, previousTopLeft);
             if (MapEditorAnimationClock.Time >= preview.nextTextureRefresh)
             {
                 RefreshMovingRegionTexture(preview);
@@ -464,7 +462,6 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
                 preview.currentTopLeft,
                 targetTopLeft,
                 Mathf.Max(0.05f, preview.data.tilesPerSecond) * deltaTime);
-            if (carryPlayer) playerPosition += preview.currentTopLeft - previousTopLeft;
             UpdateMovingRegionVisual(preview);
 
             if ((preview.currentTopLeft - targetTopLeft).sqrMagnitude > 0.0001f) continue;
@@ -473,15 +470,6 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
         }
 
         UpdatePlayerVisual();
-    }
-
-    private bool IsPlayerStandingOn(MovingRegionPreview preview, Vector2 topLeft)
-    {
-        if (!Contains(topLeft, preview.data.width, preview.data.height, playerPosition)) return false;
-        int sourceX = preview.data.x + Mathf.FloorToInt(playerPosition.x - topLeft.x);
-        int sourceY = preview.data.y + Mathf.FloorToInt(playerPosition.y - topLeft.y);
-        return manager.HasPlaytestGroundAt(sourceX, sourceY, preview.data.canvasLayerIndex)
-            && !manager.HasPlaytestCollisionAt(sourceX, sourceY);
     }
 
     private static void AdvanceMovingPath(MovingRegionPreview preview)
@@ -620,7 +608,9 @@ public sealed class MapEditorPlaytestController : MonoBehaviour
 
     private string RoleLabel()
     {
-        return activeRole == "Seeker" ? "술래" : "플레이어";
+        return activeRole == "Seeker"
+            ? MapEditorLocalization.Choose("술래", "Seeker")
+            : MapEditorLocalization.Choose("플레이어", "Runner");
     }
 
     private static MapEditorSpawnPointData FindSpawn(MapEditorSpawnPointData[] spawns, string role)

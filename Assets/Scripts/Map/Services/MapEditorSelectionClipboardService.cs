@@ -69,10 +69,11 @@ public class MapEditorSelectionClipboardService
 
     public void SetSelectionRect(RectInt rect)
     {
-        selectedCells.Clear();
         selectedRect = ClampSelectionRect(rect);
         selectionStart = null;
         isSelecting = false;
+        if (selectedRect.HasValue) PopulateSelectedCellsFromRect(selectedRect.Value);
+        else selectedCells.Clear();
         updateBrushCursorPreview();
     }
 
@@ -120,6 +121,10 @@ public class MapEditorSelectionClipboardService
         if (selectedRect.HasValue && selectedRect.Value.width == 1 && selectedRect.Value.height == 1)
         {
             SelectConnectedAt(new Vector2Int(selectedRect.Value.x, selectedRect.Value.y));
+        }
+        else if (selectedRect.HasValue)
+        {
+            PopulateSelectedCellsFromRect(selectedRect.Value);
         }
 
         updateBrushCursorPreview();
@@ -208,6 +213,27 @@ public class MapEditorSelectionClipboardService
 
         UpdateConnectedSelectionBounds();
         Debug.Log("연결된 타일 선택: " + selectedCells.Count + "개 / " + layer);
+    }
+
+    private void PopulateSelectedCellsFromRect(RectInt rect)
+    {
+        MapData mapData = getMapData();
+        selectedLayer = getActiveLayer();
+        selectedCells.Clear();
+        if (mapData == null) return;
+
+        for (int y = rect.yMin; y < rect.yMax; y++)
+        {
+            for (int x = rect.xMin; x < rect.xMax; x++)
+            {
+                if (mapData.IsInside(x, y) && mapData.GetTile(x, y, selectedLayer) != -1)
+                {
+                    selectedCells.Add(new Vector2Int(x, y));
+                }
+            }
+        }
+
+        UpdateConnectedSelectionBounds();
     }
 
     private void UpdateConnectedSelectionBounds()

@@ -118,6 +118,34 @@ public static class MapEditorTilesetImportSmokeTest
             Require(IsApproximately(green.texture.GetPixel(24, green.texture.height - 8), Color.green), "Second imported tile color changed.");
             Require(red.texture.GetPixel(8, red.texture.height - 8).a < 0.01f, "Transparent tileset pixels became opaque during import.");
 
+            Require(library.AddGridAnimation(
+                    definition.id,
+                    "32 Grid Animation",
+                    32,
+                    new[] { 64, 65 },
+                    8f,
+                    true,
+                    out MapEditorTilesetAnimationDefinition gridAnimation,
+                    out string gridAnimationError),
+                gridAnimationError);
+            int gridFirstFrame = 29 * 32;
+            int gridPaletteIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(32, gridFirstFrame);
+            Require(gridAnimation.frameGridSize == 32
+                && gridAnimation.GetFrameTileId(0) == gridFirstFrame
+                && MapEditorTilesetLibraryService.TryGetAnimation(
+                    definition.atlasPath,
+                    gridPaletteIndex,
+                    out _,
+                    out MapEditorTilesetAnimationDefinition foundGridAnimation)
+                && foundGridAnimation.id == gridAnimation.id,
+                "Animation grid division was not saved or resolved from its 32x32 frame.");
+            MapEditorTilesetAnimationDefinition gridRoundTrip = JsonUtility.FromJson<MapEditorTilesetAnimationDefinition>(
+                JsonUtility.ToJson(gridAnimation));
+            Require(gridRoundTrip != null && gridRoundTrip.frameGridSize == 32,
+                "Animation grid division was lost during serialization.");
+            Require(library.RemoveAnimation(definition.id, gridAnimation.id),
+                "Grid-division smoke animation could not be removed.");
+
             Require(collectionLibrary.ImportCollection(
                     new[] { sourcePath, collectionSourcePath },
                     "Runtime Collection",

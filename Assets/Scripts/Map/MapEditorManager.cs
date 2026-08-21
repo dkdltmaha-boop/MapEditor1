@@ -8,6 +8,8 @@ using UnityEditor;
 [ExecuteAlways]
 public class MapEditorManager : MonoBehaviour
 {
+    private const string FavoriteTilesPrefsKey = "MapEditor.FavoriteTiles";
+    private const string RecentResourceOrderPrefsKey = "MapEditor.RecentResourceOrder";
     public const int CustomColorTileId = -2;
     public const int CustomImageTileId = -3;
     public const int WallTileId = -4;
@@ -81,7 +83,7 @@ public class MapEditorManager : MonoBehaviour
 
     [Header("내보내기")]
     public int exportCellPixels = 1;
-    public bool paintWholeTile;
+    public bool paintWholeTile = true;
     public bool exportEmptyCellsTransparent = true;
     public string pixelChromaMapId = "map_01";
     public string workshopTitle = "새 PixelChroma 맵";
@@ -91,7 +93,7 @@ public class MapEditorManager : MonoBehaviour
     public string requiredPixelChromaVersion = "1.0.0";
     public string steamWorkshopVisibility = "Public";
     public string steamWorkshopTags = "Map";
-    public uint steamAppId;
+    public uint steamAppId = 5023800u;
     public int pixelChromaSpawnX;
     public int pixelChromaSpawnY;
     public List<MapEditorSpawnPointData> pixelChromaSpawnPoints = new List<MapEditorSpawnPointData>();
@@ -194,6 +196,7 @@ public class MapEditorManager : MonoBehaviour
     private void Awake()
     {
         Instance = this;
+        LocalizeDefaultWorkshopMetadata();
         EnsureLayerSettings();
         NormalizeCanvasSelection();
         EnsureTilesetLibrary();
@@ -427,6 +430,8 @@ public class MapEditorManager : MonoBehaviour
     private void Start()
     {
         EnsureSceneTools();
+        SetWholeTilePaintMode();
+        MapEditorModalPanel.ShowCopyrightNotice(this);
     }
 
     private void EnsureSceneTools()
@@ -855,7 +860,7 @@ public class MapEditorManager : MonoBehaviour
         EnsureLayerSettings();
         MapEditorLayerSetting setting = FindLayerSetting(
             MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Ground));
-        string fallback = "레이어 " + (canvasIndex + 1);
+        string fallback = MapEditorLocalization.Choose("레이어 ", "Layer ") + (canvasIndex + 1);
         if (setting == null || string.IsNullOrWhiteSpace(setting.displayName)) return fallback;
 
         string legacyDefault = GetDefaultLayerName((MapEditorLayerType)setting.layer);
@@ -865,7 +870,9 @@ public class MapEditorManager : MonoBehaviour
     public void SetCanvasDisplayName(int canvasIndex, string displayName)
     {
         EnsureLayerSettings();
-        string name = string.IsNullOrWhiteSpace(displayName) ? "레이어 " + (canvasIndex + 1) : displayName.Trim();
+        string name = string.IsNullOrWhiteSpace(displayName)
+            ? MapEditorLocalization.Choose("레이어 ", "Layer ") + (canvasIndex + 1)
+            : displayName.Trim();
         if (name.Length > 18) name = name.Substring(0, 18);
 
         foreach (MapEditorLayerType role in new[] { MapEditorLayerType.Ground, MapEditorLayerType.Object, MapEditorLayerType.WallVisual })
@@ -993,7 +1000,7 @@ public class MapEditorManager : MonoBehaviour
                 if (setting == null) continue;
                 setting.enabled = true;
                 setting.visible = true;
-                setting.displayName = "레이어 " + (canvasIndex + 1);
+                setting.displayName = MapEditorLocalization.Choose("레이어 ", "Layer ") + (canvasIndex + 1);
             }
 
             SetActiveCanvas(canvasIndex);
@@ -1404,8 +1411,7 @@ public class MapEditorManager : MonoBehaviour
         linePreviewCells.Clear();
         if (EditorToolController.Instance == null || EditorToolController.Instance.CurrentTool != EditorToolType.MovingPath)
         {
-            pendingMovingRegion = null;
-            pendingMovingPath.Clear();
+            ClearPendingMovingPathVisuals();
         }
     }
 
@@ -1422,6 +1428,8 @@ public class MapEditorManager : MonoBehaviour
 
         UpdateBrushPreview();
         UpdateBrushCursorPreview();
+        RefreshAnimationTileList();
+        RefreshFavoriteTileList();
         Debug.Log("선택한 색상: " + ColorUtility.ToHtmlStringRGBA(color));
     }
 
@@ -1444,7 +1452,9 @@ public class MapEditorManager : MonoBehaviour
 
         if (MapEditorTilesetLibraryService.TryGetAnimation(imagePath, imageIndex, out MapEditorTilesetDefinition animationTileset, out MapEditorTilesetAnimationDefinition animation))
         {
-            imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(animationTileset.atlasGridSize, animation.GetFrameTileId(0));
+            imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                animation.GetFrameGridSize(animationTileset.atlasGridSize),
+                animation.GetFrameTileId(0));
             Sprite firstFrame = GetPngTileSprite(imagePath, imageIndex, rotation, flipX, flipY);
             if (firstFrame != null)
             {
@@ -1492,6 +1502,8 @@ public class MapEditorManager : MonoBehaviour
             colorWheelWindow.SelectPngTile(imagePath, imageIndex);
         }
 
+        RefreshAnimationTileList();
+        RefreshFavoriteTileList();
         Debug.Log("선택한 이미지 브러시: " + sprite.name);
     }
 
@@ -1784,6 +1796,8 @@ public class MapEditorManager : MonoBehaviour
         brushSelection.ClearImageBrush(this);
         UpdateBrushPreview();
         UpdateBrushCursorPreview();
+        RefreshAnimationTileList();
+        RefreshFavoriteTileList();
     }
 
     public void PaintCell(GridCell cell)
@@ -1807,20 +1821,44 @@ public class MapEditorManager : MonoBehaviour
         EnsureSpawnPointList();
         MapEditorSpawnPointData[] previousSpawnPoints = GetSpawnPointsForSave();
         RectInt[] previousPreviewRegions = previewRegions.ToArray();
+        MapEditorMovingRegionData[] previousMovingRegions = GetMovingRegionsForSave();
+        int[] previousHiddenMovingPathIndices = new int[hiddenMovingPathGuideIndices.Count];
+        hiddenMovingPathGuideIndices.CopyTo(previousHiddenMovingPathIndices);
+        int previousSelectedMovingRegionIndex = selectedMovingRegionIndex;
 
         mapEditing.BeginTransaction();
         mapEditing.ClearAllLayers();
-        ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), System.Array.Empty<RectInt>());
+        ApplyMapClearMetadata(
+            System.Array.Empty<MapEditorSpawnPointData>(),
+            System.Array.Empty<RectInt>(),
+            System.Array.Empty<MapEditorMovingRegionData>(),
+            System.Array.Empty<int>(),
+            -1);
         mapEditing.RecordTransactionSideEffect(
-            () => ApplyMapClearMetadata(previousSpawnPoints, previousPreviewRegions),
-            () => ApplyMapClearMetadata(System.Array.Empty<MapEditorSpawnPointData>(), System.Array.Empty<RectInt>()));
+            () => ApplyMapClearMetadata(
+                previousSpawnPoints,
+                previousPreviewRegions,
+                previousMovingRegions,
+                previousHiddenMovingPathIndices,
+                previousSelectedMovingRegionIndex),
+            () => ApplyMapClearMetadata(
+                System.Array.Empty<MapEditorSpawnPointData>(),
+                System.Array.Empty<RectInt>(),
+                System.Array.Empty<MapEditorMovingRegionData>(),
+                System.Array.Empty<int>(),
+                -1));
         mapEditing.CommitTransaction();
 
         RefreshAllCells();
         UpdateBrushCursorPreview();
     }
 
-    private void ApplyMapClearMetadata(MapEditorSpawnPointData[] spawnPoints, RectInt[] restoredPreviewRegions)
+    private void ApplyMapClearMetadata(
+        MapEditorSpawnPointData[] spawnPoints,
+        RectInt[] restoredPreviewRegions,
+        MapEditorMovingRegionData[] restoredMovingRegions,
+        int[] restoredHiddenMovingPathIndices,
+        int restoredSelectedMovingRegionIndex)
     {
         EnsureSpawnPointList();
         pixelChromaSpawnPoints.Clear();
@@ -1845,11 +1883,42 @@ public class MapEditorManager : MonoBehaviour
         previewRegions.Clear();
         if (restoredPreviewRegions != null) previewRegions.AddRange(restoredPreviewRegions);
         previewRegion = previewRegions.Count > 0 ? previewRegions[0] : (RectInt?)null;
+
+        if (movingRegions == null) movingRegions = new List<MapEditorMovingRegionData>();
+        else movingRegions.Clear();
+        if (restoredMovingRegions != null)
+        {
+            for (int i = 0; i < restoredMovingRegions.Length; i++)
+            {
+                MapEditorMovingRegionData region = restoredMovingRegions[i];
+                if (region != null) movingRegions.Add(region.Clone());
+            }
+        }
+
+        hiddenMovingPathGuideIndices.Clear();
+        if (restoredHiddenMovingPathIndices != null)
+        {
+            for (int i = 0; i < restoredHiddenMovingPathIndices.Length; i++)
+            {
+                int index = restoredHiddenMovingPathIndices[i];
+                if (index >= 0 && index < movingRegions.Count) hiddenMovingPathGuideIndices.Add(index);
+            }
+        }
+
+        selectedMovingRegionIndex = restoredSelectedMovingRegionIndex >= 0
+            && restoredSelectedMovingRegionIndex < movingRegions.Count
+                ? restoredSelectedMovingRegionIndex
+                : -1;
+        pendingMovingRegion = null;
+        pendingMovingPath.Clear();
+        linePreviewCells.Clear();
+
         MapEditorWorkshopPreviewPanelBuilder.Ensure(this, toolToolbarOffset);
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
         UpdatePlayerScaleGuide();
-        UpdateBrushCursorPreview();
+        RefreshMovingPathGuides();
+        colorWheelWindow?.RefreshMovingPathList();
     }
 
     public void ClearActiveLayer()
@@ -1949,6 +2018,7 @@ public class MapEditorManager : MonoBehaviour
         selectedMovingRegionIndex = -1;
         hiddenMovingPathGuideIndices.Clear();
         movingPathGuideCells.Clear();
+        ClearPendingMovingPathVisuals();
         CurrentMapData = mapSizeService.CreateNewMap(this, width, height, ClearSelection, mapEditing.ClearHistory, RegenerateGrid);
         colorWheelWindow?.RefreshMovingPathList();
         UpdateBrushCursorPreview();
@@ -2097,6 +2167,8 @@ public class MapEditorManager : MonoBehaviour
         movingRegions = new List<MapEditorMovingRegionData>(saveData.movingRegions ?? System.Array.Empty<MapEditorMovingRegionData>());
         selectedMovingRegionIndex = -1;
         hiddenMovingPathGuideIndices.Clear();
+        for (int i = 0; i < movingRegions.Count; i++) hiddenMovingPathGuideIndices.Add(i);
+        ClearPendingMovingPathVisuals();
         RefreshMovingPathGuides();
         colorWheelWindow?.RefreshMovingPathList();
         RefreshSpawnMarker();
@@ -2180,21 +2252,12 @@ public class MapEditorManager : MonoBehaviour
         }
 
         EnsureSpawnPointList();
-        string role = NormalizeSpawnRole(selectedSpawnRole);
-        for (int i = pixelChromaSpawnPoints.Count - 1; i >= 0; i--)
-        {
-            MapEditorSpawnPointData existing = pixelChromaSpawnPoints[i];
-            bool sameRole = NormalizeSpawnRole(existing.role) == role;
-            bool sameCell = existing.x == cell.X && existing.y == cell.Y;
-            if (sameRole || sameCell)
-            {
-                pixelChromaSpawnPoints.RemoveAt(i);
-            }
-        }
-
-        string id = role == "Seeker" ? "SeekerSpawn" : "RunnerSpawn";
-        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(id, cell.X, cell.Y, role));
-        Debug.Log((role == "Seeker" ? "술래" : "플레이어") + " 시작 위치를 변경했습니다: " + cell.X + ", " + cell.Y);
+        // PixelChroma uses one shared start cell for both roles.
+        pixelChromaSpawnPoints.Clear();
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("RunnerSpawn", cell.X, cell.Y, "Runner"));
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SeekerSpawn", cell.X, cell.Y, "Seeker"));
+        selectedSpawnRole = "Runner";
+        Debug.Log("플레이어와 술래의 공용 시작 위치를 변경했습니다: " + cell.X + ", " + cell.Y);
 
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
@@ -2221,7 +2284,8 @@ public class MapEditorManager : MonoBehaviour
             return;
         }
 
-        pixelChromaSpawnPoints.RemoveAt(index);
+        // Both roles share a cell, so deleting that marker removes both records.
+        pixelChromaSpawnPoints.RemoveAll(point => point != null && point.x == cell.X && point.y == cell.Y);
         SyncPrimarySpawnPoint();
         RefreshSpawnMarker();
         UpdatePlayerScaleGuide();
@@ -2242,6 +2306,7 @@ public class MapEditorManager : MonoBehaviour
     {
         pixelChromaSpawnPoints.Clear();
 
+        MapEditorSpawnPointData loadedPrimary = null;
         if (saveData.spawnPoints != null)
         {
             for (int i = 0; i < saveData.spawnPoints.Length; i++)
@@ -2253,14 +2318,21 @@ public class MapEditorManager : MonoBehaviour
                     continue;
                 }
 
-                pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData(
-                    string.IsNullOrEmpty(spawnPoint.id) ? "SpawnPoint_" + (pixelChromaSpawnPoints.Count + 1) : spawnPoint.id,
+                if (loadedPrimary == null || NormalizeSpawnRole(spawnPoint.role) == "Runner")
+                {
+                    loadedPrimary = new MapEditorSpawnPointData(
+                    "RunnerSpawn",
                     Mathf.Clamp(spawnPoint.x, 0, mapWidth - 1),
                     Mathf.Clamp(spawnPoint.y, 0, mapHeight - 1),
-                    NormalizeSpawnRole(spawnPoint.role)
-                ));
+                    "Runner");
+                }
             }
         }
+
+        int sharedX = loadedPrimary != null ? loadedPrimary.x : Mathf.Clamp(saveData.spawnX, 0, mapWidth - 1);
+        int sharedY = loadedPrimary != null ? loadedPrimary.y : Mathf.Clamp(saveData.spawnY, 0, mapHeight - 1);
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("RunnerSpawn", sharedX, sharedY, "Runner"));
+        pixelChromaSpawnPoints.Add(new MapEditorSpawnPointData("SeekerSpawn", sharedX, sharedY, "Seeker"));
 
         EnsureSpawnPointList();
     }
@@ -2268,20 +2340,14 @@ public class MapEditorManager : MonoBehaviour
     private MapEditorSpawnPointData[] GetSpawnPointsForSave()
     {
         EnsureSpawnPointList();
-        MapEditorSpawnPointData[] spawnPoints = new MapEditorSpawnPointData[pixelChromaSpawnPoints.Count];
-
-        for (int i = 0; i < pixelChromaSpawnPoints.Count; i++)
+        SyncPrimarySpawnPoint();
+        int sharedX = Mathf.Clamp(pixelChromaSpawnX, 0, mapWidth - 1);
+        int sharedY = Mathf.Clamp(pixelChromaSpawnY, 0, mapHeight - 1);
+        return new[]
         {
-            MapEditorSpawnPointData spawnPoint = pixelChromaSpawnPoints[i];
-            spawnPoints[i] = new MapEditorSpawnPointData(
-                string.IsNullOrEmpty(spawnPoint.id) ? "SpawnPoint_" + (i + 1) : spawnPoint.id,
-                Mathf.Clamp(spawnPoint.x, 0, mapWidth - 1),
-                Mathf.Clamp(spawnPoint.y, 0, mapHeight - 1),
-                NormalizeSpawnRole(spawnPoint.role)
-            );
-        }
-
-        return spawnPoints;
+            new MapEditorSpawnPointData("RunnerSpawn", sharedX, sharedY, "Runner"),
+            new MapEditorSpawnPointData("SeekerSpawn", sharedX, sharedY, "Seeker")
+        };
     }
 
     private void SyncPrimarySpawnPoint()
@@ -2354,6 +2420,12 @@ public class MapEditorManager : MonoBehaviour
     public void BeginPointerDrag(GridCell cell)
     {
         if (IsPlaytestActive) return;
+        if (IsMovingPathToolActive())
+        {
+            AddMovingPathPoint(cell);
+            return;
+        }
+
         if (IsRectangleFillToolActive())
         {
             BeginRectangleFillDrag(cell);
@@ -2384,6 +2456,12 @@ public class MapEditorManager : MonoBehaviour
     public void UpdatePointerDrag(GridCell cell)
     {
         if (IsPlaytestActive) return;
+        if (IsMovingPathToolActive())
+        {
+            AddMovingPathPoint(cell);
+            return;
+        }
+
         if (IsRectangleFillToolActive())
         {
             UpdateRectangleFillDrag(cell);
@@ -2414,6 +2492,12 @@ public class MapEditorManager : MonoBehaviour
     public void EndPointerDrag(GridCell cell)
     {
         if (IsPlaytestActive) return;
+        if (IsMovingPathToolActive())
+        {
+            AddMovingPathPoint(cell);
+            return;
+        }
+
         if (rectangleFillDragStart.HasValue)
         {
             EndRectangleFillDrag(cell);
@@ -3008,6 +3092,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void RefreshLocalizedUi()
     {
+        LocalizeDefaultWorkshopMetadata();
         CreateToolToolbar();
 
         if (colorWheelWindow != null)
@@ -3098,14 +3183,6 @@ public class MapEditorManager : MonoBehaviour
 
     private void UpdateBrushCursorPreview()
     {
-        movingPathGuidePreview.UpdateCellGuides(
-            showBrushCursorPreview && !showPlayerScaleGuide,
-            gridGenerator,
-            CurrentMapData,
-            movingPathGuideCells,
-            new Color(0.1f, 0.75f, 1f, 0.16f),
-            new Color(0.05f, 0.55f, 1f, 0.95f));
-
         RectInt? areaFillPreviewRect = null;
 
         if (IsAreaFillModifierPressed() && mapEditing.TryGetAreaFillRect(hoveredCell, out RectInt rect))
@@ -3157,6 +3234,16 @@ public class MapEditorManager : MonoBehaviour
             selectionClipboard == null ? null : selectionClipboard.SelectionPreviewCells,
             linePreviewCells
         );
+
+        // Keep moving-path guides in their own topmost overlay. The selection preview
+        // remains visible underneath while the dragged path and region outline stay clear.
+        movingPathGuidePreview.UpdateCellGuides(
+            showBrushCursorPreview && !showPlayerScaleGuide,
+            gridGenerator,
+            CurrentMapData,
+            movingPathGuideCells,
+            new Color(0.1f, 0.75f, 1f, 0.24f),
+            new Color(0.05f, 0.75f, 1f, 1f));
     }
 
     public void LoadPngPalette()
@@ -3179,6 +3266,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void OpenAnimationTileEditor()
     {
+        ImportPixelChromaDefaultTilesets();
         MapEditorAnimationTileWindow.Open(this);
     }
 
@@ -3193,7 +3281,10 @@ public class MapEditorManager : MonoBehaviour
         RectInt? selected = selectionClipboard == null ? null : selectionClipboard.SelectionPreviewRect;
         if (!selected.HasValue || selected.Value.width <= 0 || selected.Value.height <= 0)
         {
-            MapEditorModalPanel.Show(this, "이동 구역 선택 필요", "선택 도구(S)로 움직일 타일 구역을 먼저 드래그하세요.", new Color(0.95f, 0.66f, 0.18f, 1f));
+            MapEditorModalPanel.Show(this,
+                MapEditorLocalization.Choose("이동 구역 선택 필요", "Moving Region Required"),
+                MapEditorLocalization.Choose("선택 도구(S)로 움직일 타일 구역을 먼저 드래그하세요.", "Use the Select tool (S) to drag the tile region that should move."),
+                new Color(0.95f, 0.66f, 0.18f, 1f));
             return;
         }
 
@@ -3201,7 +3292,7 @@ public class MapEditorManager : MonoBehaviour
         pendingMovingRegion = new MapEditorMovingRegionData
         {
             id = "MovingRegion_" + (movingRegions.Count + 1),
-            displayName = "이동 구역 " + (movingRegions.Count + 1),
+            displayName = MapEditorLocalization.Choose("이동 구역 ", "Moving Region ") + (movingRegions.Count + 1),
             canvasLayerIndex = activeCanvasIndex,
             x = region.x,
             y = region.y,
@@ -3214,9 +3305,11 @@ public class MapEditorManager : MonoBehaviour
         pendingMovingPath.Add(new Vector2Int(region.x + region.width / 2, region.y + region.height / 2));
         if (EditorToolController.Instance == null)
         {
-            pendingMovingRegion = null;
-            pendingMovingPath.Clear();
-            MapEditorModalPanel.Show(this, "이동 경로 도구 오류", "도구 컨트롤러를 찾을 수 없습니다.", new Color(0.92f, 0.3f, 0.26f, 1f));
+            ClearPendingMovingPathVisuals();
+            MapEditorModalPanel.Show(this,
+                MapEditorLocalization.Choose("이동 경로 도구 오류", "Moving Path Tool Error"),
+                MapEditorLocalization.Choose("도구 컨트롤러를 찾을 수 없습니다.", "The tool controller could not be found."),
+                new Color(0.92f, 0.3f, 0.26f, 1f));
             return;
         }
 
@@ -3236,17 +3329,27 @@ public class MapEditorManager : MonoBehaviour
         }
     }
 
+    private void LocalizeDefaultWorkshopMetadata()
+    {
+        if (string.IsNullOrWhiteSpace(workshopTitle)
+            || workshopTitle == "새 PixelChroma 맵"
+            || workshopTitle == "New PixelChroma Map")
+        {
+            workshopTitle = MapEditorLocalization.Choose("새 PixelChroma 맵", "New PixelChroma Map");
+        }
+
+        if (string.IsNullOrWhiteSpace(workshopAuthor)
+            || workshopAuthor == "작성자 미상"
+            || workshopAuthor == "Unknown Author")
+        {
+            workshopAuthor = MapEditorLocalization.Choose("작성자 미상", "Unknown Author");
+        }
+    }
+
     private void RefreshMovingPathPreview()
     {
         linePreviewCells.Clear();
-        for (int i = 1; i < pendingMovingPath.Count; i++)
-        {
-            MapEditorBrushGeometry.RasterizeLine(pendingMovingPath[i - 1], pendingMovingPath[i], point =>
-            {
-                if (!linePreviewCells.Contains(point)) linePreviewCells.Add(point);
-            });
-        }
-        UpdateBrushCursorPreview();
+        RefreshMovingPathGuides();
     }
 
     private void FinishMovingRegionPath()
@@ -3254,7 +3357,10 @@ public class MapEditorManager : MonoBehaviour
         if (pendingMovingRegion == null) return;
         if (pendingMovingPath.Count < 2)
         {
-            MapEditorModalPanel.Show(this, "이동 경로 부족", "출발점 외에 경유점을 한 곳 이상 클릭해야 합니다.", new Color(0.92f, 0.3f, 0.26f, 1f));
+            MapEditorModalPanel.Show(this,
+                MapEditorLocalization.Choose("이동 경로 부족", "Moving Path Incomplete"),
+                MapEditorLocalization.Choose("출발점 외에 경유점을 한 곳 이상 클릭해야 합니다.", "Click at least one waypoint in addition to the start point."),
+                new Color(0.92f, 0.3f, 0.26f, 1f));
             return;
         }
 
@@ -3265,10 +3371,9 @@ public class MapEditorManager : MonoBehaviour
         }
         movingRegions.Add(pendingMovingRegion.Clone());
         selectedMovingRegionIndex = movingRegions.Count - 1;
+        hiddenMovingPathGuideIndices.Add(selectedMovingRegionIndex);
         Debug.Log("이동 구역 저장 완료: " + pendingMovingRegion.displayName + " / 경유점 " + pendingMovingPath.Count + "개");
-        pendingMovingRegion = null;
-        pendingMovingPath.Clear();
-        linePreviewCells.Clear();
+        ClearPendingMovingPathVisuals();
         FocusMovingRegion(selectedMovingRegionIndex);
     }
 
@@ -3304,7 +3409,7 @@ public class MapEditorManager : MonoBehaviour
 
         string trimmedName = string.IsNullOrWhiteSpace(displayName) ? string.Empty : displayName.Trim();
         region.displayName = string.IsNullOrEmpty(trimmedName)
-            ? "이동 경로 " + (index + 1)
+            ? MapEditorLocalization.Choose("이동 경로 ", "Moving Path ") + (index + 1)
             : trimmedName;
     }
 
@@ -3389,21 +3494,52 @@ public class MapEditorManager : MonoBehaviour
     private void RefreshMovingPathGuides()
     {
         movingPathGuideCells.Clear();
-        if (movingRegions == null)
+        if (movingRegions != null)
         {
-            UpdateBrushCursorPreview();
-            return;
-        }
-
-        for (int i = 0; i < movingRegions.Count; i++)
-        {
-            if (!hiddenMovingPathGuideIndices.Contains(i))
+            for (int i = 0; i < movingRegions.Count; i++)
             {
-                AppendMovingRegionGuide(movingRegions[i]);
+                if (!hiddenMovingPathGuideIndices.Contains(i))
+                {
+                    AppendMovingRegionGuide(movingRegions[i]);
+                }
             }
         }
 
+        AppendPendingMovingPathGuide();
+
         UpdateBrushCursorPreview();
+    }
+
+    private void ClearPendingMovingPathVisuals()
+    {
+        pendingMovingRegion = null;
+        pendingMovingPath.Clear();
+        linePreviewCells.Clear();
+        RefreshMovingPathGuides();
+    }
+
+    private void AppendPendingMovingPathGuide()
+    {
+        if (pendingMovingRegion == null)
+        {
+            return;
+        }
+
+        AppendMovingRegionGuide(pendingMovingRegion);
+
+        if (pendingMovingPath.Count == 1)
+        {
+            AddMovingRegionPreviewCell(pendingMovingPath[0]);
+            return;
+        }
+
+        for (int i = 1; i < pendingMovingPath.Count; i++)
+        {
+            MapEditorBrushGeometry.RasterizeLine(
+                pendingMovingPath[i - 1],
+                pendingMovingPath[i],
+                AddMovingRegionPreviewCell);
+        }
     }
 
     private void AppendMovingRegionGuide(MapEditorMovingRegionData region)
@@ -3467,15 +3603,17 @@ public class MapEditorManager : MonoBehaviour
     public bool AddTilesetAnimation(
         string tilesetId,
         string displayName,
+        int frameGridSize,
         int[] sourceFrameTileIds,
         float framesPerSecond,
         bool loop,
         out MapEditorTilesetAnimationDefinition animation,
         out string error)
     {
-        bool success = EnsureTilesetLibrary().AddAnimation(
+        bool success = EnsureTilesetLibrary().AddGridAnimation(
             tilesetId,
             displayName,
+            frameGridSize,
             sourceFrameTileIds,
             framesPerSecond,
             loop,
@@ -3484,6 +3622,7 @@ public class MapEditorManager : MonoBehaviour
         if (success)
         {
             InvalidateSelectedAnimationPreview();
+            RefreshAnimationTileList();
         }
 
         return success;
@@ -3493,15 +3632,17 @@ public class MapEditorManager : MonoBehaviour
         string tilesetId,
         string animationId,
         string displayName,
+        int frameGridSize,
         int[] sourceFrameTileIds,
         float framesPerSecond,
         bool loop,
         out string error)
     {
-        bool success = EnsureTilesetLibrary().UpdateAnimation(
+        bool success = EnsureTilesetLibrary().UpdateGridAnimation(
             tilesetId,
             animationId,
             displayName,
+            frameGridSize,
             sourceFrameTileIds,
             framesPerSecond,
             loop,
@@ -3510,6 +3651,7 @@ public class MapEditorManager : MonoBehaviour
         {
             InvalidateSelectedAnimationPreview();
             UpdateBrushCursorPreview();
+            RefreshAnimationTileList();
         }
 
         return success;
@@ -3517,11 +3659,17 @@ public class MapEditorManager : MonoBehaviour
 
     public bool RemoveTilesetAnimation(string tilesetId, string animationId)
     {
+        bool removedSelectedBrush = IsAnimationTileBrushSelected(tilesetId, animationId);
         bool success = EnsureTilesetLibrary().RemoveAnimation(tilesetId, animationId);
         if (success)
         {
             InvalidateSelectedAnimationPreview();
+            if (removedSelectedBrush)
+            {
+                ClearSelectedImageBrush();
+            }
             UpdateBrushCursorPreview();
+            RefreshAnimationTileList();
         }
 
         return success;
@@ -3534,6 +3682,7 @@ public class MapEditorManager : MonoBehaviour
         if (imported > 0)
         {
             Debug.Log("타일셋 버튼에서 새 기본 타일셋을 선택할 수 있습니다.");
+            RefreshAnimationTileList();
         }
 
     }
@@ -3636,7 +3785,9 @@ public class MapEditorManager : MonoBehaviour
         Sprite[] frames = new Sprite[Mathf.Max(1, animation.frameCount)];
         for (int i = 0; i < frames.Length; i++)
         {
-            int frameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(tileset.atlasGridSize, animation.GetFrameTileId(i));
+            int frameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                animation.GetFrameGridSize(tileset.atlasGridSize),
+                animation.GetFrameTileId(i));
             frames[i] = GetPngTileSprite(imagePath, frameIndex, rotation, flipX, flipY);
             if (frames[i] == null)
             {
@@ -3645,6 +3796,17 @@ public class MapEditorManager : MonoBehaviour
         }
 
         return frames;
+    }
+
+    public Sprite GetPaletteTileSprite(string atlasPath, int atlasGridSize, int sourceTileId)
+    {
+        int imageIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(atlasGridSize, sourceTileId);
+        return GetPngTileSprite(atlasPath, imageIndex);
+    }
+
+    public Sprite GetPngFullImageSprite(string imagePath)
+    {
+        return GetPngTileSprite(imagePath, MapEditorPngTilesetService.FullImageTileIndex);
     }
 
     private Sprite[] GetSelectedAnimationPreviewFrames(out float framesPerSecond, out bool loop)
@@ -3737,6 +3899,89 @@ public class MapEditorManager : MonoBehaviour
     public IReadOnlyList<MapEditorTilesetDefinition> GetImportedTilesets()
     {
         return EnsureTilesetLibrary().Definitions;
+    }
+
+    public bool SelectAnimationTileBrush(string tilesetId, string animationId)
+    {
+        MapEditorTilesetDefinition tileset = EnsureTilesetLibrary().FindById(tilesetId);
+        if (tileset?.animations == null || string.IsNullOrEmpty(animationId)) return false;
+
+        MapEditorTilesetAnimationDefinition animation = null;
+        for (int i = 0; i < tileset.animations.Length; i++)
+        {
+            MapEditorTilesetAnimationDefinition candidate = tileset.animations[i];
+            if (candidate != null && string.Equals(candidate.id, animationId, System.StringComparison.Ordinal))
+            {
+                animation = candidate;
+                break;
+            }
+        }
+
+        if (animation == null) return false;
+
+        int firstFrameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+            animation.GetFrameGridSize(tileset.atlasGridSize),
+            animation.GetFrameTileId(0));
+        Sprite firstFrame = GetPngTileSprite(tileset.atlasPath, firstFrameIndex);
+        if (firstFrame == null) return false;
+
+        SelectImageBrush(firstFrame, tileset.atlasPath, firstFrameIndex);
+        return selectedImageBrush != null
+            && string.Equals(selectedImagePath, tileset.atlasPath, System.StringComparison.OrdinalIgnoreCase)
+            && MapEditorPngTilesetService.GetBaseImageIndex(selectedImageIndex) == animation.GetFrameTileId(0);
+    }
+
+    public bool IsAnimationTileBrushSelected(string tilesetId, string animationId)
+    {
+        if (selectedImageBrush == null
+            || !MapEditorTilesetLibraryService.TryGetAnimation(
+                selectedImagePath,
+                selectedImageIndex,
+                out MapEditorTilesetDefinition tileset,
+                out MapEditorTilesetAnimationDefinition animation))
+        {
+            return false;
+        }
+
+        return string.Equals(tileset.id, tilesetId, System.StringComparison.Ordinal)
+            && string.Equals(animation.id, animationId, System.StringComparison.Ordinal);
+    }
+
+    public void RequestRemoveAnimationTile(string tilesetId, string animationId)
+    {
+        MapEditorTilesetDefinition tileset = EnsureTilesetLibrary().FindById(tilesetId);
+        MapEditorTilesetAnimationDefinition animation = null;
+        if (tileset?.animations != null)
+        {
+            for (int i = 0; i < tileset.animations.Length; i++)
+            {
+                MapEditorTilesetAnimationDefinition candidate = tileset.animations[i];
+                if (candidate != null
+                    && string.Equals(candidate.id, animationId, System.StringComparison.Ordinal))
+                {
+                    animation = candidate;
+                    break;
+                }
+            }
+        }
+
+        if (animation == null) return;
+        string animationName = animation.displayName;
+        MapEditorModalPanel.ShowAction(
+            this,
+            MapEditorLocalization.Choose("애니메이션 타일 삭제", "Delete Animated Tile"),
+            MapEditorLocalization.Choose(
+                "'" + animationName + "' 애니메이션 타일을 삭제할까요?\n이 작업은 애니메이션 정의를 목록에서 제거합니다.",
+                "Delete the animated tile '" + animationName + "'?\nThis removes its animation definition from the list."),
+            new Color(0.78f, 0.2f, 0.22f, 1f),
+            MapEditorLocalization.Choose("삭제", "Delete"),
+            () =>
+            {
+                if (RemoveTilesetAnimation(tilesetId, animationId))
+                {
+                    MapEditorModalPanel.CloseCurrent();
+                }
+            });
     }
 
     public void LoadPngPalette(string path)
@@ -3882,7 +4127,7 @@ public class MapEditorManager : MonoBehaviour
 
     public void OpenSteamWorkshopPage()
     {
-        uint appId = steamAppId > 0 ? steamAppId : 480u;
+        uint appId = steamAppId > 0 ? steamAppId : 5023800u;
         string url = "steam://openurl/https://steamcommunity.com/app/" + appId + "/workshop/";
         Application.OpenURL(url);
     }
@@ -3931,14 +4176,9 @@ public class MapEditorManager : MonoBehaviour
         BindWorkshopUploader(uploader);
 
         uint appId = uploader.EffectiveAppId;
-        bool isTestUpload = appId == 480;
-        string targetDescription = isTestUpload
-            ? MapEditorLocalization.Choose(
-                "현재 테스트 App ID 480(Spacewar)에 미등록 상태로 업로드합니다. PixelChroma 전용 창작마당에 올리려면 맵 에디터의 Steam App ID를 실제 게임 App ID로 설정해야 합니다.",
-                "This uploads an unlisted item to test App ID 480 (Spacewar). Set the map editor Steam App ID to the real game App ID to publish to the PixelChroma Workshop.")
-            : MapEditorLocalization.Choose(
-                "Steam App ID " + appId + " 창작마당으로 업로드합니다.",
-                "Uploading to the Workshop for Steam App ID " + appId + ".");
+        string targetDescription = MapEditorLocalization.Choose(
+            "PixelChroma Steam 창작마당(App ID " + appId + ")으로 업로드합니다.",
+            "Uploading to the PixelChroma Steam Workshop (App ID " + appId + ").");
 
         MapEditorModalPanel.Show(
             this,
@@ -3958,16 +4198,10 @@ public class MapEditorManager : MonoBehaviour
         subscribedWorkshopUploader = uploader;
         subscribedWorkshopUploader.mapEditor = this;
 
-        if (steamAppId > 0)
-        {
-            subscribedWorkshopUploader.testAppId = steamAppId;
-            subscribedWorkshopUploader.forceUnlistedForTest = steamAppId == 480;
-        }
-        else if (subscribedWorkshopUploader.testAppId == 0)
-        {
-            subscribedWorkshopUploader.testAppId = 480;
-            subscribedWorkshopUploader.forceUnlistedForTest = true;
-        }
+        subscribedWorkshopUploader.testAppId = steamAppId > 0
+            ? steamAppId
+            : 5023800u;
+        subscribedWorkshopUploader.forceUnlistedForTest = false;
 
         subscribedWorkshopUploader.UploadSucceeded += OnWorkshopUploadSucceeded;
         subscribedWorkshopUploader.UploadFailed += OnWorkshopUploadFailed;
@@ -3992,10 +4226,8 @@ public class MapEditorManager : MonoBehaviour
             this,
             MapEditorLocalization.Choose("창작마당 업로드 완료", "Workshop Upload Complete"),
             MapEditorLocalization.Choose(
-                "Steam 전송이 완료되었습니다.\n게시물 ID: " + publishedFileId +
-                "\n\n테스트 App ID 480을 사용한 경우 PixelChroma 창작마당이 아니라 Spacewar의 미등록 게시물로 생성됩니다.",
-                "Steam upload completed.\nPublished File ID: " + publishedFileId +
-                "\n\nWhen test App ID 480 is used, the item is created as an unlisted Spacewar item, not in the PixelChroma Workshop."),
+                "PixelChroma 창작마당 전송이 완료되었습니다.\n게시물 ID: " + publishedFileId,
+                "PixelChroma Workshop upload completed.\nPublished File ID: " + publishedFileId),
             new Color(0.22f, 0.72f, 0.38f, 1f),
             MapEditorLocalization.Choose("게시물 열기", "Open Workshop Item"),
             () => Application.OpenURL(itemUrl));
@@ -4132,11 +4364,6 @@ public class MapEditorManager : MonoBehaviour
         {
             colorWheelWindow.RefreshExportCellSizeSelector();
         }
-
-        if (createToolToolbar)
-        {
-            CreateToolToolbar();
-        }
     }
 
     public int GetExportCellPixels()
@@ -4185,6 +4412,16 @@ public class MapEditorManager : MonoBehaviour
         toolbarState.RefreshRecentPngList(this, GetRecentResourcePaths());
     }
 
+    public void RefreshAnimationTileList()
+    {
+        toolbarState.RefreshAnimationTileList(this);
+    }
+
+    public void RefreshFavoriteTileList()
+    {
+        toolbarState.RefreshFavoriteTileList(this);
+    }
+
     public IReadOnlyList<string> GetRecentResourcePaths()
     {
         List<string> result = pngFiles.GetRecentPaths();
@@ -4200,7 +4437,141 @@ public class MapEditorManager : MonoBehaviour
             }
         }
 
+        string[] savedOrder = PlayerPrefs.GetString(RecentResourceOrderPrefsKey, string.Empty)
+            .Split(new[] { '|' }, System.StringSplitOptions.RemoveEmptyEntries);
+        if (savedOrder.Length > 0)
+        {
+            Dictionary<string, int> orderByPath = new Dictionary<string, int>(System.StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < savedOrder.Length; i++) orderByPath[savedOrder[i]] = i;
+            result.Sort((left, right) =>
+            {
+                int leftOrder = orderByPath.TryGetValue(left, out int leftIndex) ? leftIndex : int.MaxValue;
+                int rightOrder = orderByPath.TryGetValue(right, out int rightIndex) ? rightIndex : int.MaxValue;
+                return leftOrder == rightOrder ? 0 : leftOrder.CompareTo(rightOrder);
+            });
+        }
+
         return result;
+    }
+
+    public void ReorderRecentResource(string sourcePath, string targetPath)
+    {
+        if (string.IsNullOrEmpty(sourcePath) || string.IsNullOrEmpty(targetPath)
+            || string.Equals(sourcePath, targetPath, System.StringComparison.OrdinalIgnoreCase)) return;
+        List<string> paths = new List<string>(GetRecentResourcePaths());
+        int sourceIndex = paths.FindIndex(item => string.Equals(item, sourcePath, System.StringComparison.OrdinalIgnoreCase));
+        int targetIndex = paths.FindIndex(item => string.Equals(item, targetPath, System.StringComparison.OrdinalIgnoreCase));
+        if (sourceIndex < 0 || targetIndex < 0) return;
+        string moved = paths[sourceIndex];
+        paths.RemoveAt(sourceIndex);
+        targetIndex = paths.FindIndex(item => string.Equals(item, targetPath, System.StringComparison.OrdinalIgnoreCase));
+        paths.Insert(Mathf.Max(0, targetIndex), moved);
+        PlayerPrefs.SetString(RecentResourceOrderPrefsKey, string.Join("|", paths));
+        PlayerPrefs.Save();
+        RefreshRecentPngList();
+    }
+
+    public IReadOnlyList<MapEditorFavoriteTileData> GetFavoriteTiles()
+    {
+        return LoadFavoriteTileCatalog().items;
+    }
+
+    public void AddSelectedTileToFavorites()
+    {
+        if (selectedImageBrush == null || string.IsNullOrEmpty(selectedImagePath) || selectedImageIndex < 0) return;
+        MapEditorFavoriteTileCatalog catalog = LoadFavoriteTileCatalog();
+        int baseIndex = MapEditorPngTilesetService.GetBaseImageIndex(selectedImageIndex);
+        for (int i = 0; i < catalog.items.Count; i++)
+        {
+            MapEditorFavoriteTileData item = catalog.items[i];
+            if (string.Equals(item.imagePath, selectedImagePath, System.StringComparison.OrdinalIgnoreCase)
+                && MapEditorPngTilesetService.GetBaseImageIndex(item.imageIndex) == baseIndex
+                && item.rotation == selectedImageRotation
+                && item.flipX == selectedImageFlipX
+                && item.flipY == selectedImageFlipY) return;
+        }
+
+        string displayName = System.IO.Path.GetFileNameWithoutExtension(selectedImagePath);
+        if (MapEditorTilesetLibraryService.TryGetAnimation(
+                selectedImagePath,
+                selectedImageIndex,
+                out _,
+                out MapEditorTilesetAnimationDefinition animation))
+        {
+            displayName = animation.displayName;
+        }
+        catalog.items.Add(new MapEditorFavoriteTileData
+        {
+            id = System.Guid.NewGuid().ToString("N"),
+            displayName = displayName,
+            imagePath = selectedImagePath,
+            imageIndex = selectedImageIndex,
+            rotation = selectedImageRotation,
+            flipX = selectedImageFlipX,
+            flipY = selectedImageFlipY
+        });
+        SaveFavoriteTileCatalog(catalog);
+        RefreshFavoriteTileList();
+    }
+
+    public void SelectFavoriteTile(string favoriteId)
+    {
+        MapEditorFavoriteTileData favorite = FindFavoriteTile(favoriteId);
+        Sprite sprite = GetFavoriteTileSprite(favorite);
+        if (favorite == null || sprite == null) return;
+        SelectImageBrush(sprite, favorite.imagePath, favorite.imageIndex, favorite.rotation, favorite.flipX, favorite.flipY);
+    }
+
+    public void RemoveFavoriteTile(string favoriteId)
+    {
+        MapEditorFavoriteTileCatalog catalog = LoadFavoriteTileCatalog();
+        catalog.items.RemoveAll(item => item != null && item.id == favoriteId);
+        SaveFavoriteTileCatalog(catalog);
+        RefreshFavoriteTileList();
+    }
+
+    public Sprite GetFavoriteTileSprite(MapEditorFavoriteTileData favorite)
+    {
+        return favorite == null ? null : GetPngTileSprite(
+            favorite.imagePath,
+            favorite.imageIndex,
+            favorite.rotation,
+            favorite.flipX,
+            favorite.flipY);
+    }
+
+    public bool IsFavoriteTileSelected(MapEditorFavoriteTileData favorite)
+    {
+        return favorite != null
+            && selectedImageBrush != null
+            && string.Equals(selectedImagePath, favorite.imagePath, System.StringComparison.OrdinalIgnoreCase)
+            && selectedImageIndex == favorite.imageIndex
+            && selectedImageRotation == favorite.rotation
+            && selectedImageFlipX == favorite.flipX
+            && selectedImageFlipY == favorite.flipY;
+    }
+
+    private MapEditorFavoriteTileData FindFavoriteTile(string favoriteId)
+    {
+        return LoadFavoriteTileCatalog().items.Find(item => item != null && item.id == favoriteId);
+    }
+
+    private static MapEditorFavoriteTileCatalog LoadFavoriteTileCatalog()
+    {
+        string json = PlayerPrefs.GetString(FavoriteTilesPrefsKey, string.Empty);
+        MapEditorFavoriteTileCatalog catalog = string.IsNullOrEmpty(json)
+            ? new MapEditorFavoriteTileCatalog()
+            : JsonUtility.FromJson<MapEditorFavoriteTileCatalog>(json);
+        if (catalog == null) catalog = new MapEditorFavoriteTileCatalog();
+        if (catalog.items == null) catalog.items = new List<MapEditorFavoriteTileData>();
+        catalog.items.RemoveAll(item => item == null || string.IsNullOrEmpty(item.id) || string.IsNullOrEmpty(item.imagePath));
+        return catalog;
+    }
+
+    private static void SaveFavoriteTileCatalog(MapEditorFavoriteTileCatalog catalog)
+    {
+        PlayerPrefs.SetString(FavoriteTilesPrefsKey, JsonUtility.ToJson(catalog));
+        PlayerPrefs.Save();
     }
 
     public string GetRecentResourceDisplayName(string path)
@@ -4211,6 +4582,16 @@ public class MapEditorManager : MonoBehaviour
     public void RenameRecentResource(string path, string displayName)
     {
         pngFiles.SetRecentDisplayName(path, displayName);
+        RefreshRecentPngList();
+    }
+
+    public void RemoveRecentResource(string path)
+    {
+        if (string.IsNullOrEmpty(path)) return;
+        List<string> paths = pngFiles.GetRecentPaths();
+        paths.RemoveAll(item => string.Equals(item, path, System.StringComparison.OrdinalIgnoreCase));
+        PlayerPrefs.SetString("MapEditor.RecentPngFiles", string.Join("|", paths));
+        PlayerPrefs.Save();
         RefreshRecentPngList();
     }
 

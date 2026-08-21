@@ -397,23 +397,36 @@ public static class MapEditorExportSmokeTest
             && disconnectedReport.errors.Exists(message => message.Contains("도달할 수 없는 바닥")),
             "Validation accepted a disconnected playable area.");
 
-        MapData duplicateSpawnMap = CreateValidationArena(true, false);
-        MapEditorSpawnPointData[] duplicateSpawns =
+        MapData sharedSpawnMap = CreateValidationArena(true, false);
+        MapEditorSpawnPointData[] sharedSpawns =
         {
             new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner"),
             new MapEditorSpawnPointData("SeekerSpawn", 1, 1, "Seeker")
         };
-        PixelChromaMapValidationReport duplicateSpawnReport = MapEditorPixelChromaValidationService.Validate(duplicateSpawnMap, 1, 1, duplicateSpawns);
-        Require(!duplicateSpawnReport.isValid
-            && duplicateSpawnReport.errors.Exists(message => message.Contains("겹칩니다")),
-            "Validation accepted duplicate start positions.");
+        PixelChromaMapValidationReport sharedSpawnReport = MapEditorPixelChromaValidationService.Validate(
+            sharedSpawnMap, 1, 1, sharedSpawns);
+        Require(sharedSpawnReport.isValid
+            && !sharedSpawnReport.errors.Exists(message => message.Contains("겹칩니다")),
+            "Validation rejected the required shared Runner/Seeker spawn position.");
+
+        MapEditorSpawnPointData[] duplicateRoleSpawns =
+        {
+            new MapEditorSpawnPointData("RunnerSpawnA", 1, 1, "Runner"),
+            new MapEditorSpawnPointData("RunnerSpawnB", 1, 1, "Runner"),
+            new MapEditorSpawnPointData("SeekerSpawn", 1, 1, "Seeker")
+        };
+        PixelChromaMapValidationReport duplicateRoleReport = MapEditorPixelChromaValidationService.Validate(
+            sharedSpawnMap, 1, 1, duplicateRoleSpawns);
+        Require(!duplicateRoleReport.isValid
+            && duplicateRoleReport.errors.Exists(message => message.Contains("겹칩니다")),
+            "Validation accepted duplicate start positions for the same role.");
 
         MapEditorSpawnPointData[] runnerOnlySpawns =
         {
             new MapEditorSpawnPointData("RunnerSpawn", 1, 1, "Runner")
         };
         PixelChromaMapValidationReport missingSeekerReport = MapEditorPixelChromaValidationService.Validate(
-            duplicateSpawnMap, 1, 1, runnerOnlySpawns);
+            sharedSpawnMap, 1, 1, runnerOnlySpawns);
         Require(!missingSeekerReport.isValid
             && missingSeekerReport.errors.Exists(message => message.Contains("술래 시작 위치가 없습니다")),
             "Validation accepted a map without a Seeker spawn point.");

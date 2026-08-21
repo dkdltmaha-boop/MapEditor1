@@ -435,7 +435,9 @@ public sealed class MapEditorCellRenderService
 
         for (int i = 0; i < frameCount; i++)
         {
-            int frameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(tileset.atlasGridSize, animation.GetFrameTileId(i));
+            int frameIndex = MapEditorPngTilesetService.EncodePaletteTileIndex(
+                animation.GetFrameGridSize(tileset.atlasGridSize),
+                animation.GetFrameTileId(i));
             frames[i] = getPngTileSprite(imagePath, frameIndex, rotation, flipX, flipY);
 
             if (frames[i] == null)
@@ -455,7 +457,7 @@ public sealed class MapEditorCellRenderService
     {
         unchecked
         {
-            int hash = tileset == null ? 0 : tileset.atlasGridSize;
+            int hash = tileset == null ? 0 : animation.GetFrameGridSize(tileset.atlasGridSize);
             hash = hash * 397 ^ frameCount;
             for (int i = 0; i < frameCount; i++)
             {

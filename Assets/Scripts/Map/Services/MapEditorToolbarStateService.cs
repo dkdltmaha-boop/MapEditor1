@@ -15,6 +15,8 @@ public sealed class MapEditorToolbarStateService
     private Text brushPreviewText;
     private Text validationStatusText;
     private Transform recentPngListRoot;
+    private Transform favoriteTileListRoot;
+    private Transform animationTileListRoot;
     private Image runnerSpawnButtonImage;
     private Image seekerSpawnButtonImage;
 
@@ -36,6 +38,8 @@ public sealed class MapEditorToolbarStateService
         brushPreviewText = toolbarRefs.brushPreviewText;
         validationStatusText = toolbarRefs.validationStatusText;
         recentPngListRoot = toolbarRefs.recentPngListRoot;
+        favoriteTileListRoot = toolbarRefs.favoriteTileListRoot;
+        animationTileListRoot = toolbarRefs.animationTileListRoot;
         runnerSpawnButtonImage = toolbarRefs.runnerSpawnButtonImage;
         seekerSpawnButtonImage = toolbarRefs.seekerSpawnButtonImage;
 
@@ -51,6 +55,16 @@ public sealed class MapEditorToolbarStateService
     public void RefreshRecentPngList(MapEditorManager manager, IReadOnlyList<string> recentPngPaths)
     {
         MapEditorSceneUiBuilder.RefreshRecentPngList(recentPngListRoot, manager, recentPngPaths);
+    }
+
+    public void RefreshAnimationTileList(MapEditorManager manager)
+    {
+        MapEditorSceneUiBuilder.RefreshAnimationTileList(animationTileListRoot, manager);
+    }
+
+    public void RefreshFavoriteTileList(MapEditorManager manager)
+    {
+        MapEditorSceneUiBuilder.RefreshFavoriteTileList(favoriteTileListRoot, manager);
     }
 
     public void RefreshToolSelection()
@@ -127,14 +141,21 @@ public sealed class MapEditorToolbarStateService
                 previewFlipX ? -1f : 1f,
                 previewFlipY ? -1f : 1f,
                 1f);
-            brushPreviewText.text = (useWallTileBrush ? "벽 이미지" : "이미지") + " R" + selectedImageRotation + "\n크기 " + brushSize;
+            brushPreviewText.text = (useWallTileBrush
+                    ? MapEditorLocalization.Choose("벽 이미지", "Wall Image")
+                    : MapEditorLocalization.Choose("이미지", "Image"))
+                + " R" + selectedImageRotation
+                + "\n" + MapEditorLocalization.Choose("크기 ", "Size ") + brushSize;
             return;
         }
 
         brushPreviewImage.sprite = null;
         brushPreviewImage.color = selectedColor;
         ResetPreviewTransform(brushPreviewImage);
-        brushPreviewText.text = (useWallTileBrush ? "벽" : "색상") + "\n크기 " + brushSize;
+        brushPreviewText.text = (useWallTileBrush
+                ? MapEditorLocalization.Choose("벽", "Wall")
+                : MapEditorLocalization.Choose("색상", "Color"))
+            + "\n" + MapEditorLocalization.Choose("크기 ", "Size ") + brushSize;
     }
 
     public void UpdateValidationStatus(PixelChromaMapValidationReport report)
@@ -145,8 +166,11 @@ public sealed class MapEditorToolbarStateService
         }
 
         validationStatusText.text =
-            (report.isValid ? "검사 합격" : "검사 불합격") +
-            "\n실패 " + report.errors.Count + " / 경고 " + report.warnings.Count;
+            (report.isValid
+                ? MapEditorLocalization.Choose("검사 합격", "Validation Passed")
+                : MapEditorLocalization.Choose("검사 불합격", "Validation Failed")) +
+            "\n" + MapEditorLocalization.Choose("실패 ", "Errors ") + report.errors.Count +
+            " / " + MapEditorLocalization.Choose("경고 ", "Warnings ") + report.warnings.Count;
         validationStatusText.color = report.isValid
             ? new Color(0.5f, 1f, 0.5f, 1f)
             : new Color(1f, 0.35f, 0.3f, 1f);

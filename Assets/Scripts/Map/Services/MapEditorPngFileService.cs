@@ -52,7 +52,9 @@ public sealed class MapEditorPngFileService
         Vector2 colorPaletteOffset,
         int maxRecentFiles)
     {
-        string path = MapEditorFileDialog.OpenFile("PNG 팔레트 불러오기", "png");
+        string path = MapEditorFileDialog.OpenFile(
+            MapEditorLocalization.Choose("PNG 팔레트 불러오기", "Load PNG Palette"),
+            "png");
 
         if (string.IsNullOrEmpty(path))
         {

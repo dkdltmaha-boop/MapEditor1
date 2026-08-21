@@ -14,6 +14,11 @@ public static class MapEditorMapInfoPanelBuilder
             ? new GameObject(PanelName, typeof(RectTransform), typeof(Image), typeof(MapEditorMapInfoPanel))
             : existing.gameObject;
         if (existing == null) panel.transform.SetParent(canvas, false);
+
+        Image panelImage = panel.GetComponent<Image>();
+        if (panelImage == null) panelImage = panel.AddComponent<Image>();
+        MapEditorMapInfoPanel infoPanel = panel.GetComponent<MapEditorMapInfoPanel>();
+        if (infoPanel == null) infoPanel = panel.AddComponent<MapEditorMapInfoPanel>();
         Configure(panel.transform);
 
         Transform textTransform = panel.transform.Find("Stats");
@@ -24,7 +29,11 @@ public static class MapEditorMapInfoPanelBuilder
             textObject.transform.SetParent(panel.transform, false);
             text = textObject.GetComponent<Text>();
         }
-        else text = textTransform.GetComponent<Text>();
+        else
+        {
+            text = textTransform.GetComponent<Text>();
+            if (text == null) text = textTransform.gameObject.AddComponent<Text>();
+        }
 
         RectTransform textRect = text.rectTransform;
         textRect.anchorMin = Vector2.zero;
@@ -36,7 +45,7 @@ public static class MapEditorMapInfoPanelBuilder
         text.color = Color.white;
         text.alignment = TextAnchor.MiddleCenter;
         text.raycastTarget = false;
-        panel.GetComponent<MapEditorMapInfoPanel>().Configure(manager, text);
+        infoPanel.Configure(manager, text);
     }
 
     public static void RefreshLayout(Transform canvas)
@@ -56,85 +65,8 @@ public static class MapEditorMapInfoPanelBuilder
         float width = parent == null ? 760f : Mathf.Clamp(parent.rect.width - 430f, 420f, 920f);
         rect.sizeDelta = new Vector2(width, 34f);
         Image image = panel.GetComponent<Image>();
+        if (image == null) image = panel.gameObject.AddComponent<Image>();
         image.color = new Color(0.09f, 0.09f, 0.09f, 0.94f);
         image.raycastTarget = false;
-    }
-}
-
-public sealed class MapEditorMapInfoPanel : MonoBehaviour
-{
-    private MapEditorManager manager;
-    private Text label;
-    private float nextRefreshTime;
-    private bool[] filledCells = System.Array.Empty<bool>();
-
-    public void Configure(MapEditorManager target, Text text)
-    {
-        manager = target;
-        label = text;
-        Refresh();
-    }
-
-    private void Update()
-    {
-        if (Time.unscaledTime < nextRefreshTime) return;
-        nextRefreshTime = Time.unscaledTime + 0.5f;
-        Refresh();
-    }
-
-    private void Refresh()
-    {
-        MapData map = manager == null ? null : manager.CurrentMapData;
-        if (label == null || map == null) return;
-
-        int ground = 0;
-        int objects = 0;
-        int wallVisual = 0;
-        int collision = 0;
-        int usedLayers = 0;
-        int cellCount = map.width * map.height;
-        if (filledCells.Length != cellCount) filledCells = new bool[cellCount];
-        else System.Array.Clear(filledCells, 0, filledCells.Length);
-
-        for (int canvasIndex = 0; canvasIndex < MapEditorLayerUtility.CanvasLayerCount; canvasIndex++)
-        {
-            if (!manager.IsCanvasEnabled(canvasIndex)) continue;
-            ground += CountLayer(map, MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Ground), filledCells, ref usedLayers);
-            objects += CountLayer(map, MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.Object), filledCells, ref usedLayers);
-            wallVisual += CountLayer(map, MapEditorLayerUtility.GetCanvasLayer(canvasIndex, MapEditorLayerType.WallVisual), filledCells, ref usedLayers);
-        }
-        collision = CountLayer(map, MapEditorLayerType.WallCollision, filledCells, ref usedLayers);
-
-        int filled = 0;
-        for (int i = 0; i < filledCells.Length; i++) if (filledCells[i]) filled++;
-        float ratio = filledCells.Length == 0 ? 0f : filled * 100f / filledCells.Length;
-
-        StringBuilder text = new StringBuilder(180);
-        text.Append("Ground ").Append(ground)
-            .Append("  |  Object ").Append(objects)
-            .Append("  |  Wall Visual ").Append(wallVisual)
-            .Append("  |  Collision ").Append(collision)
-            .Append("  |  Spawn ").Append(manager.SpawnPointCount)
-            .Append("  |  Layers ").Append(usedLayers)
-            .Append("  |  Size ").Append(map.width).Append('×').Append(map.height)
-            .Append("  |  Filled ").Append(ratio.ToString("0.0")).Append('%');
-        label.text = text.ToString();
-    }
-
-    private static int CountLayer(MapData map, MapEditorLayerType layerType, bool[] filledCells, ref int usedLayers)
-    {
-        int layerIndex = (int)layerType;
-        if (map.layerTiles == null || layerIndex < 0 || layerIndex >= map.layerTiles.Length) return 0;
-        MapLayerTileData layer = map.layerTiles[layerIndex];
-        if (layer?.tiles == null) return 0;
-        int count = 0;
-        for (int i = 0; i < layer.tiles.Length; i++)
-        {
-            if (layer.tiles[i] == -1) continue;
-            count++;
-            if (i < filledCells.Length) filledCells[i] = true;
-        }
-        if (count > 0) usedLayers++;
-        return count;
     }
 }

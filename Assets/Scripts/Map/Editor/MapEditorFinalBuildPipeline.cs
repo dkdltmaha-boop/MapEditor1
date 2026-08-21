@@ -24,6 +24,18 @@ public static class MapEditorFinalBuildPipeline
         BuildWindowsPlayer();
     }
 
+    [MenuItem("Tools/MapEditor/Run Safe Windows Build Test")]
+    public static void RunBuildTestBatchMode()
+    {
+        RunRegressionTests();
+        BuildWindowsTestPlayer();
+    }
+
+    public static void RunPlayerBuildTestOnly()
+    {
+        BuildWindowsTestPlayer();
+    }
+
     private static void RunRegressionTests()
     {
         MapEditorExportSmokeTest.RunBatchMode();
@@ -73,6 +85,44 @@ public static class MapEditorFinalBuildPipeline
         DeleteDirectory(finalBuildPath);
         Directory.Move(stagingBuildPath, finalBuildPath);
         Debug.Log($"MapEditor final Windows build completed: {finalBuildPath}");
+    }
+
+    private static void BuildWindowsTestPlayer()
+    {
+        string projectRoot = Path.GetFullPath(Path.Combine(Application.dataPath, ".."));
+        string buildRoot = GetChildPath(projectRoot, BuildRootFolder);
+        string testBuildPath = GetChildPath(buildRoot, "Windows_Test");
+
+        Directory.CreateDirectory(buildRoot);
+        DeleteDirectory(testBuildPath);
+        Directory.CreateDirectory(testBuildPath);
+
+        string[] scenes = EditorBuildSettings.scenes
+            .Where(scene => scene.enabled && !string.IsNullOrWhiteSpace(scene.path))
+            .Select(scene => scene.path)
+            .ToArray();
+        if (scenes.Length == 0)
+        {
+            throw new InvalidOperationException("No enabled scenes are configured in Build Settings.");
+        }
+
+        BuildPlayerOptions options = new BuildPlayerOptions
+        {
+            scenes = scenes,
+            locationPathName = Path.Combine(testBuildPath, "MapEditor.exe"),
+            target = BuildTarget.StandaloneWindows64,
+            options = BuildOptions.Development
+        };
+
+        BuildReport report = BuildPipeline.BuildPlayer(options);
+        if (report.summary.result != BuildResult.Succeeded)
+        {
+            throw new InvalidOperationException(
+                $"Windows test build failed: {report.summary.result}, {report.summary.totalErrors} error(s).");
+        }
+
+        CopySteamAppId(projectRoot, testBuildPath);
+        Debug.Log($"MapEditor Windows test build completed: {testBuildPath}");
     }
 
     private static void CopySteamAppId(string projectRoot, string buildPath)

@@ -178,12 +178,17 @@ public sealed class ColorWheelPngPaletteView
         }
 
         paletteLabel.text = MapEditorTilesetLibraryService.TryGetByAtlasPath(sourcePath, out MapEditorTilesetDefinition tileset)
-            ? "타일셋: " + tileset.displayName + " (" + tileset.tileWidth + "x" + tileset.tileHeight + "px)"
-            : "팔레트 " + paletteGridSize + "x" + paletteGridSize;
+            ? MapEditorLocalization.Choose("타일셋: ", "Tileset: ") + tileset.displayName + " (" + tileset.tileWidth + "x" + tileset.tileHeight + "px)"
+            : MapEditorLocalization.Choose("팔레트 ", "Palette ") + paletteGridSize + "x" + paletteGridSize;
         paletteLabel.font = MapEditorFontProvider.Default;
         paletteLabel.fontSize = 13;
         paletteLabel.alignment = TextAnchor.MiddleLeft;
         paletteLabel.color = Color.white;
+    }
+
+    public void RefreshLocalizedText()
+    {
+        ConfigurePaletteLabel();
     }
 
     private void CreateGridSizeSelector(Transform parent)
